@@ -1,0 +1,101 @@
+[Eth]
+SyncMode = "snap"
+DisablePeerTxBroadcast = false
+EthDiscoveryURLs = []
+SnapDiscoveryURLs = []
+TrustDiscoveryURLs = []
+NoPruning = false
+NoPrefetch = false
+DirectBroadcast = false
+DisableSnapProtocol = false
+DisableDiffProtocol = false
+EnableTrustProtocol = false
+DiffSync = false
+RangeLimit = false
+TxLookupLimit = 2350000
+LightPeers = 100
+UltraLightFraction = 75
+DatabaseCache = 512
+DatabaseFreezer = ""
+DatabaseDiff = ""
+TrieCleanCache = 154
+TrieCleanCacheJournal = "triecache"
+TrieCleanCacheRejournal = 3600000000000
+TrieDirtyCache = 256
+TrieTimeout = 3600000000000
+SnapshotCache = 102
+TriesInMemory = 128
+TriesVerifyMode = "local"
+Preimages = false
+PersistDiff = false
+DiffBlock = 86400
+PruneAncientData = false
+EnablePreimageRecording = false
+EWASMInterpreter = ""
+EVMInterpreter = ""
+RPCGasCap = 50000000
+RPCEVMTimeout = 5000000000
+RPCTxFeeCap = 1e+00
+
+[Eth.Miner]
+DelayLeftOver = 50000000
+GasFloor = 0
+GasCeil = 8000000
+GasPrice = 1000000000
+Recommit = 3000000000
+Noverify = false
+
+[Eth.Ethash]
+CacheDir = "ethash"
+CachesInMem = 2
+CachesOnDisk = 3
+CachesLockMmap = false
+DatasetDir = ""
+DatasetsInMem = 1
+DatasetsOnDisk = 2
+DatasetsLockMmap = false
+PowMode = 2
+NotifyFull = false
+
+[Eth.TxPool]
+Locals = []
+NoLocals = false
+Journal = "transactions.rlp"
+Rejournal = 3600000000000
+PriceLimit = 1
+PriceBump = 10
+AccountSlots = 16
+GlobalSlots = 5120
+AccountQueue = 64
+GlobalQueue = 1024
+Lifetime = 10800000000000
+ReannounceTime = 315360000000000000
+
+[Eth.GPO]
+Blocks = 20
+Percentile = 60
+MaxHeaderHistory = 0
+MaxBlockHistory = 0
+MaxPrice = 100000000000
+IgnorePrice = 4
+OracleThreshold = 1000
+
+[Node]
+IPCPath = "geth.ipc"
+HTTPHost = "127.0.0.1"
+HTTPVirtualHosts = ["localhost"]
+HTTPModules = ["personal", "eth", "net", "web3", "admin", "txpool", "miner"]
+GraphQLVirtualHosts = ["localhost"]
+
+[Node.P2P]
+MaxPeers = 50
+NoDiscovery = false
+StaticNodes = []
+VerifyNodes = []
+TrustedNodes = []
+EnableMsgEvents = false
+
+[Node.HTTPTimeouts]
+ReadTimeout = 30000000000
+WriteTimeout = 30000000000
+IdleTimeout = 120000000000

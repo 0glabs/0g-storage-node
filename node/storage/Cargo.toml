@@ -1,0 +1,41 @@
+[package]
+name = "storage"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "=1.0.58", features = ["backtrace"] }
+append_merkle = {path = "../../common/append_merkle"}
+zgs_spec = {path = "../../common/spec"}
+zgs_seal = {path = "../../common/zgs_seal"}
+eth2_ssz = "0.4.0"
+eth2_ssz_derive = "0.3.0"
+ethereum-types = "0.14"
+hex = "0.4.3"
+kvdb = "0.13.0"
+kvdb-memorydb = "0.13.0"
+kvdb-rocksdb = "0.19.0"
+#merkle_light = {git = "https://github.com/sitano/merkle_light.git", rev = "fe31d4e" }
+merkle_light = { path = "../../common/merkle_light" }
+merkle_tree = { path = "../../common/merkle_tree"}
+rayon = "1.5.3"
+shared_types = { path = "../shared_types" }
+tracing = "0.1.35"
+typenum = "1.15.0"
+bitmaps = "^3.2"
+static_assertions = "1.1"
+tiny-keccak = "*"
+itertools = "0.10.5"
+
+[dev-dependencies]
+tempdir = "0.3.7"
+rand = "0.8.5"
+hex-literal = "0.3.4"
+criterion = "0.4"
+
+[[bench]]
+name = "benchmark"
+harness = false
+
+[profile.bench]
+debug = true

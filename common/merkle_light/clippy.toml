@@ -1,0 +1,3 @@
+disallowed-names = [
+    "unreadable_literal"
+]

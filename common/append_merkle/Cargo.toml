@@ -1,0 +1,14 @@
+[package]
+name = "append_merkle"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "=1.0.58", features = ["backtrace"] }
+ethereum-types = "0.14"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+eth2_ssz = "0.4.0"
+eth2_ssz_derive = "0.3.0"
+serde = { version = "1.0.137", features = ["derive"] }
+lazy_static = "1.4.0"
+tracing = "0.1.36"

@@ -1,0 +1,32 @@
+[workspace]
+
+members = [
+    "common/channel",
+    "common/directory",
+    "common/hashset_delay",
+    "common/lighthouse_metrics",
+    "common/merkle_tree",
+    "common/task_executor",
+    "common/zgs_version",
+    "common/unused_port",
+    "common/append_merkle",
+
+    "node",
+    "node/chunk_pool",
+    "node/file_location_cache",
+    "node/log_entry_sync",
+    "node/miner",
+    "node/network",
+    "node/router",
+    "node/rpc",
+    "node/shared_types",
+    "node/storage",
+    "node/storage-async",
+    "node/sync",
+]
+resolver = "2"
+
+[patch.crates-io]
+discv5 = { path = "version-meld/discv5" }
+eth2_ssz = { path = "version-meld/eth2_ssz" }
+enr = { path = "version-meld/enr" }

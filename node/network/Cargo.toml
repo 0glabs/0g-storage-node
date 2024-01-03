@@ -1,0 +1,55 @@
+[package]
+name = "network"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+directory = { path = "../../common/directory" }
+dirs = "4.0.0"
+discv5 = { version = "0.1.0-beta.13", features = ["libp2p"] }
+error-chain = "0.12.4"
+eth2_ssz = "0.4.0"
+eth2_ssz_derive = "0.3.0"
+eth2_ssz_types = "0.2.1"
+ethereum-types = "0.14"
+fnv = "1.0.7"
+futures = "0.3.21"
+hashset_delay = { path = "../../common/hashset_delay" }
+hex = "0.4.3"
+zgs_version = { path = "../../common/zgs_version" }
+lazy_static = "1.4.0"
+lighthouse_metrics = { path = "../../common/lighthouse_metrics" }
+lru = "0.7.7"
+parking_lot = "0.12.1"
+prometheus-client = "0.16.0"
+rand = "0.8.5"
+regex = "1.5.6"
+serde = { version = "1.0.137", features = ["derive"] }
+serde_derive = "1.0.137"
+sha2 = "0.10.2"
+shared_types = { path = "../shared_types" }
+smallvec = "1.8.0"
+snap = "1.0.5"
+strum = { version = "0.24.1", features = ["derive"] }
+task_executor = { path = "../../common/task_executor" }
+tiny-keccak = "2.0.2"
+tokio = { version = "1.19.2", features = ["time", "macros"] }
+tokio-io-timeout = "1.2.0"
+tokio-util = { version = "0.6.10", features = ["codec", "compat", "time"] }
+tracing = "0.1.35"
+unsigned-varint = { version = "0.7.1", features = ["codec"] }
+if-addrs = "0.10.1"
+slog = "2.7.0"
+igd = "0.12.1"
+
+[dependencies.libp2p]
+version = "0.45.1"
+default-features = false
+features = ["websocket", "identify", "mplex", "yamux", "noise", "gossipsub", "dns-tokio", "tcp-tokio", "plaintext", "secp256k1"]
+
+[dev-dependencies]
+exit-future = "0.2.0"
+tempfile = "3.3.0"
+tracing-test = "0.2.2"
+unused_port = { path = "../../common/unused_port" }
+void = "1.0.2"

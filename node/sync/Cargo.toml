@@ -1,0 +1,30 @@
+[package]
+name = "sync"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1.0.58", features = ["backtrace"] }
+append_merkle = { path = "../../common/append_merkle" }
+channel = { path = "../../common/channel" }
+file_location_cache = { path = "../file_location_cache" }
+log_entry_sync = { path = "../log_entry_sync" }
+network = { path = "../network" }
+rand = "0.8.5"
+shared_types = { path = "../shared_types" }
+storage = { path = "../storage" }
+storage-async = { path = "../storage-async" }
+task_executor = { path = "../../common/task_executor" }
+tokio = { version = "1.19.2", features = ["full"] }
+tracing = "0.1.35"
+eth2_ssz = "0.4.0"
+serde = { version = "1.0.137", features = ["derive"] }
+duration-str = "0.5.1"
+
+[dev-dependencies]
+merkle_light = { path = "../../common/merkle_light" }
+
+[dependencies.libp2p]
+version = "0.45.1"
+default-features = false
+features = ["websocket", "identify", "mplex", "yamux", "noise", "gossipsub", "dns-tokio", "tcp-tokio", "plaintext", "secp256k1"]

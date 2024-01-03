@@ -1,0 +1,32 @@
+network_dir = "network"
+network_listen_address = "0.0.0.0"
+# network_enr_address = ""
+# network_enr_tcp_port = 1234
+# network_enr_udp_port = 1234
+network_libp2p_port = 1234
+network_discovery_port = 1234
+network_target_peers = 3
+network_boot_nodes = ["/ip4/141.148.134.20/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79J32pTJLKGcpjRMb4Qb8xxKkyuG1","/ip4/129.146.156.125/udp/1234/p2p/16Uiu2HAm93Hd5azfhkGBbkx1zero3nYHvfjQYM2NtiW4R3r5bE2g"]
+network_libp2p_nodes = []
+network_private = false
+network_disable_discovery = false
+
+db_dir = "db"
+
+rpc_enabled = true
+rpc_listen_address = "0.0.0.0:5678"
+
+log_config_file = "log_config"
+
+blockchain_rpc_endpoint = "https://evmtestnet.confluxrpc.com"
+
+log_contract_address = "0xcb7afff6f048ec1fb033aa7b495ed0dd932c8656"
+mine_contract_address = "0x0d0d21020d04621479489f9ebde9a0373efbb838"
+
+log_sync_start_block_number = 134253180
+log_page_size = 999
+
+# [sync]
+# auto_sync_disabled = false
+# max_sync_files = 8
+# find_peer_timeout = "30s"

@@ -1,0 +1,15 @@
+[package]
+name = "chunk_pool"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "=1.0.58", features = ["backtrace"] }
+shared_types = { path = "../shared_types" }
+storage-async = { path = "../storage-async" }
+log_entry_sync = { path = "../log_entry_sync" }
+network = { path = "../network" }
+tokio = { version = "1.19.2", features = ["sync"] }
+async-lock = "2.5.0"
+hashlink = "0.8.0"
+tracing = "0.1.35"

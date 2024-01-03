@@ -1,0 +1,42 @@
+[package]
+name = "zgs_node"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+anyhow = { version = "=1.0.58", features = ["backtrace"] }
+clap = { version = "3.2.5", features = ["cargo"] }
+ctrlc = "3.2.2"
+error-chain = "0.12.4"
+ethereum-types = "0.14"
+exit-future = "0.2.0"
+futures = "0.3.21"
+file_location_cache = { path = "file_location_cache" }
+zgs_version = { path = "../common/zgs_version" }
+log_entry_sync = { path = "./log_entry_sync" }
+miner = { path = "./miner" }
+network = { path = "./network" }
+router = { path = "./router" }
+rpc = { path = "./rpc" }
+shared_types = { path = "./shared_types" }
+storage = { path = "./storage" }
+storage-async = { path = "./storage-async" }
+sync = { path = "./sync" }
+task_executor = { path = "../common/task_executor" }
+tokio = { version = "1.19.2", features = ["full"] }
+tokio-stream = { version = "0.1.9", features = ["sync"] }
+toml = "0.5.9"
+tracing = "0.1.35"
+tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
+tracing-appender = { version = "0.2.2" }
+chunk_pool = { path = "./chunk_pool" }
+itertools = "0.10.5"
+serde = { version = "1.0.137", features = ["derive"] }
+duration-str = "0.5.1"
+config = "0.13.1"
+
+[dependencies.libp2p]
+version = "0.45.1"
+default-features = true
+features = ["websocket", "identify", "mplex", "yamux", "noise", "gossipsub", "dns-tokio", "tcp-tokio", "plaintext", "secp256k1"]

@@ -1,0 +1,29 @@
+[package]
+name = "rpc"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+append_merkle = { path = "../../common/append_merkle" }
+miner = {path = "../miner"}
+futures = "0.3.21"
+jsonrpsee = { version = "0.14.0", features = ["full"] }
+network = { path = "../network" }
+serde = { version = "1.0.137", features = ["derive"] }
+base64 = "0.13.0"
+shared_types = { path = "../shared_types" }
+sync = { path = "../sync" }
+task_executor = { path = "../../common/task_executor" }
+tokio = { version = "1.19.2", features = ["macros", "sync"] }
+tracing = "0.1.35"
+chunk_pool = { path = "../chunk_pool" }
+storage = { path = "../storage" }
+storage-async = { path = "../storage-async" }
+merkle_light = { path = "../../common/merkle_light" }
+merkle_tree = { path = "../../common/merkle_tree"}
+futures-channel = "^0.3"
+
+[dev-dependencies]
+serde_json = "1.0.82"

@@ -1,0 +1,53 @@
+name: code-coverage
+
+on:
+  push:
+    branches: [ "main"]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  unittest-cov:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Cargo cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install 1.71.0 toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: 1.71.0
+        override: true
+
+    - name: Run unittest
+      run: cargo test --all-features --no-fail-fast
+      env:
+        CARGO_INCREMENTAL: '0'
+        RUSTC_BOOTSTRAP: '1'
+        RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Copt-level=0 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests'
+        RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Copt-level=0 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests'
+
+    - id: coverage
+      uses: actions-rs/grcov@v0.1
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ${{ steps.coverage.outputs.report }}
+        fail_ci_if_error: true

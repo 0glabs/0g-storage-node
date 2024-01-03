@@ -1,0 +1,13 @@
+[package]
+name = "file_location_cache"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hashlink = "0.8.0"
+network = { path = "../network" }
+parking_lot = "0.12.1"
+rand = "0.8.5"
+tracing = "0.1.35"
+priority-queue = "1.2.3"
+shared_types = { path = "../shared_types" }

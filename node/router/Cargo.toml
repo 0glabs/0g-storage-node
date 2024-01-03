@@ -1,0 +1,24 @@
+[package]
+name = "router"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4.19"
+error-chain = "0.12.4"
+futures = "0.3.21"
+file_location_cache = { path = "../file_location_cache" }
+lazy_static = "1.4.0"
+miner = { path = "../miner" }
+network = { path = "../network" }
+shared_types = { path = "../shared_types" }
+storage = { path = "../storage" }
+storage-async = { path = "../storage-async" }
+sync = { path = "../sync" }
+task_executor = { path = "../../common/task_executor" }
+tokio = { version = "1.19.2", features = ["full"] }
+tracing = "0.1.35"
+rand = "0.8.5"
+
+[dev-dependencies]
+channel = { path = "../../common/channel" }

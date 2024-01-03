@@ -1,0 +1,22 @@
+[package]
+name = "miner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+network = { path = "../network" }
+storage = { path = "../storage" }
+zgs_spec = { path = "../../common/spec" }
+zgs_seal = { path = "../../common/zgs_seal" }
+task_executor = { path = "../../common/task_executor" }
+contract-interface = { path = "../../common/contract-interface" }
+ethereum-types = "0.14"
+tokio = { version = "1.19.2", features = ["full"] }
+tracing = "0.1.35"
+blake2 = "0.10"
+tiny-keccak = {version="2.0",features = ["keccak"]}
+rand = "^0.8"
+ethers = "^2"
+lazy_static = "1.4"
+async-trait = "0.1.56"
+shared_types = { path = "../shared_types" }

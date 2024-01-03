@@ -1,0 +1,24 @@
+[package]
+name = "log_entry_sync"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { version = "=1.0.58", features = ["backtrace"] }
+append_merkle = { path = "../../common/append_merkle" }
+async-trait = "0.1.56"
+ethereum-types = "0.14"
+futures = "0.3.21"
+jsonrpsee = { version = "0.14.0", features = ["full"] }
+shared_types = { path = "../shared_types" }
+task_executor = { path = "../../common/task_executor" }
+tokio = "1.19.2"
+ethers = { version = "^2", features = ["ws"] }
+serde_json = "1.0.82"
+storage = { path = "../storage" }
+contract-interface = { path = "../../common/contract-interface" }
+futures-core = "0.3.28"
+futures-util = "0.3.28"
+thiserror = "1.0.44"
