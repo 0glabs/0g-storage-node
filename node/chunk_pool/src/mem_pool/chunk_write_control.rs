@@ -41,14 +41,14 @@ impl CtrlWindow {
     fn start_writing(&mut self, index: usize) -> Result<()> {
         assert!(index >= self.left_boundary);
 
-        if index >= self.left_boundary + self.size {
-            bail!(
-                "index exceeds window limit, index = {}, left_boundary = {}, window_size = {}",
-                index,
-                self.left_boundary,
-                self.size
-            );
-        }
+        // if index >= self.left_boundary + self.size {
+        //     bail!(
+        //         "index exceeds window limit, index = {}, left_boundary = {}, window_size = {}",
+        //         index,
+        //         self.left_boundary,
+        //         self.size
+        //     );
+        // }
 
         assert!(!self.slots.contains_key(&index));
         self.slots.insert(index, SlotStatus::Writing);
