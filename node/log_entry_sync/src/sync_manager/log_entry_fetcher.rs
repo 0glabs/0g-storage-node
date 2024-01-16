@@ -143,6 +143,7 @@ impl LogEntryFetcher {
                 let mut filter = contract
                     .submit_filter()
                     .from_block(start_block_number)
+                    .address(contract.address().into())
                     .filter;
                 debug!("start_watch starts, start={}", start_block_number);
                 let mut filter_id =
@@ -160,7 +161,7 @@ impl LogEntryFetcher {
                     {
                         Err(e) => {
                             error!("log sync watch error: e={:?}", e);
-                            filter = filter.from_block(progress);
+                            filter = filter.from_block(progress).address(contract.address());
                             filter_id = repeat_run_and_log(|| {
                                 provider.new_filter(FilterKind::Logs(&filter))
                             })
