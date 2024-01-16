@@ -9,9 +9,16 @@ pub const TOPIC_PREFIX: &str = "eth2";
 pub const SSZ_SNAPPY_ENCODING_POSTFIX: &str = "ssz_snappy";
 pub const EXAMPLE_TOPIC: &str = "example";
 pub const FIND_FILE_TOPIC: &str = "find_file";
+pub const FIND_CHUNKS_TOPIC: &str = "find_chunks";
 pub const ANNOUNCE_FILE_TOPIC: &str = "announce_file";
+pub const ANNOUNCE_CHUNKS_TOPIC: &str = "announce_chunks";
 
-pub const CORE_TOPICS: [GossipKind; 2] = [GossipKind::FindFile, GossipKind::AnnounceFile];
+pub const CORE_TOPICS: [GossipKind; 4] = [
+    GossipKind::FindFile,
+    GossipKind::FindChunks,
+    GossipKind::AnnounceFile,
+    GossipKind::AnnounceChunks,
+];
 
 /// A gossipsub topic which encapsulates the type of messages that should be sent and received over
 /// the pubsub protocol and the way the messages should be encoded.
@@ -30,7 +37,9 @@ pub struct GossipTopic {
 pub enum GossipKind {
     Example,
     FindFile,
+    FindChunks,
     AnnounceFile,
+    AnnounceChunks,
 }
 
 /// The known encoding types for gossipsub messages.
@@ -67,7 +76,9 @@ impl GossipTopic {
             let kind = match topic_parts[2] {
                 EXAMPLE_TOPIC => GossipKind::Example,
                 FIND_FILE_TOPIC => GossipKind::FindFile,
+                FIND_CHUNKS_TOPIC => GossipKind::FindChunks,
                 ANNOUNCE_FILE_TOPIC => GossipKind::AnnounceFile,
+                ANNOUNCE_CHUNKS_TOPIC => GossipKind::AnnounceChunks,
                 _ => return Err(format!("Unknown topic: {}", topic)),
             };
 
@@ -93,7 +104,9 @@ impl From<GossipTopic> for String {
         let kind = match topic.kind {
             GossipKind::Example => EXAMPLE_TOPIC,
             GossipKind::FindFile => FIND_FILE_TOPIC,
+            GossipKind::FindChunks => FIND_CHUNKS_TOPIC,
             GossipKind::AnnounceFile => ANNOUNCE_FILE_TOPIC,
+            GossipKind::AnnounceChunks => ANNOUNCE_CHUNKS_TOPIC,
         };
 
         format!("/{}/{}/{}", TOPIC_PREFIX, kind, encoding)
@@ -109,7 +122,9 @@ impl std::fmt::Display for GossipTopic {
         let kind = match self.kind {
             GossipKind::Example => EXAMPLE_TOPIC,
             GossipKind::FindFile => FIND_FILE_TOPIC,
+            GossipKind::FindChunks => FIND_CHUNKS_TOPIC,
             GossipKind::AnnounceFile => ANNOUNCE_FILE_TOPIC,
+            GossipKind::AnnounceChunks => ANNOUNCE_CHUNKS_TOPIC,
         };
 
         write!(f, "/{}/{}/{}", TOPIC_PREFIX, kind, encoding)

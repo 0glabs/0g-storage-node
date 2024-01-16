@@ -213,7 +213,9 @@ impl Libp2pEventHandler {
         match message {
             PubsubMessage::ExampleMessage(_) => MessageAcceptance::Ignore,
             PubsubMessage::FindFile(msg) => self.on_find_file(msg).await,
+            PubsubMessage::FindChunks(_) => MessageAcceptance::Ignore, // TODO(qhz): add implementation here
             PubsubMessage::AnnounceFile(msg) => self.on_announce_file(propagation_source, msg),
+            PubsubMessage::AnnounceChunks(_) => MessageAcceptance::Ignore, // TODO(qhz): add implementation here
         }
     }
 

@@ -22,8 +22,12 @@ pub struct GossipCache {
     example: Option<Duration>,
     /// Timeout for FindFile messages.
     find_file: Option<Duration>,
+    /// Timeout for FindChunks messages.
+    find_chunks: Option<Duration>,
     /// Timeout for AnnounceFile.
     announce_file: Option<Duration>,
+    /// Timeout for AnnounceChunks.
+    announce_chunks: Option<Duration>,
 }
 
 #[derive(Default)]
@@ -33,8 +37,12 @@ pub struct GossipCacheBuilder {
     example: Option<Duration>,
     /// Timeout for blocks FindFile messages.
     find_file: Option<Duration>,
+    /// Timeout for blocks FindChunks messages.
+    find_chunks: Option<Duration>,
     /// Timeout for AnnounceFile messages.
     announce_file: Option<Duration>,
+    /// Timeout for AnnounceChunks messages.
+    announce_chunks: Option<Duration>,
 }
 
 #[allow(dead_code)]
@@ -58,9 +66,21 @@ impl GossipCacheBuilder {
         self
     }
 
+    /// Timeout for FindChunks messages.
+    pub fn find_chunks_timeout(mut self, timeout: Duration) -> Self {
+        self.find_chunks = Some(timeout);
+        self
+    }
+
     /// Timeout for AnnounceFile messages.
     pub fn announce_file_timeout(mut self, timeout: Duration) -> Self {
         self.announce_file = Some(timeout);
+        self
+    }
+
+    /// Timeout for AnnounceChunks messages.
+    pub fn announce_chunks_timeout(mut self, timeout: Duration) -> Self {
+        self.announce_chunks = Some(timeout);
         self
     }
 
@@ -69,7 +89,9 @@ impl GossipCacheBuilder {
             default_timeout,
             example,
             find_file,
+            find_chunks,
             announce_file,
+            announce_chunks,
         } = self;
 
         GossipCache {
@@ -77,7 +99,9 @@ impl GossipCacheBuilder {
             topic_msgs: HashMap::default(),
             example: example.or(default_timeout),
             find_file: find_file.or(default_timeout),
+            find_chunks: find_chunks.or(default_timeout),
             announce_file: announce_file.or(default_timeout),
+            announce_chunks: announce_chunks.or(default_timeout),
         }
     }
 }
@@ -94,7 +118,9 @@ impl GossipCache {
         let expire_timeout = match topic.kind() {
             GossipKind::Example => self.example,
             GossipKind::FindFile => self.find_file,
+            GossipKind::FindChunks => self.find_chunks,
             GossipKind::AnnounceFile => self.announce_file,
+            GossipKind::AnnounceChunks => self.announce_chunks,
         };
 
         let expire_timeout = match expire_timeout {

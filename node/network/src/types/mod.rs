@@ -7,6 +7,7 @@ pub type Enr = discv5::enr::Enr<discv5::enr::CombinedKey>;
 
 pub use globals::NetworkGlobals;
 pub use pubsub::{
-    AnnounceFile, FindFile, PubsubMessage, SignedAnnounceFile, SignedMessage, SnappyTransform,
+    AnnounceFile, FindFile, PubsubMessage, SignedAnnounceChunks, SignedAnnounceFile, SignedMessage,
+    SnappyTransform,
 };
 pub use topics::{GossipEncoding, GossipKind, GossipTopic, CORE_TOPICS};

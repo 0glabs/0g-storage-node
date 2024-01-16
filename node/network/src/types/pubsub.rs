@@ -120,9 +120,27 @@ pub struct FindFile {
     pub timestamp: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct FindChunks {
+    pub tx_id: TxID,
+    pub start_index: u64, // inclusive
+    pub end_indewx: u64,  // exclusive
+    pub timestamp: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub struct AnnounceFile {
     pub tx_id: TxID,
+    pub peer_id: WrappedPeerId,
+    pub at: WrappedMultiaddr,
+    pub timestamp: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
+pub struct AnnounceChunks {
+    pub tx_id: TxID,
+    pub start_index: u64, // inclusive
+    pub end_indewx: u64,  // exclusive
     pub peer_id: WrappedPeerId,
     pub at: WrappedMultiaddr,
     pub timestamp: u32,
@@ -162,12 +180,15 @@ impl<T: Encode + Decode> Deref for SignedMessage<T> {
 }
 
 pub type SignedAnnounceFile = SignedMessage<AnnounceFile>;
+pub type SignedAnnounceChunks = SignedMessage<AnnounceChunks>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PubsubMessage {
     ExampleMessage(u64),
     FindFile(FindFile),
+    FindChunks(FindChunks),
     AnnounceFile(SignedAnnounceFile),
+    AnnounceChunks(SignedAnnounceChunks),
 }
 
 // Implements the `DataTransform` trait of gossipsub to employ snappy compression
@@ -242,7 +263,9 @@ impl PubsubMessage {
         match self {
             PubsubMessage::ExampleMessage(_) => GossipKind::Example,
             PubsubMessage::FindFile(_) => GossipKind::FindFile,
+            PubsubMessage::FindChunks(_) => GossipKind::FindChunks,
             PubsubMessage::AnnounceFile(_) => GossipKind::AnnounceFile,
+            PubsubMessage::AnnounceChunks(_) => GossipKind::AnnounceChunks,
         }
     }
 
@@ -267,8 +290,15 @@ impl PubsubMessage {
                     GossipKind::FindFile => Ok(PubsubMessage::FindFile(
                         FindFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
                     )),
+                    GossipKind::FindChunks => Ok(PubsubMessage::FindChunks(
+                        FindChunks::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                    )),
                     GossipKind::AnnounceFile => Ok(PubsubMessage::AnnounceFile(
                         SignedAnnounceFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                    )),
+                    GossipKind::AnnounceChunks => Ok(PubsubMessage::AnnounceChunks(
+                        SignedAnnounceChunks::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
                     )),
                 }
             }
@@ -285,7 +315,9 @@ impl PubsubMessage {
         match &self {
             PubsubMessage::ExampleMessage(data) => data.as_ssz_bytes(),
             PubsubMessage::FindFile(data) => data.as_ssz_bytes(),
+            PubsubMessage::FindChunks(data) => data.as_ssz_bytes(),
             PubsubMessage::AnnounceFile(data) => data.as_ssz_bytes(),
+            PubsubMessage::AnnounceChunks(data) => data.as_ssz_bytes(),
         }
     }
 }
@@ -299,8 +331,14 @@ impl std::fmt::Display for PubsubMessage {
             PubsubMessage::FindFile(msg) => {
                 write!(f, "FindFile message: {:?}", msg)
             }
+            PubsubMessage::FindChunks(msg) => {
+                write!(f, "FindChunks message: {:?}", msg)
+            }
             PubsubMessage::AnnounceFile(msg) => {
                 write!(f, "AnnounceFile message: {:?}", msg)
+            }
+            PubsubMessage::AnnounceChunks(msg) => {
+                write!(f, "AnnounceChunks message: {:?}", msg)
             }
         }
     }
