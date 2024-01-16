@@ -6,6 +6,7 @@ use anyhow::{bail, Result};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
+use network::types::AnnounceChunks;
 use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, PeerId,
     PeerRequestId, SyncId as RequestId,
@@ -55,6 +56,9 @@ pub enum SyncMessage {
         tx_id: TxID,
         peer_id: PeerId,
         addr: Multiaddr,
+    },
+    AnnounceChunksGossip {
+        msg: AnnounceChunks,
     },
 }
 
@@ -218,6 +222,8 @@ impl SyncService {
             } => {
                 self.on_announce_file_gossip(tx_id, peer_id, addr).await;
             }
+
+            SyncMessage::AnnounceChunksGossip { msg } => self.on_announce_chunks_gossip(msg).await,
         }
     }
 
@@ -562,6 +568,10 @@ impl SyncService {
             // FIXME(zz): This is possible for tx missing. Is it expected?
             error!(%tx_seq, %err, "Failed to sync file");
         }
+    }
+
+    async fn on_announce_chunks_gossip(&mut self, _msg: AnnounceChunks) {
+        // TODO(qhz): imple
     }
 
     /// Terminate file sync of `min_tx_seq`.

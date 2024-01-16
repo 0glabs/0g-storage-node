@@ -123,8 +123,8 @@ pub struct FindFile {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct FindChunks {
     pub tx_id: TxID,
-    pub start_index: u64, // inclusive
-    pub end_indewx: u64,  // exclusive
+    pub index_start: u64, // inclusive
+    pub index_end: u64,   // exclusive
     pub timestamp: u32,
 }
 
@@ -139,8 +139,8 @@ pub struct AnnounceFile {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub struct AnnounceChunks {
     pub tx_id: TxID,
-    pub start_index: u64, // inclusive
-    pub end_indewx: u64,  // exclusive
+    pub index_start: u64, // inclusive
+    pub index_end: u64,   // exclusive
     pub peer_id: WrappedPeerId,
     pub at: WrappedMultiaddr,
     pub timestamp: u32,
@@ -154,11 +154,6 @@ pub struct SignedMessage<T: Encode + Decode> {
 }
 
 impl<T: Encode + Decode> SignedMessage<T> {
-    pub fn verify_signature(&self, public_key: &PublicKey) -> bool {
-        let raw = self.inner.as_ssz_bytes();
-        public_key.verify(&raw, &self.signature)
-    }
-
     pub fn sign_message(msg: T, keypair: &Keypair) -> Result<SignedMessage<T>, SigningError> {
         let raw = msg.as_ssz_bytes();
         let signature = keypair.sign(&raw)?;
@@ -176,6 +171,17 @@ impl<T: Encode + Decode> Deref for SignedMessage<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+pub trait HasSignature {
+    fn verify_signature(&self, public_key: &PublicKey) -> bool;
+}
+
+impl<T: Encode + Decode> HasSignature for SignedMessage<T> {
+    fn verify_signature(&self, public_key: &PublicKey) -> bool {
+        let raw = self.inner.as_ssz_bytes();
+        public_key.verify(&raw, &self.signature)
     }
 }
 
