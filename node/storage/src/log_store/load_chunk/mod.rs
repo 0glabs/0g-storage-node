@@ -12,12 +12,12 @@ use ssz_derive::{Decode, Encode};
 use crate::log_store::log_manager::data_to_merkle_leaves;
 use crate::try_option;
 use append_merkle::{Algorithm, MerkleTreeRead, Sha3Algorithm};
+use shared_types::{ChunkArray, DataRoot, Merkle};
+use tracing::trace;
 use zgs_spec::{
     BYTES_PER_LOAD, BYTES_PER_SEAL, BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD,
     SECTORS_PER_SEAL,
 };
-use shared_types::{ChunkArray, DataRoot, Merkle};
-use tracing::trace;
 
 use super::SealAnswer;
 use chunk_data::EntryBatchData;

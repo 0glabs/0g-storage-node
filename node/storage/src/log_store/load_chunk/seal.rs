@@ -174,9 +174,9 @@ impl SealInfo {
 mod tests {
     use ethereum_types::H256;
     use hex_literal::hex;
+    use rand::{rngs::StdRng, RngCore, SeedableRng};
     use zgs_seal;
     use zgs_spec::BYTES_PER_SEAL;
-    use rand::{rngs::StdRng, RngCore, SeedableRng};
 
     use super::{SealContextInfo, SealInfo};
 

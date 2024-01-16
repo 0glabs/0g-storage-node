@@ -7,7 +7,6 @@ use crate::{try_option, ZgsKeyValueDB};
 use anyhow::{anyhow, bail, Result};
 use append_merkle::{MerkleTreeInitialData, MerkleTreeRead};
 use itertools::Itertools;
-use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 use shared_types::{ChunkArray, DataRoot, FlowProof};
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
@@ -17,6 +16,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::{cmp, mem};
 use tracing::{debug, error, trace};
+use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
 pub struct FlowStore {
     db: FlowDBStore,

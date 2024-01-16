@@ -2,9 +2,9 @@ use crate::{CustomMineRange, PoraLoader};
 use blake2::{Blake2b512, Digest};
 use contract_interface::zgs_flow::MineContext;
 use ethereum_types::{H256, U256};
-use zgs_spec::{BYTES_PER_SCRATCHPAD, BYTES_PER_SEAL, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 use storage::log_store::MineLoadChunk;
 use tiny_keccak::{Hasher, Keccak};
+use zgs_spec::{BYTES_PER_SCRATCHPAD, BYTES_PER_SEAL, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
 pub const BLAKE2B_OUTPUT_BYTES: usize = 64;
 pub const KECCAK256_OUTPUT_BYTES: usize = 32;

@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use contract_interface::{zgs_flow::MineContext, ZgsFlow, PoraMine};
+use contract_interface::{zgs_flow::MineContext, PoraMine, ZgsFlow};
 use ethereum_types::{Address, H256, U256};
 use ethers::{
     contract::Contract,

@@ -1,10 +1,10 @@
 use anyhow::{bail, Result};
-use zgs_spec::{BYTES_PER_LOAD, BYTES_PER_SECTOR, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 use shared_types::{bytes_to_chunks, DataRoot};
 use ssz_derive::{Decode, Encode};
 use std::fmt::{Debug, Formatter};
 use std::mem;
 use tracing::error;
+use zgs_spec::{BYTES_PER_LOAD, BYTES_PER_SECTOR, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
 pub enum EntryBatchData {
     Complete(Vec<u8>),
@@ -377,8 +377,8 @@ mod tests {
     use crate::log_store::load_chunk::chunk_data::PartialBatch;
 
     use super::EntryBatchData;
-    use zgs_spec::{BYTES_PER_LOAD, BYTES_PER_SECTOR, SECTORS_PER_LOAD};
     use rand::{rngs::StdRng, RngCore, SeedableRng};
+    use zgs_spec::{BYTES_PER_LOAD, BYTES_PER_SECTOR, SECTORS_PER_LOAD};
 
     fn test_data() -> Vec<u8> {
         let mut data = vec![0u8; BYTES_PER_LOAD];
