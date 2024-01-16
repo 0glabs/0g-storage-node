@@ -3,7 +3,7 @@ use std::{ops::Neg, sync::Arc};
 use file_location_cache::FileLocationCache;
 use network::{
     rpc::StatusMessage,
-    types::{AnnounceFile, FindFile, SignedAnnounceFile},
+    types::{AnnounceFile, FindFile, SignedAnnounceFile, SignedMessage},
     Keypair, MessageAcceptance, MessageId, NetworkGlobals, NetworkMessage, PeerId, PeerRequestId,
     PublicKey, PubsubMessage, Request, RequestId, Response,
 };
@@ -237,7 +237,7 @@ impl Libp2pEventHandler {
             timestamp,
         };
 
-        let mut signed = match msg.into_signed(&self.local_keypair) {
+        let mut signed = match SignedMessage::sign_message(msg, &self.local_keypair) {
             Ok(signed) => signed,
             Err(e) => {
                 error!(%tx_id.seq, %e, "Failed to sign AnnounceFile message");

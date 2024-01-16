@@ -128,40 +128,40 @@ pub struct AnnounceFile {
     pub timestamp: u32,
 }
 
-impl AnnounceFile {
-    pub fn into_signed(self, keypair: &Keypair) -> Result<SignedAnnounceFile, SigningError> {
-        let raw = self.as_ssz_bytes();
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
+pub struct SignedMessage<T: Encode + Decode> {
+    pub inner: T,
+    pub signature: Vec<u8>,
+    pub resend_timestamp: u32,
+}
+
+impl<T: Encode + Decode> SignedMessage<T> {
+    pub fn verify_signature(&self, public_key: &PublicKey) -> bool {
+        let raw = self.inner.as_ssz_bytes();
+        public_key.verify(&raw, &self.signature)
+    }
+
+    pub fn sign_message(msg: T, keypair: &Keypair) -> Result<SignedMessage<T>, SigningError> {
+        let raw = msg.as_ssz_bytes();
         let signature = keypair.sign(&raw)?;
 
-        Ok(SignedAnnounceFile {
-            inner: self,
+        Ok(SignedMessage {
+            inner: msg,
             signature,
             resend_timestamp: 0,
         })
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
-pub struct SignedAnnounceFile {
-    pub inner: AnnounceFile,
-    pub signature: Vec<u8>,
-    pub resend_timestamp: u32,
-}
-
-impl SignedAnnounceFile {
-    pub fn verify_signature(&self, public_key: &PublicKey) -> bool {
-        let raw = self.inner.as_ssz_bytes();
-        public_key.verify(&raw, &self.signature)
-    }
-}
-
-impl Deref for SignedAnnounceFile {
-    type Target = AnnounceFile;
+impl<T: Encode + Decode> Deref for SignedMessage<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
+
+pub type SignedAnnounceFile = SignedMessage<AnnounceFile>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PubsubMessage {

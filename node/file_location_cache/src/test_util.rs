@@ -1,6 +1,6 @@
 use network::{
     libp2p::identity,
-    types::{AnnounceFile, SignedAnnounceFile},
+    types::{AnnounceFile, SignedAnnounceFile, SignedMessage},
     Multiaddr, PeerId,
 };
 use shared_types::{timestamp_now, TxID};
@@ -42,6 +42,6 @@ impl AnnounceFileBuilder {
         };
 
         let keypair = identity::Keypair::generate_secp256k1();
-        msg.into_signed(&keypair).unwrap()
+        SignedMessage::sign_message(msg, &keypair).unwrap()
     }
 }
