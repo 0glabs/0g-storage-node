@@ -760,10 +760,15 @@ mod tests {
         }
 
         async fn spawn_sync_service(&self, with_peer_store: bool) -> SyncSender {
-            self.spawn_sync_service_with_config(with_peer_store, Config::default()).await
+            self.spawn_sync_service_with_config(with_peer_store, Config::default())
+                .await
         }
 
-        async fn spawn_sync_service_with_config(&self, with_peer_store: bool, config: Config) -> SyncSender {
+        async fn spawn_sync_service_with_config(
+            &self,
+            with_peer_store: bool,
+            config: Config,
+        ) -> SyncSender {
             let store = if with_peer_store {
                 self.peer_store.clone()
             } else {

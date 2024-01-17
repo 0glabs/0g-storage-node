@@ -364,59 +364,45 @@ impl Libp2pEventHandler {
         }
 
         // check if we have specified chunks even file not finalized yet
-        match self.store.get_tx_by_seq_number(msg.tx_id.seq).await {
-            Err(err) => debug!(
-                ?err,
-                ?msg,
-                "Failed to get tx by seq num for FindChunks message"
-            ),
-            Ok(None) => debug!(?msg, "Tx not found for FindChunks message"),
-            Ok(Some(tx)) if tx.id() != msg.tx_id => {
-                debug!(?msg, "Tx id mismatch for FindChunks message")
-            }
-            Ok(Some(tx)) => {
-                // validate end index
-                if let Ok(size) = usize::try_from(tx.size) {
-                    let num_chunks = bytes_to_chunks(size);
-                    if msg.index_end > num_chunks as u64 {
-                        debug!(?msg, "Invalid chunk end index for FindChunks message");
-                        return MessageAcceptance::Reject;
-                    }
-                }
+        // validate end index
+        let tx = match self.store.get_tx_by_seq_number(msg.tx_id.seq).await {
+            Ok(Some(tx)) if tx.id() == msg.tx_id => tx,
+            _ => return MessageAcceptance::Accept,
+        };
 
-                // TODO(qhz): check if there is better way to check existence of requested chunks.
-                match self
-                    .store
-                    .get_chunks_by_tx_and_index_range(
-                        msg.tx_id.seq,
-                        msg.index_start as usize,
-                        msg.index_end as usize,
-                    )
-                    .await
-                {
-                    Err(err) => debug!(?err, ?msg, "Failed to get chunks for FindChunks message"),
-                    Ok(None) => debug!(?msg, "Chunks not found for FindChunks message"),
-                    Ok(Some(_)) => {
-                        debug!(?msg, "Found chunks to respond FindChunks message");
-                        return match self.construct_announce_chunks_message(
-                            msg.tx_id,
-                            msg.index_start,
-                            msg.index_end,
-                        ) {
-                            Some(msg) => {
-                                self.publish(msg);
-                                MessageAcceptance::Ignore
-                            }
-                            // propagate FindFile query to other nodes
-                            None => MessageAcceptance::Accept,
-                        };
-                    }
-                }
+        // validate index range
+        if let Ok(size) = usize::try_from(tx.size) {
+            let num_chunks = bytes_to_chunks(size);
+            if msg.index_end > num_chunks as u64 {
+                debug!(?msg, "Invalid chunk end index for FindChunks message");
+                return MessageAcceptance::Reject;
             }
         }
 
-        // propagate FindFile query to other nodes
-        MessageAcceptance::Accept
+        // TODO(qhz): check if there is better way to check existence of requested chunks.
+        let _ = match self
+            .store
+            .get_chunks_by_tx_and_index_range(
+                msg.tx_id.seq,
+                msg.index_start as usize,
+                msg.index_end as usize,
+            )
+            .await
+        {
+            Ok(Some(_)) => (),
+            _ => return MessageAcceptance::Accept,
+        };
+
+        debug!(?msg, "Found chunks to respond FindChunks message");
+
+        match self.construct_announce_chunks_message(msg.tx_id, msg.index_start, msg.index_end) {
+            Some(msg) => {
+                self.publish(msg);
+                MessageAcceptance::Ignore
+            }
+            // propagate FindFile query to other nodes
+            None => MessageAcceptance::Accept,
+        }
     }
 
     fn on_announce_file(
