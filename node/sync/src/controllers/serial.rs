@@ -1344,6 +1344,7 @@ mod tests {
         };
 
         controller.goal.num_chunks = 2048;
+        controller.goal.index_end = 2048;
 
         controller.on_response(peer_id, chunks).await;
         match controller.get_status() {

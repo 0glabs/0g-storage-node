@@ -760,6 +760,10 @@ mod tests {
         }
 
         async fn spawn_sync_service(&self, with_peer_store: bool) -> SyncSender {
+            self.spawn_sync_service_with_config(with_peer_store, Config::default()).await
+        }
+
+        async fn spawn_sync_service_with_config(&self, with_peer_store: bool, config: Config) -> SyncSender {
             let store = if with_peer_store {
                 self.peer_store.clone()
             } else {
@@ -767,7 +771,7 @@ mod tests {
             };
 
             SyncService::spawn_with_config(
-                Config::default(),
+                config,
                 self.runtime.task_executor.clone(),
                 self.network_send.clone(),
                 store,
@@ -1422,7 +1426,9 @@ mod tests {
     #[tokio::test]
     async fn test_announce_file() {
         let mut runtime = TestSyncRuntime::new(vec![1535], 0);
-        let sync_send = runtime.spawn_sync_service(false).await;
+        let mut config = Config::default();
+        config.sync_file_on_announcement_enabled = true;
+        let sync_send = runtime.spawn_sync_service_with_config(false, config).await;
 
         let tx_seq = 0u64;
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/10000".parse().unwrap();
