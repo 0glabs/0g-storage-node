@@ -155,7 +155,7 @@ impl SyncService {
 
         let manager =
             AutoSyncManager::new(store.clone(), sync_send.clone(), config.clone()).await?;
-        if !config.auto_sync_disabled {
+        if config.auto_sync_enabled {
             manager.spwn(&executor, event_recv);
         }
 
@@ -492,8 +492,8 @@ impl SyncService {
         tx_seq: u64,
         maybe_range: Option<(u64, u64)>,
     ) -> String {
-        if !self.config.enable_chunk_request {
-            return "File sync disabled".into();
+        if maybe_range.is_none() && !self.config.sync_file_by_rpc_enabled {
+            return "Disabled to sync file".into();
         }
 
         if !self.controllers.contains_key(&tx_seq)
@@ -518,9 +518,6 @@ impl SyncService {
         maybe_peer: Option<(PeerId, Multiaddr)>,
     ) -> Result<()> {
         info!(%tx_seq, "Start to sync file");
-        if !self.config.enable_chunk_request {
-            return Ok(());
-        }
 
         // remove failed entry if caused by tx reverted, so as to re-sync
         // file with latest tx_id.
@@ -606,6 +603,10 @@ impl SyncService {
                 controller.transition();
             }
 
+            return;
+        }
+
+        if !self.config.sync_file_on_announcement_enabled {
             return;
         }
 
@@ -766,7 +767,7 @@ mod tests {
             };
 
             SyncService::spawn_with_config(
-                Config::default().disable_auto_sync(),
+                Config::default(),
                 self.runtime.task_executor.clone(),
                 self.network_send.clone(),
                 store,
@@ -799,7 +800,7 @@ mod tests {
             .unwrap();
 
         let mut sync = SyncService {
-            config: Config::default().disable_auto_sync(),
+            config: Config::default(),
             msg_recv: sync_recv,
             ctx: Arc::new(SyncNetworkContext::new(network_send)),
             store,
@@ -834,7 +835,7 @@ mod tests {
             .unwrap();
 
         let mut sync = SyncService {
-            config: Config::default().disable_auto_sync(),
+            config: Config::default(),
             msg_recv: sync_recv,
             ctx: Arc::new(SyncNetworkContext::new(network_send)),
             store,
@@ -1150,7 +1151,7 @@ mod tests {
         let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
         let (_event_send, event_recv) = broadcast::channel(16);
         let sync_send = SyncService::spawn_with_config(
-            Config::default().disable_auto_sync(),
+            Config::default(),
             runtime.task_executor.clone(),
             network_send,
             store.clone(),

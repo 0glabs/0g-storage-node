@@ -57,10 +57,6 @@ build_config! {
     (mine_contract_address, (String), "".to_string())
     (miner_id, (Option<String>), None)
     (miner_key, (Option<String>), None)
-
-    // sync
-    (find_peer_timeout_secs, (u64), 30)
-    (enable_chunk_request, (bool), true)
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -68,6 +64,7 @@ build_config! {
 pub struct ZgsConfig {
     pub raw_conf: RawConfiguration,
 
+    // sync config, configured by [sync] section by `config` crate.
     pub sync: sync::Config,
 }
 
