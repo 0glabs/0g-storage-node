@@ -66,10 +66,24 @@ pub enum SyncMessage {
 
 #[derive(Debug)]
 pub enum SyncRequest {
-    SyncStatus { tx_seq: u64 },
-    SyncFile { tx_seq: u64 },
-    FileSyncInfo { tx_seq: Option<u64> },
-    TerminateFileSync { tx_seq: u64, is_reverted: bool },
+    SyncStatus {
+        tx_seq: u64,
+    },
+    SyncFile {
+        tx_seq: u64,
+    },
+    SyncChunks {
+        tx_seq: u64,
+        start_index: u64,
+        end_index: u64,
+    },
+    FileSyncInfo {
+        tx_seq: Option<u64>,
+    },
+    TerminateFileSync {
+        tx_seq: u64,
+        is_reverted: bool,
+    },
 }
 
 #[derive(Debug)]
@@ -257,7 +271,35 @@ impl SyncService {
                     return;
                 }
 
-                let err = match self.on_start_sync_file(tx_seq, None).await {
+                let err = match self.on_start_sync_file(tx_seq, None, None).await {
+                    Ok(()) => "".into(),
+                    Err(err) => err.to_string(),
+                };
+
+                let _ = sender.send(SyncResponse::SyncFile { err });
+            }
+
+            SyncRequest::SyncChunks {
+                tx_seq,
+                start_index,
+                end_index,
+            } => {
+                if !self.controllers.contains_key(&tx_seq)
+                    && self.controllers.len() >= self.config.max_sync_files
+                {
+                    let _ = sender.send(SyncResponse::SyncFile {
+                        err: format!(
+                            "max sync file limitation reached: {:?}",
+                            self.config.max_sync_files
+                        ),
+                    });
+                    return;
+                }
+
+                let err = match self
+                    .on_start_sync_file(tx_seq, Some((start_index, end_index)), None)
+                    .await
+                {
                     Ok(()) => "".into(),
                     Err(err) => err.to_string(),
                 };
@@ -474,6 +516,7 @@ impl SyncService {
     async fn on_start_sync_file(
         &mut self,
         tx_seq: u64,
+        maybe_range: Option<(u64, u64)>,
         maybe_peer: Option<(PeerId, Multiaddr)>,
     ) -> Result<()> {
         info!(%tx_seq, "Start to sync file");
@@ -506,7 +549,7 @@ impl SyncService {
                 };
 
                 let num_chunks = match usize::try_from(tx.size) {
-                    Ok(size) => bytes_to_chunks(size),
+                    Ok(size) => bytes_to_chunks(size) as u64,
                     Err(_) => {
                         error!(%tx_seq, "Unexpected transaction size: {}", tx.size);
                         bail!("Unexpected transaction size");
@@ -518,9 +561,18 @@ impl SyncService {
                     bail!("File already exists");
                 }
 
+                let (index_start, index_end) = match maybe_range {
+                    Some((start, end)) => (start, end),
+                    None => (0, num_chunks),
+                };
+
+                if index_start >= index_end || index_end > num_chunks {
+                    bail!("invalid chunk range");
+                }
+
                 entry.insert(SerialSyncController::new(
                     tx.id(),
-                    FileSyncGoal::new_file(num_chunks as u64),
+                    FileSyncGoal::new(num_chunks, index_start, index_end),
                     self.ctx.clone(),
                     self.store.clone(),
                     self.file_location_cache.clone(),
@@ -570,7 +622,10 @@ impl SyncService {
         }
 
         // Now, always sync files among all nodes
-        if let Err(err) = self.on_start_sync_file(tx_seq, Some((peer_id, addr))).await {
+        if let Err(err) = self
+            .on_start_sync_file(tx_seq, None, Some((peer_id, addr)))
+            .await
+        {
             // FIXME(zz): This is possible for tx missing. Is it expected?
             error!(%tx_seq, %err, "Failed to sync file");
         }

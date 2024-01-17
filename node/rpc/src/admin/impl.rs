@@ -48,6 +48,36 @@ impl RpcServer for RpcServerImpl {
     }
 
     #[tracing::instrument(skip(self), err)]
+    async fn start_sync_chunks(
+        &self,
+        tx_seq: u64,
+        start_index: u64,
+        end_index: u64,
+    ) -> RpcResult<()> {
+        info!("admin_startSyncChunks({tx_seq}, {start_index}, {end_index})");
+
+        let response = self
+            .ctx
+            .request_sync(SyncRequest::SyncChunks {
+                tx_seq,
+                start_index,
+                end_index,
+            })
+            .await?;
+
+        match response {
+            SyncResponse::SyncFile { err } => {
+                if err.is_empty() {
+                    Ok(())
+                } else {
+                    Err(error::internal_error(err))
+                }
+            }
+            _ => Err(error::internal_error("unexpected response type")),
+        }
+    }
+
+    #[tracing::instrument(skip(self), err)]
     async fn get_sync_status(&self, tx_seq: u64) -> RpcResult<String> {
         info!("admin_getSyncStatus({tx_seq})");
 

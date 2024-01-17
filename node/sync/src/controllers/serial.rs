@@ -128,7 +128,7 @@ impl SerialSyncController {
 
     /// Resets the status to re-sync file when failed.
     pub fn reset(&mut self) {
-        self.next_chunk = 0;
+        self.next_chunk = self.goal.index_start;
         self.failures = 0;
         self.state = SyncState::Idle;
         // remove disconnected peers
