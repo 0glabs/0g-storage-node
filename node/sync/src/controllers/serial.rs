@@ -15,7 +15,7 @@ use std::{
 };
 use storage_async::Store;
 
-const MAX_CHUNKS_TO_REQUEST: u64 = 2 * 1024;
+pub const MAX_CHUNKS_TO_REQUEST: u64 = 2 * 1024;
 const MAX_REQUEST_FAILURES: usize = 100;
 const PEER_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(5);

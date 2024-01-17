@@ -1,7 +1,7 @@
 use crate::auto_sync::AutoSyncManager;
 use crate::context::SyncNetworkContext;
 use crate::controllers::{
-    FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
+    FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState, MAX_CHUNKS_TO_REQUEST,
 };
 use crate::Config;
 use anyhow::{bail, Result};
@@ -395,6 +395,12 @@ impl SyncService {
         // ban peer for invalid chunk index range
         if request.index_start >= request.index_end {
             self.ctx.ban_peer(peer_id, "Invalid chunk indices");
+            return Ok(());
+        }
+
+        // ban peer if requested too many chunks
+        if request.index_end - request.index_start > MAX_CHUNKS_TO_REQUEST {
+            self.ctx.ban_peer(peer_id, "Too many chunks requested");
             return Ok(());
         }
 
