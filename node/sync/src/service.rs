@@ -1,7 +1,8 @@
 use crate::auto_sync::AutoSyncManager;
 use crate::context::SyncNetworkContext;
 use crate::controllers::{
-    FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState, MAX_CHUNKS_TO_REQUEST,
+    FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
+    MAX_CHUNKS_TO_REQUEST,
 };
 use crate::Config;
 use anyhow::{bail, Result};
@@ -259,24 +260,8 @@ impl SyncService {
             }
 
             SyncRequest::SyncFile { tx_seq } => {
-                if !self.controllers.contains_key(&tx_seq)
-                    && self.controllers.len() >= self.config.max_sync_files
-                {
-                    let _ = sender.send(SyncResponse::SyncFile {
-                        err: format!(
-                            "max sync file limitation reached: {:?}",
-                            self.config.max_sync_files
-                        ),
-                    });
-                    return;
-                }
-
-                let err = match self.on_start_sync_file(tx_seq, None, None).await {
-                    Ok(()) => "".into(),
-                    Err(err) => err.to_string(),
-                };
-
-                let _ = sender.send(SyncResponse::SyncFile { err });
+                let result = self.on_sync_file_request(tx_seq, None).await;
+                let _ = sender.send(SyncResponse::SyncFile { err: result });
             }
 
             SyncRequest::SyncChunks {
@@ -284,27 +269,10 @@ impl SyncService {
                 start_index,
                 end_index,
             } => {
-                if !self.controllers.contains_key(&tx_seq)
-                    && self.controllers.len() >= self.config.max_sync_files
-                {
-                    let _ = sender.send(SyncResponse::SyncFile {
-                        err: format!(
-                            "max sync file limitation reached: {:?}",
-                            self.config.max_sync_files
-                        ),
-                    });
-                    return;
-                }
-
-                let err = match self
-                    .on_start_sync_file(tx_seq, Some((start_index, end_index)), None)
-                    .await
-                {
-                    Ok(()) => "".into(),
-                    Err(err) => err.to_string(),
-                };
-
-                let _ = sender.send(SyncResponse::SyncFile { err });
+                let result = self
+                    .on_sync_file_request(tx_seq, Some((start_index, end_index)))
+                    .await;
+                let _ = sender.send(SyncResponse::SyncFile { err: result });
             }
 
             SyncRequest::FileSyncInfo { tx_seq } => {
@@ -516,6 +484,30 @@ impl SyncService {
             None => {
                 warn!("Received rpc error for non-existent controller tx_seq={tx_seq}");
             }
+        }
+    }
+
+    async fn on_sync_file_request(
+        &mut self,
+        tx_seq: u64,
+        maybe_range: Option<(u64, u64)>,
+    ) -> String {
+        if !self.config.enable_chunk_request {
+            return "File sync disabled".into();
+        }
+
+        if !self.controllers.contains_key(&tx_seq)
+            && self.controllers.len() >= self.config.max_sync_files
+        {
+            return format!(
+                "Max sync file limitation reached: {}",
+                self.config.max_sync_files
+            );
+        }
+
+        match self.on_start_sync_file(tx_seq, maybe_range, None).await {
+            Ok(()) => "".into(),
+            Err(e) => e.to_string(),
         }
     }
 
