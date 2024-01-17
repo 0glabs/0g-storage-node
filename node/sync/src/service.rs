@@ -1,6 +1,8 @@
 use crate::auto_sync::AutoSyncManager;
 use crate::context::SyncNetworkContext;
-use crate::controllers::{FailureReason, FileSyncInfo, SerialSyncController, SyncState};
+use crate::controllers::{
+    FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
+};
 use crate::Config;
 use anyhow::{bail, Result};
 use file_location_cache::FileLocationCache;
@@ -518,7 +520,7 @@ impl SyncService {
 
                 entry.insert(SerialSyncController::new(
                     tx.id(),
-                    num_chunks as u64,
+                    FileSyncGoal::new_file(num_chunks as u64),
                     self.ctx.clone(),
                     self.store.clone(),
                     self.file_location_cache.clone(),
@@ -548,8 +550,12 @@ impl SyncService {
 
         // File already in sync
         if let Some(controller) = self.controllers.get_mut(&tx_seq) {
-            controller.on_peer_found(peer_id, addr);
-            controller.transition();
+            let info = controller.get_sync_info();
+            if info.goal.is_all_chunks() {
+                controller.on_peer_found(peer_id, addr);
+                controller.transition();
+            }
+
             return;
         }
 
@@ -570,8 +576,19 @@ impl SyncService {
         }
     }
 
-    async fn on_announce_chunks_gossip(&mut self, _msg: AnnounceChunks) {
-        // TODO(qhz): imple
+    async fn on_announce_chunks_gossip(&mut self, msg: AnnounceChunks) {
+        info!(?msg, "Received AnnounceChunks gossip");
+
+        if let Some(controller) = self.controllers.get_mut(&msg.tx_id.seq) {
+            let info = controller.get_sync_info();
+            if !info.goal.is_all_chunks()
+                && info.goal.index_start == msg.index_start
+                && info.goal.index_end == msg.index_end
+            {
+                controller.on_peer_found(msg.peer_id.into(), msg.at.into());
+                controller.transition();
+            }
+        }
     }
 
     /// Terminate file sync of `min_tx_seq`.

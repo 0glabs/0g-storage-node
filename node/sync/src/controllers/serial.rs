@@ -1,8 +1,9 @@
 use crate::context::SyncNetworkContext;
 use crate::controllers::peers::{PeerState, SyncPeers};
-use crate::controllers::FileSyncInfo;
+use crate::controllers::{FileSyncGoal, FileSyncInfo};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
+use network::types::FindChunks;
 use network::{
     multiaddr::Protocol, rpc::GetChunksRequest, types::FindFile, Multiaddr, NetworkMessage,
     PeerAction, PeerId, PubsubMessage, SyncId as RequestId,
@@ -63,8 +64,8 @@ pub struct SerialSyncController {
 
     since: Instant,
 
-    /// The size of the file to be synced.
-    num_chunks: u64,
+    /// File sync goal.
+    goal: FileSyncGoal,
 
     /// The next chunk id that we need to retrieve.
     next_chunk: u64,
@@ -91,7 +92,7 @@ pub struct SerialSyncController {
 impl SerialSyncController {
     pub fn new(
         tx_id: TxID,
-        num_chunks: u64,
+        goal: FileSyncGoal,
         ctx: Arc<SyncNetworkContext>,
         store: Store,
         file_location_cache: Arc<FileLocationCache>,
@@ -100,8 +101,8 @@ impl SerialSyncController {
             tx_seq: tx_id.seq,
             tx_id,
             since: Instant::now(),
-            num_chunks,
-            next_chunk: 0,
+            goal,
+            next_chunk: goal.index_start,
             failures: 0,
             state: SyncState::Idle,
             peers: Default::default(),
@@ -115,7 +116,7 @@ impl SerialSyncController {
         FileSyncInfo {
             elapsed_secs: self.since.elapsed().as_secs(),
             peers: self.peers.count(&[PeerState::Connected]),
-            num_chunks: self.num_chunks,
+            goal: self.goal,
             next_chunks: self.next_chunk,
             state: format!("{:?}", self.state),
         }
@@ -137,6 +138,23 @@ impl SerialSyncController {
     fn try_find_peers(&mut self) {
         info!(%self.tx_seq, "Finding peers");
 
+        if self.goal.is_all_chunks() {
+            self.publish_find_file();
+        } else {
+            self.publish_find_chunks();
+        }
+
+        let now = Instant::now();
+
+        let (since, updated) = match self.state {
+            SyncState::FindingPeers { since, .. } => (since, now),
+            _ => (now, now),
+        };
+
+        self.state = SyncState::FindingPeers { since, updated };
+    }
+
+    fn publish_find_file(&mut self) {
         // try from cache
         let mut found_new_peer = false;
 
@@ -149,21 +167,23 @@ impl SerialSyncController {
             found_new_peer = self.on_peer_found(peer_id, addr) || found_new_peer;
         }
 
-        if !found_new_peer {
-            self.ctx.publish(PubsubMessage::FindFile(FindFile {
-                tx_id: self.tx_id,
-                timestamp: timestamp_now(),
-            }));
+        if found_new_peer {
+            return;
         }
 
-        let now = Instant::now();
+        self.ctx.publish(PubsubMessage::FindFile(FindFile {
+            tx_id: self.tx_id,
+            timestamp: timestamp_now(),
+        }));
+    }
 
-        let (since, updated) = match self.state {
-            SyncState::FindingPeers { since, .. } => (since, now),
-            _ => (now, now),
-        };
-
-        self.state = SyncState::FindingPeers { since, updated };
+    fn publish_find_chunks(&self) {
+        self.ctx.publish(PubsubMessage::FindChunks(FindChunks {
+            tx_id: self.tx_id,
+            index_start: self.goal.index_start,
+            index_end: self.goal.index_end,
+            timestamp: timestamp_now(),
+        }));
     }
 
     fn try_connect(&mut self) {
@@ -201,7 +221,7 @@ impl SerialSyncController {
 
         // request next chunk array
         let from_chunk = self.next_chunk;
-        let to_chunk = std::cmp::min(from_chunk + MAX_CHUNKS_TO_REQUEST, self.num_chunks);
+        let to_chunk = std::cmp::min(from_chunk + MAX_CHUNKS_TO_REQUEST, self.goal.index_end);
 
         let request_id = network::RequestId::Sync(RequestId::SerialSync { tx_id: self.tx_id });
 
@@ -412,8 +432,14 @@ impl SerialSyncController {
         }
 
         // prepare to download next
-        if self.next_chunk < self.num_chunks {
+        if self.next_chunk < self.goal.index_end {
             self.state = SyncState::Idle;
+            return;
+        }
+
+        // completed to download chunks
+        if !self.goal.is_all_chunks() {
+            self.state = SyncState::Completed;
             return;
         }
 
@@ -1317,7 +1343,7 @@ mod tests {
             since: Instant::now(),
         };
 
-        controller.num_chunks = 2048;
+        controller.goal.num_chunks = 2048;
 
         controller.on_response(peer_id, chunks).await;
         match controller.get_status() {
@@ -1499,7 +1525,7 @@ mod tests {
 
         let controller = SerialSyncController::new(
             tx_id,
-            num_chunks as u64,
+            FileSyncGoal::new_file(num_chunks as u64),
             ctx,
             Store::new(store, task_executor),
             file_location_cache,
