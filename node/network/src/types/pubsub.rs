@@ -120,6 +120,14 @@ pub struct FindFile {
     pub timestamp: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct FindChunks {
+    pub tx_id: TxID,
+    pub index_start: u64, // inclusive
+    pub index_end: u64,   // exclusive
+    pub timestamp: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub struct AnnounceFile {
     pub tx_id: TxID,
@@ -128,46 +136,65 @@ pub struct AnnounceFile {
     pub timestamp: u32,
 }
 
-impl AnnounceFile {
-    pub fn into_signed(self, keypair: &Keypair) -> Result<SignedAnnounceFile, SigningError> {
-        let raw = self.as_ssz_bytes();
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
+pub struct AnnounceChunks {
+    pub tx_id: TxID,
+    pub index_start: u64, // inclusive
+    pub index_end: u64,   // exclusive
+    pub peer_id: WrappedPeerId,
+    pub at: WrappedMultiaddr,
+    pub timestamp: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
+pub struct SignedMessage<T: Encode + Decode> {
+    pub inner: T,
+    pub signature: Vec<u8>,
+    pub resend_timestamp: u32,
+}
+
+impl<T: Encode + Decode> SignedMessage<T> {
+    pub fn sign_message(msg: T, keypair: &Keypair) -> Result<SignedMessage<T>, SigningError> {
+        let raw = msg.as_ssz_bytes();
         let signature = keypair.sign(&raw)?;
 
-        Ok(SignedAnnounceFile {
-            inner: self,
+        Ok(SignedMessage {
+            inner: msg,
             signature,
             resend_timestamp: 0,
         })
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
-pub struct SignedAnnounceFile {
-    pub inner: AnnounceFile,
-    pub signature: Vec<u8>,
-    pub resend_timestamp: u32,
-}
-
-impl SignedAnnounceFile {
-    pub fn verify_signature(&self, public_key: &PublicKey) -> bool {
-        let raw = self.inner.as_ssz_bytes();
-        public_key.verify(&raw, &self.signature)
-    }
-}
-
-impl Deref for SignedAnnounceFile {
-    type Target = AnnounceFile;
+impl<T: Encode + Decode> Deref for SignedMessage<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
+pub trait HasSignature {
+    fn verify_signature(&self, public_key: &PublicKey) -> bool;
+}
+
+impl<T: Encode + Decode> HasSignature for SignedMessage<T> {
+    fn verify_signature(&self, public_key: &PublicKey) -> bool {
+        let raw = self.inner.as_ssz_bytes();
+        public_key.verify(&raw, &self.signature)
+    }
+}
+
+pub type SignedAnnounceFile = SignedMessage<AnnounceFile>;
+pub type SignedAnnounceChunks = SignedMessage<AnnounceChunks>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PubsubMessage {
     ExampleMessage(u64),
     FindFile(FindFile),
+    FindChunks(FindChunks),
     AnnounceFile(SignedAnnounceFile),
+    AnnounceChunks(SignedAnnounceChunks),
 }
 
 // Implements the `DataTransform` trait of gossipsub to employ snappy compression
@@ -242,7 +269,9 @@ impl PubsubMessage {
         match self {
             PubsubMessage::ExampleMessage(_) => GossipKind::Example,
             PubsubMessage::FindFile(_) => GossipKind::FindFile,
+            PubsubMessage::FindChunks(_) => GossipKind::FindChunks,
             PubsubMessage::AnnounceFile(_) => GossipKind::AnnounceFile,
+            PubsubMessage::AnnounceChunks(_) => GossipKind::AnnounceChunks,
         }
     }
 
@@ -267,8 +296,15 @@ impl PubsubMessage {
                     GossipKind::FindFile => Ok(PubsubMessage::FindFile(
                         FindFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
                     )),
+                    GossipKind::FindChunks => Ok(PubsubMessage::FindChunks(
+                        FindChunks::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                    )),
                     GossipKind::AnnounceFile => Ok(PubsubMessage::AnnounceFile(
                         SignedAnnounceFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                    )),
+                    GossipKind::AnnounceChunks => Ok(PubsubMessage::AnnounceChunks(
+                        SignedAnnounceChunks::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
                     )),
                 }
             }
@@ -285,7 +321,9 @@ impl PubsubMessage {
         match &self {
             PubsubMessage::ExampleMessage(data) => data.as_ssz_bytes(),
             PubsubMessage::FindFile(data) => data.as_ssz_bytes(),
+            PubsubMessage::FindChunks(data) => data.as_ssz_bytes(),
             PubsubMessage::AnnounceFile(data) => data.as_ssz_bytes(),
+            PubsubMessage::AnnounceChunks(data) => data.as_ssz_bytes(),
         }
     }
 }
@@ -299,8 +337,14 @@ impl std::fmt::Display for PubsubMessage {
             PubsubMessage::FindFile(msg) => {
                 write!(f, "FindFile message: {:?}", msg)
             }
+            PubsubMessage::FindChunks(msg) => {
+                write!(f, "FindChunks message: {:?}", msg)
+            }
             PubsubMessage::AnnounceFile(msg) => {
                 write!(f, "AnnounceFile message: {:?}", msg)
+            }
+            PubsubMessage::AnnounceChunks(msg) => {
+                write!(f, "AnnounceChunks message: {:?}", msg)
             }
         }
     }

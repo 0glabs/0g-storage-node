@@ -13,30 +13,25 @@ use serde::Deserialize;
 pub use service::{SyncMessage, SyncReceiver, SyncRequest, SyncResponse, SyncSender, SyncService};
 use std::time::Duration;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    pub auto_sync_disabled: bool,
+    pub auto_sync_enabled: bool,
     pub max_sync_files: usize,
     #[serde(deserialize_with = "deserialize_duration")]
     pub find_peer_timeout: Duration,
-    pub enable_chunk_request: bool,
+    pub sync_file_by_rpc_enabled: bool,
+    pub sync_file_on_announcement_enabled: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            auto_sync_disabled: false,
+            auto_sync_enabled: false,
             max_sync_files: 100,
             find_peer_timeout: Duration::from_secs(30),
-            enable_chunk_request: false,
+            sync_file_by_rpc_enabled: true,
+            sync_file_on_announcement_enabled: false,
         }
-    }
-}
-
-impl Config {
-    pub fn disable_auto_sync(mut self) -> Self {
-        self.auto_sync_disabled = true;
-        self
     }
 }

@@ -1,11 +1,15 @@
 use crate::auto_sync::AutoSyncManager;
 use crate::context::SyncNetworkContext;
-use crate::controllers::{FailureReason, FileSyncInfo, SerialSyncController, SyncState};
+use crate::controllers::{
+    FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
+    MAX_CHUNKS_TO_REQUEST,
+};
 use crate::Config;
 use anyhow::{bail, Result};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
+use network::types::AnnounceChunks;
 use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, PeerId,
     PeerRequestId, SyncId as RequestId,
@@ -56,14 +60,31 @@ pub enum SyncMessage {
         peer_id: PeerId,
         addr: Multiaddr,
     },
+    AnnounceChunksGossip {
+        msg: AnnounceChunks,
+    },
 }
 
 #[derive(Debug)]
 pub enum SyncRequest {
-    SyncStatus { tx_seq: u64 },
-    SyncFile { tx_seq: u64 },
-    FileSyncInfo { tx_seq: Option<u64> },
-    TerminateFileSync { tx_seq: u64, is_reverted: bool },
+    SyncStatus {
+        tx_seq: u64,
+    },
+    SyncFile {
+        tx_seq: u64,
+    },
+    SyncChunks {
+        tx_seq: u64,
+        start_index: u64,
+        end_index: u64,
+    },
+    FileSyncInfo {
+        tx_seq: Option<u64>,
+    },
+    TerminateFileSync {
+        tx_seq: u64,
+        is_reverted: bool,
+    },
 }
 
 #[derive(Debug)]
@@ -134,7 +155,7 @@ impl SyncService {
 
         let manager =
             AutoSyncManager::new(store.clone(), sync_send.clone(), config.clone()).await?;
-        if !config.auto_sync_disabled {
+        if config.auto_sync_enabled {
             manager.spwn(&executor, event_recv);
         }
 
@@ -218,6 +239,8 @@ impl SyncService {
             } => {
                 self.on_announce_file_gossip(tx_id, peer_id, addr).await;
             }
+
+            SyncMessage::AnnounceChunksGossip { msg } => self.on_announce_chunks_gossip(msg).await,
         }
     }
 
@@ -237,24 +260,19 @@ impl SyncService {
             }
 
             SyncRequest::SyncFile { tx_seq } => {
-                if !self.controllers.contains_key(&tx_seq)
-                    && self.controllers.len() >= self.config.max_sync_files
-                {
-                    let _ = sender.send(SyncResponse::SyncFile {
-                        err: format!(
-                            "max sync file limitation reached: {:?}",
-                            self.config.max_sync_files
-                        ),
-                    });
-                    return;
-                }
+                let result = self.on_sync_file_request(tx_seq, None).await;
+                let _ = sender.send(SyncResponse::SyncFile { err: result });
+            }
 
-                let err = match self.on_start_sync_file(tx_seq, None).await {
-                    Ok(()) => "".into(),
-                    Err(err) => err.to_string(),
-                };
-
-                let _ = sender.send(SyncResponse::SyncFile { err });
+            SyncRequest::SyncChunks {
+                tx_seq,
+                start_index,
+                end_index,
+            } => {
+                let result = self
+                    .on_sync_file_request(tx_seq, Some((start_index, end_index)))
+                    .await;
+                let _ = sender.send(SyncResponse::SyncFile { err: result });
             }
 
             SyncRequest::FileSyncInfo { tx_seq } => {
@@ -345,6 +363,12 @@ impl SyncService {
         // ban peer for invalid chunk index range
         if request.index_start >= request.index_end {
             self.ctx.ban_peer(peer_id, "Invalid chunk indices");
+            return Ok(());
+        }
+
+        // ban peer if requested too many chunks
+        if request.index_end - request.index_start > MAX_CHUNKS_TO_REQUEST {
+            self.ctx.ban_peer(peer_id, "Too many chunks requested");
             return Ok(());
         }
 
@@ -463,15 +487,37 @@ impl SyncService {
         }
     }
 
+    async fn on_sync_file_request(
+        &mut self,
+        tx_seq: u64,
+        maybe_range: Option<(u64, u64)>,
+    ) -> String {
+        if maybe_range.is_none() && !self.config.sync_file_by_rpc_enabled {
+            return "Disabled to sync file".into();
+        }
+
+        if !self.controllers.contains_key(&tx_seq)
+            && self.controllers.len() >= self.config.max_sync_files
+        {
+            return format!(
+                "Max sync file limitation reached: {}",
+                self.config.max_sync_files
+            );
+        }
+
+        match self.on_start_sync_file(tx_seq, maybe_range, None).await {
+            Ok(()) => "".into(),
+            Err(e) => e.to_string(),
+        }
+    }
+
     async fn on_start_sync_file(
         &mut self,
         tx_seq: u64,
+        maybe_range: Option<(u64, u64)>,
         maybe_peer: Option<(PeerId, Multiaddr)>,
     ) -> Result<()> {
         info!(%tx_seq, "Start to sync file");
-        if !self.config.enable_chunk_request {
-            return Ok(());
-        }
 
         // remove failed entry if caused by tx reverted, so as to re-sync
         // file with latest tx_id.
@@ -498,7 +544,7 @@ impl SyncService {
                 };
 
                 let num_chunks = match usize::try_from(tx.size) {
-                    Ok(size) => bytes_to_chunks(size),
+                    Ok(size) => bytes_to_chunks(size) as u64,
                     Err(_) => {
                         error!(%tx_seq, "Unexpected transaction size: {}", tx.size);
                         bail!("Unexpected transaction size");
@@ -510,9 +556,18 @@ impl SyncService {
                     bail!("File already exists");
                 }
 
+                let (index_start, index_end) = match maybe_range {
+                    Some((start, end)) => (start, end),
+                    None => (0, num_chunks),
+                };
+
+                if index_start >= index_end || index_end > num_chunks {
+                    bail!("invalid chunk range");
+                }
+
                 entry.insert(SerialSyncController::new(
                     tx.id(),
-                    num_chunks as u64,
+                    FileSyncGoal::new(num_chunks, index_start, index_end),
                     self.ctx.clone(),
                     self.store.clone(),
                     self.file_location_cache.clone(),
@@ -542,8 +597,16 @@ impl SyncService {
 
         // File already in sync
         if let Some(controller) = self.controllers.get_mut(&tx_seq) {
-            controller.on_peer_found(peer_id, addr);
-            controller.transition();
+            let info = controller.get_sync_info();
+            if info.goal.is_all_chunks() {
+                controller.on_peer_found(peer_id, addr);
+                controller.transition();
+            }
+
+            return;
+        }
+
+        if !self.config.sync_file_on_announcement_enabled {
             return;
         }
 
@@ -558,9 +621,27 @@ impl SyncService {
         }
 
         // Now, always sync files among all nodes
-        if let Err(err) = self.on_start_sync_file(tx_seq, Some((peer_id, addr))).await {
+        if let Err(err) = self
+            .on_start_sync_file(tx_seq, None, Some((peer_id, addr)))
+            .await
+        {
             // FIXME(zz): This is possible for tx missing. Is it expected?
             error!(%tx_seq, %err, "Failed to sync file");
+        }
+    }
+
+    async fn on_announce_chunks_gossip(&mut self, msg: AnnounceChunks) {
+        info!(?msg, "Received AnnounceChunks gossip");
+
+        if let Some(controller) = self.controllers.get_mut(&msg.tx_id.seq) {
+            let info = controller.get_sync_info();
+            if !info.goal.is_all_chunks()
+                && info.goal.index_start == msg.index_start
+                && info.goal.index_end == msg.index_end
+            {
+                controller.on_peer_found(msg.peer_id.into(), msg.at.into());
+                controller.transition();
+            }
         }
     }
 
@@ -679,6 +760,15 @@ mod tests {
         }
 
         async fn spawn_sync_service(&self, with_peer_store: bool) -> SyncSender {
+            self.spawn_sync_service_with_config(with_peer_store, Config::default())
+                .await
+        }
+
+        async fn spawn_sync_service_with_config(
+            &self,
+            with_peer_store: bool,
+            config: Config,
+        ) -> SyncSender {
             let store = if with_peer_store {
                 self.peer_store.clone()
             } else {
@@ -686,7 +776,7 @@ mod tests {
             };
 
             SyncService::spawn_with_config(
-                Config::default().disable_auto_sync(),
+                config,
                 self.runtime.task_executor.clone(),
                 self.network_send.clone(),
                 store,
@@ -719,7 +809,7 @@ mod tests {
             .unwrap();
 
         let mut sync = SyncService {
-            config: Config::default().disable_auto_sync(),
+            config: Config::default(),
             msg_recv: sync_recv,
             ctx: Arc::new(SyncNetworkContext::new(network_send)),
             store,
@@ -754,7 +844,7 @@ mod tests {
             .unwrap();
 
         let mut sync = SyncService {
-            config: Config::default().disable_auto_sync(),
+            config: Config::default(),
             msg_recv: sync_recv,
             ctx: Arc::new(SyncNetworkContext::new(network_send)),
             store,
@@ -1070,7 +1160,7 @@ mod tests {
         let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
         let (_event_send, event_recv) = broadcast::channel(16);
         let sync_send = SyncService::spawn_with_config(
-            Config::default().disable_auto_sync(),
+            Config::default(),
             runtime.task_executor.clone(),
             network_send,
             store.clone(),
@@ -1341,7 +1431,9 @@ mod tests {
     #[tokio::test]
     async fn test_announce_file() {
         let mut runtime = TestSyncRuntime::new(vec![1535], 0);
-        let sync_send = runtime.spawn_sync_service(false).await;
+        let mut config = Config::default();
+        config.sync_file_on_announcement_enabled = true;
+        let sync_send = runtime.spawn_sync_service_with_config(false, config).await;
 
         let tx_seq = 0u64;
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/10000".parse().unwrap();

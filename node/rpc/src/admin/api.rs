@@ -12,6 +12,14 @@ pub trait Rpc {
     #[method(name = "startSyncFile")]
     async fn start_sync_file(&self, tx_seq: u64) -> RpcResult<()>;
 
+    #[method(name = "startSyncChunks")]
+    async fn start_sync_chunks(
+        &self,
+        tx_seq: u64,
+        start_index: u64,
+        end_index: u64, // exclusive
+    ) -> RpcResult<()>;
+
     #[method(name = "getSyncStatus")]
     async fn get_sync_status(&self, tx_seq: u64) -> RpcResult<String>;
 

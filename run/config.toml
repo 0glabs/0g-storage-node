@@ -27,6 +27,8 @@ log_sync_start_block_number = 134253180
 log_page_size = 999
 
 # [sync]
-# auto_sync_disabled = false
+# auto_sync_enabled = false
 # max_sync_files = 8
 # find_peer_timeout = "30s"
+# sync_file_by_rpc_enabled = true
+# sync_file_on_announcement_enabled = false

@@ -3,11 +3,14 @@ use std::{ops::Neg, sync::Arc};
 use file_location_cache::FileLocationCache;
 use network::{
     rpc::StatusMessage,
-    types::{AnnounceFile, FindFile, SignedAnnounceFile},
+    types::{
+        AnnounceChunks, AnnounceFile, FindChunks, FindFile, HasSignature, SignedAnnounceChunks,
+        SignedAnnounceFile, SignedMessage,
+    },
     Keypair, MessageAcceptance, MessageId, NetworkGlobals, NetworkMessage, PeerId, PeerRequestId,
     PublicKey, PubsubMessage, Request, RequestId, Response,
 };
-use shared_types::{timestamp_now, TxID};
+use shared_types::{bytes_to_chunks, timestamp_now, TxID};
 use storage_async::Store;
 use sync::{SyncMessage, SyncSender};
 use tokio::sync::{mpsc, RwLock};
@@ -38,6 +41,21 @@ fn peer_id_to_public_key(peer_id: &PeerId) -> Result<PublicKey, String> {
             e
         )
     })
+}
+
+fn verify_signature(msg: &dyn HasSignature, peer_id: &PeerId, propagation_source: PeerId) -> bool {
+    match peer_id_to_public_key(peer_id) {
+        Ok(pub_key) => msg.verify_signature(&pub_key),
+        Err(err) => {
+            error!(
+                ?err,
+                ?peer_id,
+                ?propagation_source,
+                "Failed to verify signature"
+            );
+            false
+        }
+    }
 }
 
 pub struct Libp2pEventHandler {
@@ -213,7 +231,9 @@ impl Libp2pEventHandler {
         match message {
             PubsubMessage::ExampleMessage(_) => MessageAcceptance::Ignore,
             PubsubMessage::FindFile(msg) => self.on_find_file(msg).await,
+            PubsubMessage::FindChunks(msg) => self.on_find_chunks(msg).await,
             PubsubMessage::AnnounceFile(msg) => self.on_announce_file(propagation_source, msg),
+            PubsubMessage::AnnounceChunks(msg) => self.on_announce_chunks(propagation_source, msg),
         }
     }
 
@@ -237,7 +257,7 @@ impl Libp2pEventHandler {
             timestamp,
         };
 
-        let mut signed = match msg.into_signed(&self.local_keypair) {
+        let mut signed = match SignedMessage::sign_message(msg, &self.local_keypair) {
             Ok(signed) => signed,
             Err(e) => {
                 error!(%tx_id.seq, %e, "Failed to sign AnnounceFile message");
@@ -292,28 +312,106 @@ impl Libp2pEventHandler {
         MessageAcceptance::Accept
     }
 
+    pub fn construct_announce_chunks_message(
+        &self,
+        tx_id: TxID,
+        index_start: u64,
+        index_end: u64,
+    ) -> Option<PubsubMessage> {
+        let peer_id = *self.network_globals.peer_id.read();
+        let addr = self
+            .network_globals
+            .listen_multiaddrs
+            .read()
+            .first()?
+            .clone();
+        let timestamp = timestamp_now();
+
+        let msg = AnnounceChunks {
+            tx_id,
+            index_start,
+            index_end,
+            peer_id: peer_id.into(),
+            at: addr.into(),
+            timestamp,
+        };
+
+        let mut signed = match SignedMessage::sign_message(msg, &self.local_keypair) {
+            Ok(signed) => signed,
+            Err(e) => {
+                error!(%tx_id.seq, %e, "Failed to sign AnnounceChunks message");
+                return None;
+            }
+        };
+
+        signed.resend_timestamp = timestamp;
+
+        Some(PubsubMessage::AnnounceChunks(signed))
+    }
+
+    async fn on_find_chunks(&self, msg: FindChunks) -> MessageAcceptance {
+        // validate message
+        if msg.index_start >= msg.index_end {
+            debug!(?msg, "Invalid chunk index range");
+            return MessageAcceptance::Reject;
+        }
+
+        // verify timestamp
+        let d = duration_since(msg.timestamp);
+        if d < TOLERABLE_DRIFT.neg() || d > *FIND_FILE_TIMEOUT {
+            debug!(%msg.timestamp, "Invalid timestamp, ignoring FindFile message");
+            return MessageAcceptance::Ignore;
+        }
+
+        // check if we have specified chunks even file not finalized yet
+        // validate end index
+        let tx = match self.store.get_tx_by_seq_number(msg.tx_id.seq).await {
+            Ok(Some(tx)) if tx.id() == msg.tx_id => tx,
+            _ => return MessageAcceptance::Accept,
+        };
+
+        // validate index range
+        if let Ok(size) = usize::try_from(tx.size) {
+            let num_chunks = bytes_to_chunks(size);
+            if msg.index_end > num_chunks as u64 {
+                debug!(?msg, "Invalid chunk end index for FindChunks message");
+                return MessageAcceptance::Reject;
+            }
+        }
+
+        // TODO(qhz): check if there is better way to check existence of requested chunks.
+        let _ = match self
+            .store
+            .get_chunks_by_tx_and_index_range(
+                msg.tx_id.seq,
+                msg.index_start as usize,
+                msg.index_end as usize,
+            )
+            .await
+        {
+            Ok(Some(_)) => (),
+            _ => return MessageAcceptance::Accept,
+        };
+
+        debug!(?msg, "Found chunks to respond FindChunks message");
+
+        match self.construct_announce_chunks_message(msg.tx_id, msg.index_start, msg.index_end) {
+            Some(msg) => {
+                self.publish(msg);
+                MessageAcceptance::Ignore
+            }
+            // propagate FindFile query to other nodes
+            None => MessageAcceptance::Accept,
+        }
+    }
+
     fn on_announce_file(
         &self,
         propagation_source: PeerId,
         msg: SignedAnnounceFile,
     ) -> MessageAcceptance {
         // verify message signature
-        let pk = match peer_id_to_public_key(&msg.peer_id) {
-            Ok(pk) => pk,
-            Err(e) => {
-                error!(
-                    "Failed to convert peer id {:?} to public key: {:?}",
-                    msg.peer_id, e
-                );
-                return MessageAcceptance::Reject;
-            }
-        };
-
-        if !msg.verify_signature(&pk) {
-            warn!(
-                "Received message with invalid signature from peer {:?}",
-                propagation_source
-            );
+        if !verify_signature(&msg, &msg.peer_id, propagation_source) {
             return MessageAcceptance::Reject;
         }
 
@@ -333,6 +431,29 @@ impl Libp2pEventHandler {
 
         // insert message to cache
         self.file_location_cache.insert(msg);
+
+        MessageAcceptance::Accept
+    }
+
+    fn on_announce_chunks(
+        &self,
+        propagation_source: PeerId,
+        msg: SignedAnnounceChunks,
+    ) -> MessageAcceptance {
+        // verify message signature
+        if !verify_signature(&msg, &msg.peer_id, propagation_source) {
+            return MessageAcceptance::Reject;
+        }
+
+        // propagate gossip to peers
+        let d = duration_since(msg.resend_timestamp);
+        if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_FILE_TIMEOUT {
+            debug!(%msg.resend_timestamp, "Invalid resend timestamp, ignoring AnnounceChunks message");
+            return MessageAcceptance::Ignore;
+        }
+
+        // notify sync layer
+        self.send_to_sync(SyncMessage::AnnounceChunksGossip { msg: msg.inner });
 
         MessageAcceptance::Accept
     }
