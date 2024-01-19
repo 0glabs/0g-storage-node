@@ -448,14 +448,13 @@ class TestFramework:
 
         self.stop_nodes()
 
-        if success == TestStatus.PASSED:
-            self.log.info("Test success")
-            shutil.rmtree(self.root_dir)
-
         handlers = self.log.handlers[:]
         for handler in handlers:
             self.log.removeHandler(handler)
             handler.close()
         logging.shutdown()
+
+        if success == TestStatus.PASSED:
+            shutil.rmtree(self.root_dir)
 
         sys.exit(exit_code)
