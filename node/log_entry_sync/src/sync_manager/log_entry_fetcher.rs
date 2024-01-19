@@ -71,6 +71,7 @@ impl LogEntryFetcher {
                     .submit_filter()
                     .from_block(progress)
                     .to_block(end_block_number)
+                    .address(contract.address().into())
                     .filter;
                 let mut stream = LogQuery::new(&provider, &filter, log_query_delay)
                     .with_page_size(log_page_size);
@@ -116,7 +117,7 @@ impl LogEntryFetcher {
                         }
                         Err(e) => {
                             error!("log query error: e={:?}", e);
-                            filter = filter.from_block(progress);
+                            filter = filter.from_block(progress).address(contract.address());
                             stream = LogQuery::new(&provider, &filter, log_query_delay)
                                 .with_page_size(log_page_size);
                             tokio::time::sleep(Duration::from_millis(RETRY_WAIT_MS)).await;
@@ -143,6 +144,7 @@ impl LogEntryFetcher {
                 let mut filter = contract
                     .submit_filter()
                     .from_block(start_block_number)
+                    .address(contract.address().into())
                     .filter;
                 debug!("start_watch starts, start={}", start_block_number);
                 let mut filter_id =
@@ -160,7 +162,7 @@ impl LogEntryFetcher {
                     {
                         Err(e) => {
                             error!("log sync watch error: e={:?}", e);
-                            filter = filter.from_block(progress);
+                            filter = filter.from_block(progress).address(contract.address());
                             filter_id = repeat_run_and_log(|| {
                                 provider.new_filter(FilterKind::Logs(&filter))
                             })
