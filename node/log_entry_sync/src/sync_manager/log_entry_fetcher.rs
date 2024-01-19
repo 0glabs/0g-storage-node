@@ -3,7 +3,7 @@ use crate::sync_manager::log_query::LogQuery;
 use crate::sync_manager::{repeat_run_and_log, RETRY_WAIT_MS};
 use anyhow::{anyhow, bail, Result};
 use append_merkle::{Algorithm, Sha3Algorithm};
-use contract_interface::{ZgsFlow, SubmissionNode, SubmitFilter};
+use contract_interface::{SubmissionNode, SubmitFilter, ZgsFlow};
 use ethers::abi::RawLog;
 use ethers::prelude::{BlockNumber, EthLogDecode, Http, Log, Middleware, Provider, U256};
 use ethers::providers::{FilterKind, HttpRateLimitRetryPolicy, RetryClient, RetryClientBuilder};

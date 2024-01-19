@@ -7,8 +7,8 @@ mod admin;
 mod config;
 mod error;
 mod miner;
-mod zgs;
 mod types;
+mod zgs;
 
 use crate::miner::RpcServer as MinerRpcServer;
 use admin::RpcServer as AdminRpcServer;
@@ -18,8 +18,6 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
 use network::NetworkGlobals;
 use network::NetworkMessage;
-use zgs::RpcServer as ZgsRpcServer;
-use zgs_miner::MinerMessage;
 use std::error::Error;
 use std::sync::Arc;
 use storage_async::Store;
@@ -27,6 +25,8 @@ use sync::{SyncRequest, SyncResponse, SyncSender};
 use task_executor::ShutdownReason;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedSender;
+use zgs::RpcServer as ZgsRpcServer;
+use zgs_miner::MinerMessage;
 
 pub use config::Config as RPCConfig;
 

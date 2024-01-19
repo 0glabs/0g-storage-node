@@ -22,8 +22,8 @@ pub(crate) use protocol::{InboundRequest, RPCProtocol};
 
 pub use handler::SubstreamId;
 pub use methods::{
-    DataByHashRequest, GetChunksRequest, GoodbyeReason, MaxRequestBlocks, ZgsData,
-    RPCResponseErrorCode, ResponseTermination, StatusMessage, MAX_REQUEST_BLOCKS,
+    DataByHashRequest, GetChunksRequest, GoodbyeReason, MaxRequestBlocks, RPCResponseErrorCode,
+    ResponseTermination, StatusMessage, ZgsData, MAX_REQUEST_BLOCKS,
 };
 pub(crate) use outbound::OutboundRequest;
 pub use protocol::{max_rpc_size, Protocol, RPCError};

@@ -1,9 +1,9 @@
 use append_merkle::MerkleTreeInitialData;
 use ethereum_types::H256;
-use zgs_spec::{BYTES_PER_SEAL, SEALS_PER_LOAD};
 use shared_types::{
     Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, FlowRangeProof, Transaction,
 };
+use zgs_spec::{BYTES_PER_SEAL, SEALS_PER_LOAD};
 
 use crate::error::Result;
 

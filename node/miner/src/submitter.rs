@@ -1,5 +1,5 @@
 use contract_interface::PoraAnswer;
-use contract_interface::{ZgsFlow, PoraMine};
+use contract_interface::{PoraMine, ZgsFlow};
 use ethers::providers::PendingTransaction;
 use shared_types::FlowRangeProof;
 use std::sync::Arc;

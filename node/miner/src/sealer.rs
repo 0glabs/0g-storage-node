@@ -7,12 +7,12 @@ use tokio::{
 };
 
 use contract_interface::{EpochRangeWithContextDigest, ZgsFlow};
-use zgs_spec::SECTORS_PER_SEAL;
 use storage::{
     error::Result,
     log_store::{SealAnswer, SealTask, Store},
 };
 use task_executor::TaskExecutor;
+use zgs_spec::SECTORS_PER_SEAL;
 
 use crate::config::{MineServiceMiddleware, MinerConfig};
 
