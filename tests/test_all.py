@@ -16,6 +16,7 @@ PORT_RANGE = 500
 
 __file_path__ = os.path.dirname(os.path.realpath(__file__))
 
+CONFLUX_BINARY = "conflux.exe" if is_windows_platform() else "conflux"
 
 def run_single_test(py, script, test_dir, index, port_min, port_max):
     try:
@@ -61,7 +62,7 @@ def run():
     if not os.path.exists(dir_name):
         os.makedirs(dir_name, exist_ok=True)
 
-    conflux_path = os.path.join(dir_name, "conflux")
+    conflux_path = os.path.join(dir_name, CONFLUX_BINARY)
     if not os.path.exists(conflux_path):
         build_conflux(conflux_path)
 
@@ -155,7 +156,7 @@ def build_conflux(conflux_path):
     os.chdir(destination_path)
     os.system("cargo build --release --bin conflux")
 
-    path = os.path.join(destination_path, "target", "release", "conflux")
+    path = os.path.join(destination_path, "target", "release", CONFLUX_BINARY)
     shutil.copyfile(path, conflux_path)
 
     if not is_windows_platform():

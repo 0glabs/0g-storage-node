@@ -399,20 +399,20 @@ impl SyncService {
         }
 
         // file may be removed, but remote peer still find one from the file location cache
-        let finalized = self.store.check_tx_completed(request.tx_id.seq).await?;
-        if !finalized {
-            info!(%request.tx_id.seq, "Failed to handle chunks request due to tx not finalized");
-            // FIXME(zz): If remote removes a file, we will also get failure here.
-            // self.ctx
-            //     .report_peer(peer_id, PeerAction::HighToleranceError, "Tx not finalized");
-            self.ctx.send(NetworkMessage::SendErrorResponse {
-                peer_id,
-                error: RPCResponseErrorCode::InvalidRequest,
-                reason: "Tx not finalized".into(),
-                id: request_id,
-            });
-            return Ok(());
-        }
+        // let finalized = self.store.check_tx_completed(request.tx_id.seq).await?;
+        // if !finalized {
+        //     info!(%request.tx_id.seq, "Failed to handle chunks request due to tx not finalized");
+        //     // FIXME(zz): If remote removes a file, we will also get failure here.
+        //     // self.ctx
+        //     //     .report_peer(peer_id, PeerAction::HighToleranceError, "Tx not finalized");
+        //     self.ctx.send(NetworkMessage::SendErrorResponse {
+        //         peer_id,
+        //         error: RPCResponseErrorCode::InvalidRequest,
+        //         reason: "Tx not finalized".into(),
+        //         id: request_id,
+        //     });
+        //     return Ok(());
+        // }
 
         let result = self
             .store
