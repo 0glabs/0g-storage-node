@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 /// retrieved from blockchain.
 pub struct MemoryCachedFile {
     pub id: FileID,
+    pub chunks_per_segment: usize,
     /// Window to control the cache of each file
     pub segments: HashMap<usize, ChunkArray>,
     /// Total number of chunks for the cache file, which is updated from log entry.
@@ -22,12 +23,13 @@ pub struct MemoryCachedFile {
 }
 
 impl MemoryCachedFile {
-    fn new(root: DataRoot, timeout: Duration) -> Self {
+    fn new(root: DataRoot, timeout: Duration, chunks_per_segment: usize) -> Self {
         MemoryCachedFile {
             id: FileID {
                 root,
                 tx_id: Default::default(),
             },
+            chunks_per_segment,
             segments: HashMap::default(),
             total_chunks: 0,
             expired_at: Instant::now().add(timeout),
@@ -81,6 +83,7 @@ impl ChunkPoolCache {
         self.files.get(root)
     }
 
+    #[allow(unused)]
     pub fn get_file_mut(&mut self, root: &DataRoot) -> Option<&mut MemoryCachedFile> {
         self.files.get_mut(root)
     }
@@ -126,10 +129,13 @@ impl ChunkPoolCache {
         // always GC at first
         self.garbage_collect();
 
-        let file = self
-            .files
-            .entry(seg_info.root)
-            .or_insert_with(|| MemoryCachedFile::new(seg_info.root, self.config.expiration_time()));
+        let file = self.files.entry(seg_info.root).or_insert_with(|| {
+            MemoryCachedFile::new(
+                seg_info.root,
+                self.config.expiration_time(),
+                seg_info.chunks_per_segment,
+            )
+        });
 
         // Segment already cached in memory. Directly return OK
         if file.segments.contains_key(&seg_info.seg_index) {

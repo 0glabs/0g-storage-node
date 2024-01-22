@@ -17,7 +17,7 @@ class RandomTest(TestFramework):
         self.num_blockchain_nodes = 1
         self.num_nodes = 4
         for i in range(self.num_nodes):
-            self.zgs_node_configs[i] = {"find_peer_timeout_secs": 1, "confirmation_block_count": 1}
+            self.zgs_node_configs[i] = {"find_peer_timeout_secs": 1, "confirmation_block_count": 1, "sync": {"auto_sync_enabled": True}}
 
     def run_test(self):
         max_size = 256 * 1024 * 64
