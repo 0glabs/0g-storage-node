@@ -114,6 +114,13 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
     ///
     /// Reverted transactions are returned in order.
     fn revert_to(&mut self, tx_seq: u64) -> Result<Vec<Transaction>>;
+
+    /// If the proof is valid, fill the tree nodes with the new data.
+    fn validate_and_insert_range_proof(
+        &mut self,
+        tx_seq: u64,
+        data: &ChunkArrayWithProof,
+    ) -> Result<bool>;
 }
 
 pub trait LogStoreChunkWrite {

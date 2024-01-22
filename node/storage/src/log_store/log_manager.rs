@@ -256,6 +256,19 @@ impl LogStoreWrite for LogManager {
         let start = if tx_seq != u64::MAX { tx_seq + 1 } else { 0 };
         self.tx_store.remove_tx_after(start)
     }
+
+    fn validate_and_insert_range_proof(
+        &mut self,
+        tx_seq: u64,
+        data: &ChunkArrayWithProof,
+    ) -> Result<bool> {
+        let valid = self.validate_range_proof(tx_seq, data)?;
+        if valid {
+            self.pora_chunks_merkle
+                .fill_with_range_proof(data.proof.clone())?;
+        }
+        Ok(valid)
+    }
 }
 
 impl LogStoreChunkRead for LogManager {

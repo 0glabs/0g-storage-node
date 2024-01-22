@@ -106,6 +106,13 @@ pub trait MerkleTreeRead {
             index_in_layer >>= 1;
         }
         lemma.push(self.root().clone());
+        if lemma.contains(&Self::E::null()) {
+            bail!(
+                "Not enough data to generate proof, lemma={:?} path={:?}",
+                lemma,
+                path
+            );
+        }
         Ok(Proof::new(lemma, path))
     }
 }

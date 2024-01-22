@@ -385,9 +385,9 @@ impl SerialSyncController {
         let validation_result = self
             .store
             .get_store()
-            .read()
+            .write()
             .await
-            .validate_range_proof(self.tx_seq, &response);
+            .validate_and_insert_range_proof(self.tx_seq, &response);
 
         match validation_result {
             Ok(true) => {}
