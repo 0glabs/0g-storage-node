@@ -204,33 +204,28 @@ impl MemoryChunkPool {
 
     /// Updates the cached file info when log entry retrieved from blockchain.
     pub async fn update_file_info(&self, tx: &Transaction) -> Result<bool> {
-        let mut inner = self.inner.lock().await;
-
-        // Do nothing if file not uploaded yet.
-        let file = match inner.segment_cache.get_file_mut(&tx.data_merkle_root) {
-            Some(f) => f,
-            None => return Ok(false),
-        };
-
-        // Update the file info with transaction.
-        file.update_with_tx(tx);
-
-        // File partially uploaded and it's up to user thread
-        // to write chunks into store and finalize transaction.
-        if file.cached_chunk_num < file.total_chunks {
-            return Ok(true);
+        let maybe_file = self
+            .inner
+            .lock()
+            .await
+            .segment_cache
+            .remove_file(&tx.data_merkle_root);
+        if let Some(mut file) = maybe_file {
+            file.update_with_tx(tx);
+            for (seg_index, seg) in file.segments.into_iter() {
+                self.write_chunks(
+                    SegmentInfo {
+                        root: tx.data_merkle_root,
+                        seg_data: seg.data.clone(),
+                        seg_index,
+                        chunks_per_segment: file.chunks_per_segment,
+                    },
+                    file.id,
+                    file.total_chunks * CHUNK_SIZE,
+                )
+                .await?
+            }
         }
-
-        // Otherwise, notify to write all memory cached chunks and finalize transaction.
-        let file_id = FileID {
-            root: tx.data_merkle_root,
-            tx_id: tx.id(),
-        };
-        if let Err(e) = self.sender.send(file_id) {
-            // Channel receiver will not be dropped until program exit.
-            bail!("channel send error: {}", e);
-        }
-
         Ok(true)
     }
 
@@ -242,10 +237,10 @@ impl MemoryChunkPool {
                 Ok(LogSyncEvent::ReorgDetected { .. }) => {}
                 Ok(LogSyncEvent::Reverted { .. }) => {}
                 Ok(LogSyncEvent::TxSynced { tx }) => {
-                    if let Err(_e) = chunk_pool.update_file_info(&tx).await {
+                    if let Err(e) = chunk_pool.update_file_info(&tx).await {
                         error!(
-                            "Failed to update file info. tx seq={}, tx_root={}",
-                            tx.seq, tx.data_merkle_root
+                            "Failed to update file info. tx seq={}, tx_root={}, error={}",
+                            tx.seq, tx.data_merkle_root, e
                         );
                     }
                 }

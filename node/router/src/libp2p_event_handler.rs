@@ -380,7 +380,7 @@ impl Libp2pEventHandler {
         }
 
         // TODO(qhz): check if there is better way to check existence of requested chunks.
-        let _ = match self
+        match self
             .store
             .get_chunks_by_tx_and_index_range(
                 msg.tx_id.seq,

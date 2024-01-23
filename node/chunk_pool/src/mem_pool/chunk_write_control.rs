@@ -16,6 +16,7 @@ enum SlotStatus {
 /// limit on writing threads per file. Meanwhile, the left_boundary field records
 /// how many segments have been uploaded.
 struct CtrlWindow {
+    #[allow(unused)]
     size: usize,
     left_boundary: usize,
     slots: HashMap<usize, SlotStatus>,

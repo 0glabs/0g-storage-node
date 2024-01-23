@@ -22,6 +22,7 @@ class CrashTest(TestFramework):
         self.log.info("segment: %s", segment)
 
         for i in range(self.num_nodes):
+            self.nodes[i].admin_start_sync_file(0)
             self.log.info("wait for node: %s", i)
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
