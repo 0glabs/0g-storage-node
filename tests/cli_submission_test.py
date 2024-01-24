@@ -84,6 +84,7 @@ class CliSubmissionTest(TestFramework):
                 continue
 
             self.log.info("wait node %d", i)
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(root) is not None)
             self.nodes[i].admin_start_sync_file(submission_index - 1)
             wait_until(
                 lambda: self.nodes[i].sycn_status_is_completed_or_unknown(
@@ -91,7 +92,6 @@ class CliSubmissionTest(TestFramework):
                 )
             )
 
-            wait_until(lambda: self.nodes[i].zgs_get_file_info(root) is not None)
             wait_until(lambda: self.nodes[i].zgs_get_file_info(root)["finalized"])
 
             # start_idx = random.randint(0, num_of_entris - 1)

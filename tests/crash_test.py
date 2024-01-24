@@ -22,11 +22,11 @@ class CrashTest(TestFramework):
         self.log.info("segment: %s", segment)
 
         for i in range(self.num_nodes):
-            self.nodes[i].admin_start_sync_file(0)
-            self.log.info("wait for node: %s", i)
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
             )
+            self.nodes[i].admin_start_sync_file(0)
+            self.log.info("wait for node: %s", i)
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"]
             )
@@ -48,22 +48,26 @@ class CrashTest(TestFramework):
 
         self.start_storage_node(1)
         self.nodes[1].wait_for_rpc_connection()
-        self.nodes[1].admin_start_sync_file(1)
         wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root) is not None)
+        self.nodes[1].admin_start_sync_file(1)
         wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root)["finalized"])
 
         for i in range(2, self.num_nodes):
             self.start_storage_node(i)
             self.nodes[i].wait_for_rpc_connection()
+            wait_until(
+                lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
+            )
             self.nodes[i].admin_start_sync_file(1)
 
             self.nodes[i].stop(kill=True)
             self.start_storage_node(i)
             self.nodes[i].wait_for_rpc_connection()
-            self.nodes[i].admin_start_sync_file(1)
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
             )
+            self.nodes[i].admin_start_sync_file(1)
+            
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"]
             )
@@ -91,10 +95,10 @@ class CrashTest(TestFramework):
             self.log.info("wait for node: %s", i)
             self.start_storage_node(i)
             self.nodes[i].wait_for_rpc_connection()
-            self.nodes[i].admin_start_sync_file(2)
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
             )
+            self.nodes[i].admin_start_sync_file(2)
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"]
             )
@@ -132,18 +136,18 @@ class CrashTest(TestFramework):
             self.log.info("wait for node: %s", i)
             self.start_storage_node(i)
             self.nodes[i].wait_for_rpc_connection()
-            self.nodes[i].admin_start_sync_file(4)
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root1) is not None
             )
+            self.nodes[i].admin_start_sync_file(4)
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root1)["finalized"]
             )
 
-            self.nodes[i].admin_start_sync_file(3)
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
             )
+            self.nodes[i].admin_start_sync_file(3)
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"]
             )
