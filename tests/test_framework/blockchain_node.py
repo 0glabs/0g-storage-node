@@ -149,7 +149,7 @@ class TestNode:
         else:
             self.process.terminate()
         if wait:
-            self.wait_until_stopped()
+            self.wait_until_stopped(close_stdout_stderr=False)
         # Check that stderr is as expected
         self.stderr.seek(0)
         stderr = self.stderr.read().decode("utf-8").strip()
@@ -169,12 +169,18 @@ class TestNode:
                 )
             )
 
-        self.stdout.close()
-        self.stderr.close()
-        self.stdout = None
-        self.stderr = None
+        self.__safe_close_stdout_stderr__()
 
-    def is_node_stopped(self):
+    def __safe_close_stdout_stderr__(self):
+        if self.stdout is not None:
+            self.stdout.close()
+            self.stdout = None
+
+        if self.stderr is not None:
+            self.stderr.close()
+            self.stderr = None
+
+    def __is_node_stopped__(self):
         """Checks whether the node has stopped.
 
         Returns True if the node has stopped. False otherwise.
@@ -196,8 +202,10 @@ class TestNode:
         self.return_code = return_code
         return True
 
-    def wait_until_stopped(self, timeout=20):
-        wait_until(self.is_node_stopped, timeout=timeout)
+    def wait_until_stopped(self, close_stdout_stderr=True, timeout=20):
+        wait_until(self.__is_node_stopped__, timeout=timeout)
+        if close_stdout_stderr:
+            self.__safe_close_stdout_stderr__()
 
 
 class BlockchainNode(TestNode):

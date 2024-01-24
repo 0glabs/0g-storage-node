@@ -326,25 +326,35 @@ class TestFramework:
             "--file",
         ]
 
-        proc = subprocess.Popen(
-            upload_args + [file_to_upload.name],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        proc.wait()
+        output = tempfile.NamedTemporaryFile(dir=self.root_dir, delete=False, prefix="zgs_client_output_")
+        output_name = output.name
+        output_fileno = output.fileno()
 
-        root = None
-        lines = proc.stdout.readlines()
-        for line in lines:
-            self.log.debug("line: %s", line)
-            if "root" in line:
-                index = line.find("root=")
-                root = line[index + 5 : -1]
-                self.log.info("root: %s", root)
+        try:
+            proc = subprocess.Popen(
+                upload_args + [file_to_upload.name],
+                text=True,
+                stdout=output_fileno,
+                stderr=output_fileno,
+            )
+            
+            return_code = proc.wait(timeout=60)
 
-        assert proc.returncode == 0, "%s upload file failed, log: %s" % (self.cli_binary, lines)
-        self.log.info("file uploaded")
+            output.seek(0)
+            lines = output.readlines()
+            for line in lines:
+                line = line.decode("utf-8")
+                self.log.debug("line: %s", line)
+                if "root" in line:
+                    index = line.find("root=")
+                    root = line[index + 5 : -1]
+        except Exception as ex:
+            self.log.error("Failed to upload file via CLI tool, output: %s", output_name)
+            raise ex
+        finally:
+            output.close()
+
+        assert return_code == 0, "%s upload file failed, output: %s, log: %s" % (self.cli_binary, output_name, lines)
 
         return root
 

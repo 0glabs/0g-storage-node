@@ -25,7 +25,7 @@ class RpcCaller:
             if isinstance(parsed, Ok):
                 return parsed.result
             else:
-                print(parsed)
+                print("Failed to call RPC, method = %s(%s), error = %s" % (self.method, *args, parsed))
         except Exception as ex:
-            print(ex)
+            print("Failed to call RPC, method = %s(%s), exception = %s" % (self.method, *args, ex))
         return None

@@ -76,16 +76,19 @@ class SubmissionTest(TestFramework):
             if node_idx == i:
                 continue
 
+            # Wait for log entry before file sync, otherwise, admin_startSyncFile will be failed.
+            wait_until(
+                lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
+            )
+
             self.nodes[i].admin_start_sync_file(submission_index - 1)
+
             wait_until(
                 lambda: self.nodes[i].sycn_status_is_completed_or_unknown(
                     submission_index - 1
                 )
             )
 
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
-            )
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"]
             )
