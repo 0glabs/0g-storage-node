@@ -153,8 +153,7 @@ impl SyncService {
 
         let store = Store::new(store, executor.clone());
 
-        let manager =
-            AutoSyncManager::new(store.clone(), sync_send.clone(), config).await?;
+        let manager = AutoSyncManager::new(store.clone(), sync_send.clone(), config).await?;
         if config.auto_sync_enabled {
             manager.spwn(&executor, event_recv);
         }

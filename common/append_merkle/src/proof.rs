@@ -86,10 +86,12 @@ impl<T: HashElement> Proof<T> {
         pos
     }
 
-    pub fn proof_nodes_in_tree(&self, start_height: usize) -> Vec<(usize, T)> {
+    /// Return `Vec<(index_in_layer, data)>`.
+    pub fn proof_nodes_in_tree(&self) -> Vec<(usize, T)> {
         let mut r = Vec::with_capacity(self.lemma.len());
         let mut pos = 0;
-        for (i, is_left) in self.path[start_height..].iter().rev().enumerate() {
+        r.push((0, self.root()));
+        for (i, is_left) in self.path.iter().rev().enumerate() {
             pos <<= 1;
             if !*is_left {
                 pos += 1;

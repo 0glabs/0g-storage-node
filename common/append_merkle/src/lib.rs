@@ -193,29 +193,36 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     /// This should only be called after validating the proof (including checking root existence).
     /// Returns `Error` if the data is conflict with existing ones.
     pub fn fill_with_range_proof(&mut self, proof: RangeProof<E>) -> Result<()> {
-        self.fill_with_proof(proof.left_proof)?;
-        self.fill_with_proof(proof.right_proof)
+        self.fill_with_proof(proof.left_proof, self.height(), 0)?;
+        self.fill_with_proof(proof.right_proof, self.height(), 0)
     }
 
-    fn fill_with_proof(&mut self, proof: Proof<E>) -> Result<()> {
-        let position_and_data = proof.proof_nodes_in_tree(self.leaf_height);
+    /// This assumes that the proof leaf is no lower than the tree leaf. It holds for both SegmentProof and ChunkProof.
+    fn fill_with_proof(
+        &mut self,
+        proof: Proof<E>,
+        root_height: usize,
+        root_position: usize,
+    ) -> Result<()> {
+        let mut position_and_data = proof.proof_nodes_in_tree();
         debug!(
             "fill_with_proof proof={:?} data={:?}",
             proof, position_and_data
         );
-        if position_and_data.len() != self.layers.len() - 1 {
+        if position_and_data.len() < root_height {
             bail!(
                 "proof length and tree depth unmatch, proof_length={} tree_depth={}",
                 position_and_data.len(),
                 self.layers.len()
             );
+        } else {
+            // Update the tree from leaf nodes and discard the nodes below.
+            position_and_data = position_and_data.split_off(position_and_data.len() - root_height);
         }
-        let height = self.height();
         // A valid proof should not fail the following checks.
-        for (layer, (position, data)) in self.layers[..height - 1]
-            .iter_mut()
-            .zip(position_and_data.into_iter())
-        {
+        for (i, (file_position, data)) in position_and_data.into_iter().enumerate() {
+            let layer = &mut self.layers[i];
+            let position = file_position + root_position * (1 << (root_height - i));
             if position > layer.len() {
                 bail!(
                     "proof position out of range, position={} layer.len()={}",
@@ -229,7 +236,8 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             }
             if layer[position] != E::null() && layer[position] != data {
                 bail!(
-                    "proof data conflict: position={}, tree_data={:?} proof_data={:?}",
+                    "proof data conflict: layer={} position={}, tree_data={:?} proof_data={:?}",
+                    i,
                     position,
                     layer[position],
                     data
