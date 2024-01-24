@@ -224,13 +224,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             "fill_with_proof proof={:?} data={:?} root_height={} root_position={}",
             proof, position_and_data, root_height, start_index,
         );
-        if position_and_data.len() < root_height {
-            bail!(
-                "proof length and tree depth unmatch, proof_length={} root_height={}",
-                position_and_data.len(),
-                root_height
-            );
-        } else {
+        if position_and_data.len() > root_height {
             // Update the tree from leaf nodes and discard the nodes below.
             position_and_data = position_and_data.split_off(position_and_data.len() - root_height);
         }
