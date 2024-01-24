@@ -5,6 +5,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 
 from concurrent.futures import ProcessPoolExecutor
 
@@ -17,6 +18,9 @@ PORT_RANGE = 500
 __file_path__ = os.path.dirname(os.path.realpath(__file__))
 
 CONFLUX_BINARY = "conflux.exe" if is_windows_platform() else "conflux"
+
+def print_testcase_result(color, glyph, script, start_time):
+    print(color[1] + glyph + " Testcase " + script + "\telapsed: " + str(int(time.time() - start_time)) + " seconds" + color[0], flush=True)
 
 def run_single_test(py, script, test_dir, index, port_min, port_max):
     try:
@@ -31,17 +35,16 @@ def run_single_test(py, script, test_dir, index, port_min, port_max):
         CIRCLE = "o "
 
     BOLD, BLUE, RED, GREY = ("", ""), ("", ""), ("", ""), ("", "")
-    if os.name == "posix":
+    if os.name == "posix" or os.name == "nt":
         # primitive formatting on supported
         # terminal via ANSI escape sequences:
         BOLD = ("\033[0m", "\033[1m")
         BLUE = ("\033[0m", "\033[0;34m")
         RED = ("\033[0m", "\033[0;31m")
         GREY = ("\033[0m", "\033[1;30m")
-    print("Running " + script)
+    print("Running " + script, flush=True)
     port_min = port_min + (index * PORT_RANGE) % (port_max - port_min)
-    color = BLUE
-    glyph = TICK
+    start_time = time.time()
     try:
         subprocess.check_output(
             args=[py, script, "--randomseed=1", f"--port-min={port_min}"],
@@ -49,15 +52,13 @@ def run_single_test(py, script, test_dir, index, port_min, port_max):
             cwd=test_dir,
         )
     except subprocess.CalledProcessError as err:
-        color = RED
-        glyph = CROSS
-        print(color[1] + glyph + " Testcase " + script + color[0])
-        print("Output of " + script + "\n" + err.output.decode("utf-8"))
+        print_testcase_result(RED, CROSS, script, start_time)
+        print("Output of " + script + "\n" + err.output.decode("utf-8"), flush=True)
         raise err
-    print(color[1] + glyph + " Testcase " + script + color[0])
-
+    print_testcase_result(BLUE, TICK, script, start_time)
 
 def run():
+    start_time = time.time()
     dir_name = os.path.join(__file_path__, "tmp")
     if not os.path.exists(dir_name):
         os.makedirs(dir_name, exist_ok=True)
@@ -95,7 +96,7 @@ def run():
         "",  # include test_dir itself
     ]
 
-    slow_tests = {}
+    slow_tests = {"random_test.py", "same_root_test.py"}
     long_manual_tests = {"fuzz_test.py"}
 
     for subdir in test_subdirs:
@@ -135,6 +136,8 @@ def run():
         except subprocess.CalledProcessError as err:
             print("CalledProcessError " + repr(err))
             failed.add(script)
+
+    print("Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
 
     if len(failed) > 0:
         print("The following test fails: ")
