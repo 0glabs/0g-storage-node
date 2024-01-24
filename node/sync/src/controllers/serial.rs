@@ -411,7 +411,7 @@ impl SerialSyncController {
         // store in db
         match self
             .store
-            .put_chunks_with_tx_hash(self.tx_id.seq, self.tx_id.hash, response.chunks)
+            .put_chunks_with_tx_hash(self.tx_id.seq, self.tx_id.hash, response.chunks, None)
             .await
         {
             Ok(true) => self.next_chunk = to_chunk,

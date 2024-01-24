@@ -1,7 +1,8 @@
 use append_merkle::MerkleTreeInitialData;
 use ethereum_types::H256;
 use shared_types::{
-    Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, FlowRangeProof, Transaction,
+    Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, FlowProof, FlowRangeProof,
+    Transaction,
 };
 use zgs_spec::{BYTES_PER_SEAL, SEALS_PER_LOAD};
 
@@ -132,6 +133,7 @@ pub trait LogStoreChunkWrite {
         tx_seq: u64,
         tx_hash: H256,
         chunks: ChunkArray,
+        maybe_file_proof: Option<FlowProof>,
     ) -> Result<bool>;
 
     /// Delete all chunks of a tx.

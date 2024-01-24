@@ -63,6 +63,7 @@ impl RpcServer for RpcServerImpl {
         let seg_info = SegmentInfo {
             root: segment.root,
             seg_data: segment.data,
+            seg_proof: segment.proof,
             seg_index: segment.index,
             chunks_per_segment: self.ctx.config.chunks_per_segment,
         };

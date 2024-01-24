@@ -1,6 +1,6 @@
 mod proof;
 
-use anyhow::bail;
+use anyhow::{anyhow, bail, Error};
 use append_merkle::{
     AppendMerkleTree, Proof as RawProof, RangeProof as RawRangeProof, Sha3Algorithm,
 };
@@ -345,4 +345,20 @@ pub fn compute_segment_merkle_root(data: &[u8], segment_chunks: usize) -> [u8; 3
     }
 
     MerkleTree::<_, RawLeafSha3Algorithm>::new(hashes).root()
+}
+
+impl TryFrom<FileProof> for FlowProof {
+    type Error = Error;
+
+    fn try_from(value: FileProof) -> Result<Self, Self::Error> {
+        let mut lemma = value.lemma;
+        if value.path.is_empty() {
+            lemma.push(*lemma.first().ok_or(anyhow!("empty file proof"))?);
+        }
+        if lemma.len() != value.path.len() + 2 {
+            Err(anyhow!("invalid file proof"))
+        } else {
+            Ok(Self::new(lemma, value.path))
+        }
+    }
 }

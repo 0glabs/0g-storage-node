@@ -269,6 +269,7 @@ impl LogSyncManager {
                             data,
                             start_index: 0,
                         },
+                        None,
                     )
                     .and_then(|_| store.finalize_tx_with_hash(tx.seq, tx.hash()))
                 {

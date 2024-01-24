@@ -6,7 +6,7 @@ use anyhow::{bail, Result};
 use async_lock::Mutex;
 use log_entry_sync::LogSyncEvent;
 use shared_types::{
-    bytes_to_chunks, compute_segment_size, ChunkArray, DataRoot, Transaction, CHUNK_SIZE,
+    bytes_to_chunks, compute_segment_size, ChunkArray, DataRoot, FileProof, Transaction, CHUNK_SIZE,
 };
 use std::sync::Arc;
 use storage_async::Store;
@@ -37,7 +37,7 @@ impl Inner {
     fn get_all_cached_segments_to_write(
         &mut self,
         root: &DataRoot,
-    ) -> Result<(FileID, Vec<ChunkArray>)> {
+    ) -> Result<(FileID, Vec<(ChunkArray, FileProof)>)> {
         // Limits the number of writing threads.
         if self.write_control.total_writings >= self.config.max_writings {
             bail!("too many data writing: {}", self.config.max_writings);
@@ -59,17 +59,21 @@ impl Inner {
 pub struct SegmentInfo {
     pub root: DataRoot,
     pub seg_data: Vec<u8>,
+    pub seg_proof: FileProof,
     pub seg_index: usize,
     pub chunks_per_segment: usize,
 }
 
-impl From<SegmentInfo> for ChunkArray {
+impl From<SegmentInfo> for (ChunkArray, FileProof) {
     fn from(seg_info: SegmentInfo) -> Self {
         let start_index = seg_info.seg_index * seg_info.chunks_per_segment;
-        ChunkArray {
-            data: seg_info.seg_data,
-            start_index: start_index as u64,
-        }
+        (
+            ChunkArray {
+                data: seg_info.seg_data,
+                start_index: start_index as u64,
+            },
+            seg_info.seg_proof,
+        )
     }
 }
 
@@ -155,7 +159,12 @@ impl MemoryChunkPool {
 
         match self
             .log_store
-            .put_chunks_with_tx_hash(file_id.tx_id.seq, file_id.tx_id.hash, seg)
+            .put_chunks_with_tx_hash(
+                file_id.tx_id.seq,
+                file_id.tx_id.hash,
+                seg,
+                Some(seg_info.seg_proof.try_into()?),
+            )
             .await
         {
             Ok(true) => {}
@@ -212,11 +221,12 @@ impl MemoryChunkPool {
             .remove_file(&tx.data_merkle_root);
         if let Some(mut file) = maybe_file {
             file.update_with_tx(tx);
-            for (seg_index, seg) in file.segments.into_iter() {
+            for (seg_index, (seg, proof)) in file.segments.into_iter() {
                 self.write_chunks(
                     SegmentInfo {
                         root: tx.data_merkle_root,
                         seg_data: seg.data.clone(),
+                        seg_proof: proof,
                         seg_index,
                         chunks_per_segment: file.chunks_per_segment,
                     },
@@ -276,19 +286,24 @@ impl MemoryChunkPool {
     }
 
     async fn write_all_cached_chunks_and_finalize(&self, root: DataRoot) -> Result<()> {
-        let (file, mut segments) = self
+        let (file, mut segments_with_proof) = self
             .inner
             .lock()
             .await
             .get_all_cached_segments_to_write(&root)?;
 
-        while let Some(seg) = segments.pop() {
+        while let Some((seg, proof)) = segments_with_proof.pop() {
             // TODO(qhz): error handling
             // 1. Push the failed segment back to front. (enhance store to return Err(ChunkArray))
             // 2. Put the incompleted segments back to memory pool.
             match self
                 .log_store
-                .put_chunks_with_tx_hash(file.tx_id.seq, file.tx_id.hash, seg)
+                .put_chunks_with_tx_hash(
+                    file.tx_id.seq,
+                    file.tx_id.hash,
+                    seg,
+                    Some(proof.try_into()?),
+                )
                 .await
             {
                 Ok(true) => {}
