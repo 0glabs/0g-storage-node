@@ -119,15 +119,9 @@ impl LogStoreChunkWrite for LogManager {
         self.append_entries(flow_entry_array)?;
 
         if let Some(file_proof) = maybe_file_proof {
-            let first_subtree_height = tx.merkle_nodes.first().expect("empty tx is invalid").0;
-            let root_height = if tx.merkle_nodes.len() == 1 {
-                first_subtree_height
-            } else {
-                first_subtree_height + 1
-            };
             self.pora_chunks_merkle.fill_with_file_proof(
                 file_proof,
-                root_height,
+                tx.merkle_nodes,
                 tx.start_entry_index,
             )?;
         }

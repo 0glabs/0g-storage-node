@@ -193,46 +193,54 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     /// This should only be called after validating the proof (including checking root existence).
     /// Returns `Error` if the data is conflict with existing ones.
     pub fn fill_with_range_proof(&mut self, proof: RangeProof<E>) -> Result<()> {
-        self.fill_with_proof(proof.left_proof, self.height(), 0)?;
-        self.fill_with_proof(proof.right_proof, self.height(), 0)
+        self.fill_with_proof(
+            proof
+                .left_proof
+                .proof_nodes_in_tree()
+                .split_off(self.leaf_height),
+        )?;
+        self.fill_with_proof(
+            proof
+                .right_proof
+                .proof_nodes_in_tree()
+                .split_off(self.leaf_height),
+        )
     }
 
     pub fn fill_with_file_proof(
         &mut self,
         proof: Proof<E>,
-        root_height: usize,
+        mut tx_merkle_nodes: Vec<(usize, E)>,
         start_index: u64,
     ) -> Result<()> {
-        if root_height < self.leaf_height {
-            // The file is smaller than a segment, so the tx merkle nodes are enough.
+        if self.leaf_height != 0 {
+            tx_merkle_nodes = tx_merkle_nodes
+                .into_iter()
+                .filter_map(|(height, data)| {
+                    if height >= self.leaf_height + 1 {
+                        Some((height - self.leaf_height - 1, data))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        }
+        if tx_merkle_nodes.is_empty() {
             return Ok(());
         }
-        let in_tree_root_height = root_height - self.leaf_height;
+        let mut position_and_data = proof.file_proof_nodes_in_tree(tx_merkle_nodes);
         let start_index = (start_index >> self.leaf_height) as usize;
-        self.fill_with_proof(proof, in_tree_root_height, start_index)
+        for (i, (position, _)) in position_and_data.iter_mut().enumerate() {
+            *position += start_index >> i;
+        }
+        self.fill_with_proof(position_and_data)
     }
 
     /// This assumes that the proof leaf is no lower than the tree leaf. It holds for both SegmentProof and ChunkProof.
-    fn fill_with_proof(
-        &mut self,
-        proof: Proof<E>,
-        root_height: usize,
-        start_index: usize,
-    ) -> Result<()> {
-        let mut position_and_data = proof.proof_nodes_in_tree();
-        debug!(
-            "fill_with_proof proof={:?} data={:?} root_height={} root_position={}",
-            proof, position_and_data, root_height, start_index,
-        );
-        if position_and_data.len() > root_height {
-            // Update the tree from leaf nodes and discard the nodes below.
-            position_and_data = position_and_data.split_off(position_and_data.len() - root_height);
-        }
+    fn fill_with_proof(&mut self, position_and_data: Vec<(usize, E)>) -> Result<()> {
         // A valid proof should not fail the following checks.
-        for (i, (file_position, data)) in position_and_data.into_iter().enumerate() {
+        for (i, (position, data)) in position_and_data.into_iter().enumerate() {
             let layer = &mut self.layers[i];
-            let position = file_position + start_index >> i;
-            debug!("i={} data={:?} position={}", i, data, position);
             if position > layer.len() {
                 bail!(
                     "proof position out of range, position={} layer.len()={}",
@@ -241,15 +249,13 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                 );
             }
             if position == layer.len() {
-                debug!("pad");
                 // skip padding node.
                 continue;
             }
             if layer[position] != E::null() && layer[position] != data {
-                debug!("conflict");
-                // This is possible for a valid file proof only when the file proof node is a node in a lower layer.
-                // And in this case, it's the right-most node in the file merkle tree, so the correct proof node in the
-                // flow merkle tree must have been computed. Thus, it's okay to skip this case directly.
+                // This is possible for a valid file proof only when the file proof node is an intermediate node,
+                // so the correct proof node in the flow merkle tree must have been computed as we pad rear data.
+                // Thus, it's okay to skip this case directly.
                 continue;
             }
             layer[position] = data;
