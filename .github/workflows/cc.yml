@@ -52,4 +52,7 @@ jobs:
       uses: codecov/codecov-action@v3
       with:
         file: ${{ steps.coverage.outputs.report }}
-        fail_ci_if_error: true
+        # Disable to avoid CI failure as following:
+        # ['error'] There was an error running the uploader: Error uploading to https://codecov.io: Error: There was an error fetching the storage 
+        # URL during POST: 404 - {'detail': ErrorDetail(string='Could not find a repository, try using repo upload token', code='not_found')}
+        # fail_ci_if_error: true
