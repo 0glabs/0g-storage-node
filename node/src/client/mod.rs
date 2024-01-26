@@ -7,7 +7,7 @@ use network::{Enr, Multiaddr, NetworkGlobals};
 use std::sync::Arc;
 
 pub use builder::ClientBuilder;
-pub use environment::{Environment, EnvironmentBuilder, RuntimeContext};
+pub use environment::{EnvironmentBuilder, RuntimeContext};
 
 /// The core Zgs client.
 ///

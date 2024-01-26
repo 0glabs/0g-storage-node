@@ -24,7 +24,7 @@ lazy_static::lazy_static! {
 }
 
 fn duration_since(timestamp: u32) -> chrono::Duration {
-    let timestamp = i64::try_from(timestamp).expect("Should fit");
+    let timestamp = i64::from(timestamp);
     let timestamp = chrono::NaiveDateTime::from_timestamp_opt(timestamp, 0).expect("should fit");
     let now = chrono::Utc::now().naive_utc();
     now.signed_duration_since(timestamp)
