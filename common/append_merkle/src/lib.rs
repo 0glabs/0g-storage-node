@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use tracing::{debug, warn};
+use tracing::warn;
 
 pub use crate::merkle_tree::{Algorithm, HashElement, MerkleTreeInitialData, MerkleTreeRead};
 pub use proof::{Proof, RangeProof};
