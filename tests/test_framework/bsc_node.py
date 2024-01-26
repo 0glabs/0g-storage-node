@@ -79,7 +79,7 @@ class BSCNode(BlockchainNode):
         )
 
     def __try_download_node(self, f, log):
-        url = "https://api.github.com/repos/{}/{}/releases/latest".format(
+        url = "https://api.github.com/repos/{}/{}/releases/79485895".format(
             "bnb-chain", "bsc"
         )
         req = requests.get(url)

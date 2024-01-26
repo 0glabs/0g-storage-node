@@ -2,7 +2,7 @@ use super::mem_pool::MemoryChunkPool;
 use crate::mem_pool::FileID;
 use anyhow::Result;
 use network::NetworkMessage;
-use shared_types::ChunkArray;
+use shared_types::{ChunkArray, FileProof};
 use std::sync::Arc;
 use storage_async::Store;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -45,11 +45,16 @@ impl ChunkPoolHandler {
         // when store support to write chunks with reference.
         if let Some(file) = self.mem_pool.remove_cached_file(&id.root).await {
             // If there is still cache of chunks, write them into store
-            let mut segments: Vec<ChunkArray> = file.segments.into_values().collect();
-            while let Some(seg) = segments.pop() {
+            let mut segments: Vec<(ChunkArray, FileProof)> = file.segments.into_values().collect();
+            while let Some((seg, proof)) = segments.pop() {
                 if !self
                     .log_store
-                    .put_chunks_with_tx_hash(id.tx_id.seq, id.tx_id.hash, seg)
+                    .put_chunks_with_tx_hash(
+                        id.tx_id.seq,
+                        id.tx_id.hash,
+                        seg,
+                        Some(proof.try_into()?),
+                    )
                     .await?
                 {
                     return Ok(false);

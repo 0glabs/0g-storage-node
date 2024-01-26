@@ -85,6 +85,56 @@ impl<T: HashElement> Proof<T> {
         }
         pos
     }
+
+    /// Return `Vec<(index_in_layer, data)>`.
+    pub fn proof_nodes_in_tree(&self) -> Vec<(usize, T)> {
+        let mut r = Vec::with_capacity(self.lemma.len());
+        let mut pos = 0;
+        r.push((0, self.root()));
+        for (i, is_left) in self.path.iter().rev().enumerate() {
+            pos <<= 1;
+            if !*is_left {
+                pos += 1;
+            }
+            let lemma_pos = if *is_left { pos + 1 } else { pos - 1 };
+            r.push((lemma_pos, self.lemma[self.lemma.len() - 2 - i].clone()));
+        }
+        r.reverse();
+        r
+    }
+
+    pub fn file_proof_nodes_in_tree(&self, tx_merkle_nodes: Vec<(usize, T)>) -> Vec<(usize, T)> {
+        let mut r = Vec::with_capacity(self.lemma.len());
+        let mut subtree_pos = 0;
+        let mut root_pos = 0;
+        let mut in_subtree = tx_merkle_nodes.len() == 1;
+        for (i, is_left) in self.path.iter().rev().enumerate() {
+            if !in_subtree {
+                if *is_left {
+                    in_subtree = true;
+                } else {
+                    if i < tx_merkle_nodes.len() {
+                        root_pos += 1 << tx_merkle_nodes[i].0;
+                    } else {
+                        break;
+                    }
+                }
+            } else {
+                subtree_pos <<= 1;
+                if !*is_left {
+                    subtree_pos += 1;
+                }
+                let lemma_pos = if *is_left {
+                    root_pos + subtree_pos + 1
+                } else {
+                    root_pos + subtree_pos - 1
+                };
+                r.push((lemma_pos, self.lemma[self.lemma.len() - 2 - i].clone()));
+            }
+        }
+        r.reverse();
+        r
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, DeriveEncode, DeriveDecode, Deserialize, Serialize)]

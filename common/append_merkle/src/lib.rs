@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use tracing::warn;
+use tracing::{debug, warn};
 
 pub use crate::merkle_tree::{Algorithm, HashElement, MerkleTreeInitialData, MerkleTreeRead};
 pub use proof::{Proof, RangeProof};
@@ -186,6 +186,81 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         } else if self.layers[0][index] != leaf {
             panic!("Fill with invalid leaf")
         }
+    }
+
+    /// Fill nodes with a valid proof data.
+    /// This requires that the proof is built against this tree.
+    /// This should only be called after validating the proof (including checking root existence).
+    /// Returns `Error` if the data is conflict with existing ones.
+    pub fn fill_with_range_proof(&mut self, proof: RangeProof<E>) -> Result<()> {
+        self.fill_with_proof(
+            proof
+                .left_proof
+                .proof_nodes_in_tree()
+                .split_off(self.leaf_height),
+        )?;
+        self.fill_with_proof(
+            proof
+                .right_proof
+                .proof_nodes_in_tree()
+                .split_off(self.leaf_height),
+        )
+    }
+
+    pub fn fill_with_file_proof(
+        &mut self,
+        proof: Proof<E>,
+        mut tx_merkle_nodes: Vec<(usize, E)>,
+        start_index: u64,
+    ) -> Result<()> {
+        if self.leaf_height != 0 {
+            tx_merkle_nodes = tx_merkle_nodes
+                .into_iter()
+                .filter_map(|(height, data)| {
+                    if height >= self.leaf_height + 1 {
+                        Some((height - self.leaf_height - 1, data))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        }
+        if tx_merkle_nodes.is_empty() {
+            return Ok(());
+        }
+        let mut position_and_data = proof.file_proof_nodes_in_tree(tx_merkle_nodes);
+        let start_index = (start_index >> self.leaf_height) as usize;
+        for (i, (position, _)) in position_and_data.iter_mut().enumerate() {
+            *position += start_index >> i;
+        }
+        self.fill_with_proof(position_and_data)
+    }
+
+    /// This assumes that the proof leaf is no lower than the tree leaf. It holds for both SegmentProof and ChunkProof.
+    fn fill_with_proof(&mut self, position_and_data: Vec<(usize, E)>) -> Result<()> {
+        // A valid proof should not fail the following checks.
+        for (i, (position, data)) in position_and_data.into_iter().enumerate() {
+            let layer = &mut self.layers[i];
+            if position > layer.len() {
+                bail!(
+                    "proof position out of range, position={} layer.len()={}",
+                    position,
+                    layer.len()
+                );
+            }
+            if position == layer.len() {
+                // skip padding node.
+                continue;
+            }
+            if layer[position] != E::null() && layer[position] != data {
+                // This is possible for a valid file proof only when the file proof node is an intermediate node,
+                // so the correct proof node in the flow merkle tree must have been computed as we pad rear data.
+                // Thus, it's okay to skip this case directly.
+                continue;
+            }
+            layer[position] = data;
+        }
+        Ok(())
     }
 
     pub fn gen_range_proof(&self, start_index: usize, end_index: usize) -> Result<RangeProof<E>> {
@@ -609,23 +684,23 @@ mod tests {
                 AppendMerkleTree::<H256, Sha3Algorithm>::new(vec![H256::zero()], 0, None);
             merkle.append_list(data.clone());
             merkle.commit(Some(0));
-            verify(&data, &merkle);
+            verify(&data, &mut merkle);
 
             data.push(H256::random());
             merkle.append(*data.last().unwrap());
             merkle.commit(Some(1));
-            verify(&data, &merkle);
+            verify(&data, &mut merkle);
 
             for _ in 0..6 {
                 data.push(H256::random());
             }
             merkle.append_list(data[data.len() - 6..].to_vec());
             merkle.commit(Some(2));
-            verify(&data, &merkle);
+            verify(&data, &mut merkle);
         }
     }
 
-    fn verify(data: &Vec<H256>, merkle: &AppendMerkleTree<H256, Sha3Algorithm>) {
+    fn verify(data: &Vec<H256>, merkle: &mut AppendMerkleTree<H256, Sha3Algorithm>) {
         for i in 0..data.len() {
             let proof = merkle.gen_proof(i + 1).unwrap();
             let r = merkle.validate(&proof, &data[i], i + 1);
@@ -636,6 +711,7 @@ mod tests {
             let range_proof = merkle.gen_range_proof(i + 1, end + 1).unwrap();
             let r = range_proof.validate::<Sha3Algorithm>(&data[i..end], i + 1);
             assert!(r.is_ok(), "{:?}", r);
+            merkle.fill_with_range_proof(range_proof).unwrap();
         }
     }
 }

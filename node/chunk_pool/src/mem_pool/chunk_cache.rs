@@ -2,7 +2,7 @@ use super::FileID;
 use crate::{Config, SegmentInfo};
 use anyhow::{bail, Result};
 use hashlink::LinkedHashMap;
-use shared_types::{bytes_to_chunks, ChunkArray, DataRoot, Transaction, CHUNK_SIZE};
+use shared_types::{bytes_to_chunks, ChunkArray, DataRoot, FileProof, Transaction, CHUNK_SIZE};
 use std::collections::HashMap;
 use std::ops::Add;
 use std::time::{Duration, Instant};
@@ -13,7 +13,7 @@ pub struct MemoryCachedFile {
     pub id: FileID,
     pub chunks_per_segment: usize,
     /// Window to control the cache of each file
-    pub segments: HashMap<usize, ChunkArray>,
+    pub segments: HashMap<usize, (ChunkArray, FileProof)>,
     /// Total number of chunks for the cache file, which is updated from log entry.
     pub total_chunks: usize,
     /// Used for garbage collection. It is updated when new segment uploaded.

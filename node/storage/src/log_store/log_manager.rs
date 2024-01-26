@@ -93,6 +93,7 @@ impl LogStoreChunkWrite for LogManager {
         tx_seq: u64,
         tx_hash: H256,
         chunks: ChunkArray,
+        maybe_file_proof: Option<FlowProof>,
     ) -> Result<bool> {
         let tx = self
             .tx_store
@@ -116,6 +117,14 @@ impl LogStoreChunkWrite for LogManager {
         let mut flow_entry_array = chunks;
         flow_entry_array.start_index += tx.start_entry_index;
         self.append_entries(flow_entry_array)?;
+
+        if let Some(file_proof) = maybe_file_proof {
+            self.pora_chunks_merkle.fill_with_file_proof(
+                file_proof,
+                tx.merkle_nodes,
+                tx.start_entry_index,
+            )?;
+        }
         Ok(true)
     }
 
@@ -255,6 +264,19 @@ impl LogStoreWrite for LogManager {
         self.flow_store.truncate(start_index)?;
         let start = if tx_seq != u64::MAX { tx_seq + 1 } else { 0 };
         self.tx_store.remove_tx_after(start)
+    }
+
+    fn validate_and_insert_range_proof(
+        &mut self,
+        tx_seq: u64,
+        data: &ChunkArrayWithProof,
+    ) -> Result<bool> {
+        let valid = self.validate_range_proof(tx_seq, data)?;
+        if valid {
+            self.pora_chunks_merkle
+                .fill_with_range_proof(data.proof.clone())?;
+        }
+        Ok(valid)
     }
 }
 
@@ -886,6 +908,7 @@ impl LogManager {
                             + last_segment_size_for_file)
                             as u64,
                     },
+                    None,
                 )?;
             }
 
