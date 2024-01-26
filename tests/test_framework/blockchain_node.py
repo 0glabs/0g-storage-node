@@ -282,12 +282,12 @@ class BlockchainNode(TestNode):
         token_contract, _ = deploy_contract(self.token_contract_path)
         self.log.debug("ERC20 deployed")
         flow_contract, flow_contract_hash = deploy_contract(
-            self.contract_path, [token_contract.address]
+            self.contract_path, ["0x0000000000000000000000000000000000000000", 100, 0]
         )
         self.log.debug("Flow deployed")
         mine_contract, _ = deploy_contract(
             self.mine_contract_path,
-            [flow_contract.address, 0],
+            [flow_contract.address, "0x0000000000000000000000000000000000000000", 7],
         )
         self.log.debug("Mine deployed")
         self.log.info("All contracts deployed")
