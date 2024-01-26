@@ -35,7 +35,6 @@ TX_PARAMS = {
     "gasPrice": 10_000_000_000,
     "gas": 10_000_000,
     "from": GENESIS_ACCOUNT.address,
-    "gas": 2_000_000,
 }
 
 GENESIS_PRIV_KEY1 = "9a6d3ba2b0c7514b16a006ee605055d71b9edfad183aeb2d9790e9d4ccced471"

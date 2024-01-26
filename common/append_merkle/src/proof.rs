@@ -112,12 +112,10 @@ impl<T: HashElement> Proof<T> {
             if !in_subtree {
                 if *is_left {
                     in_subtree = true;
+                } else if i < tx_merkle_nodes.len() {
+                    root_pos += 1 << tx_merkle_nodes[i].0;
                 } else {
-                    if i < tx_merkle_nodes.len() {
-                        root_pos += 1 << tx_merkle_nodes[i].0;
-                    } else {
-                        break;
-                    }
+                    break;
                 }
             } else {
                 subtree_pos <<= 1;

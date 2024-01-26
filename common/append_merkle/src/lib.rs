@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use tracing::{debug, warn};
+use tracing::warn;
 
 pub use crate::merkle_tree::{Algorithm, HashElement, MerkleTreeInitialData, MerkleTreeRead};
 pub use proof::{Proof, RangeProof};
@@ -217,7 +217,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             tx_merkle_nodes = tx_merkle_nodes
                 .into_iter()
                 .filter_map(|(height, data)| {
-                    if height >= self.leaf_height + 1 {
+                    if height > self.leaf_height {
                         Some((height - self.leaf_height - 1, data))
                     } else {
                         None
