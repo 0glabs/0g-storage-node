@@ -103,22 +103,38 @@ impl<T: HashElement> Proof<T> {
         r
     }
 
-    pub fn file_proof_nodes_in_tree(&self, tx_merkle_nodes: Vec<(usize, T)>) -> Vec<(usize, T)> {
+    pub fn file_proof_nodes_in_tree(
+        &self,
+        tx_merkle_nodes: Vec<(usize, T)>,
+        tx_merkle_nodes_size: usize,
+    ) -> Vec<(usize, T)> {
         let mut r = Vec::with_capacity(self.lemma.len());
         let mut subtree_pos = 0;
         let mut root_pos = 0;
-        let mut in_subtree = tx_merkle_nodes.len() == 1;
+        let mut in_subtree = tx_merkle_nodes_size == 1;
         for (i, is_left) in self.path.iter().rev().enumerate() {
             if !in_subtree {
                 if *is_left {
                     in_subtree = true;
+                    root_pos >>= tx_merkle_nodes[i].0;
                 } else if i < tx_merkle_nodes.len() {
                     root_pos += 1 << tx_merkle_nodes[i].0;
+
+                    // This is the last node, so there is no more intermediate node.
+                    if i == tx_merkle_nodes_size - 2 {
+                        if i + 1 >= tx_merkle_nodes.len() {
+                            break;
+                        } else {
+                            in_subtree = true;
+                            root_pos >>= tx_merkle_nodes[i + 1].0;
+                        }
+                    }
                 } else {
                     break;
                 }
             } else {
                 subtree_pos <<= 1;
+                root_pos <<= 1;
                 if !*is_left {
                     subtree_pos += 1;
                 }

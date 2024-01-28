@@ -213,6 +213,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         mut tx_merkle_nodes: Vec<(usize, E)>,
         start_index: u64,
     ) -> Result<()> {
+        let tx_merkle_nodes_size = tx_merkle_nodes.len();
         if self.leaf_height != 0 {
             tx_merkle_nodes = tx_merkle_nodes
                 .into_iter()
@@ -228,7 +229,8 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         if tx_merkle_nodes.is_empty() {
             return Ok(());
         }
-        let mut position_and_data = proof.file_proof_nodes_in_tree(tx_merkle_nodes);
+        let mut position_and_data =
+            proof.file_proof_nodes_in_tree(tx_merkle_nodes, tx_merkle_nodes_size);
         let start_index = (start_index >> self.leaf_height) as usize;
         for (i, (position, _)) in position_and_data.iter_mut().enumerate() {
             *position += start_index >> i;
@@ -253,10 +255,13 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                 continue;
             }
             if layer[position] != E::null() && layer[position] != data {
-                // This is possible for a valid file proof only when the file proof node is an intermediate node,
-                // so the correct proof node in the flow merkle tree must have been computed as we pad rear data.
-                // Thus, it's okay to skip this case directly.
-                continue;
+                bail!(
+                    "conflict data layer={} position={} tree_data={:?} proof_data={:?}",
+                    i,
+                    position,
+                    layer[position],
+                    data
+                );
             }
             layer[position] = data;
         }
