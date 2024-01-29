@@ -65,18 +65,33 @@ pub async fn run_server(ctx: Context) -> Result<HttpServerHandle, Box<dyn Error>
         .build(ctx.config.listen_address)
         .await?;
 
-    let mut zgs = (zgs::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
-    let admin = (admin::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
-    zgs.merge(admin)?;
-
-    if ctx.mine_service_sender.is_some() {
-        let mine = (miner::RpcServerImpl { ctx }).into_rpc();
-        zgs.merge(mine)?;
-    }
+    // public rpc
+    let zgs = (zgs::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
 
     let addr = server.local_addr()?;
     let handle = server.start(zgs)?;
     info!("Server started http://{}", addr);
+
+    Ok(handle)
+}
+
+pub async fn run_server_admin(ctx: Context) -> Result<HttpServerHandle, Box<dyn Error>> {
+    let server = HttpServerBuilder::default()
+        .build(ctx.config.listen_address_admin)
+        .await?;
+
+    // admin rpc
+    let mut admin = (admin::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
+
+    // mine rpc if configured
+    if ctx.mine_service_sender.is_some() {
+        let mine = (miner::RpcServerImpl { ctx }).into_rpc();
+        admin.merge(mine)?;
+    }
+
+    let addr = server.local_addr()?;
+    let handle = server.start(admin)?;
+    info!("Server (admin) started http://{}", addr);
 
     Ok(handle)
 }

@@ -15,6 +15,7 @@ db_dir = "db"
 
 rpc_enabled = true
 rpc_listen_address = "0.0.0.0:5678"
+# rpc_listen_address_admin = "127.0.0.1:5679"
 
 log_config_file = "log_config"
 

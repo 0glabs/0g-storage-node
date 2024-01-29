@@ -236,11 +236,15 @@ impl ClientBuilder {
             mine_service_sender: mine_send,
         };
 
-        let rpc_handle = rpc::run_server(ctx)
+        let rpc_handle = rpc::run_server(ctx.clone())
             .await
             .map_err(|e| format!("Unable to start HTTP RPC server: {:?}", e))?;
+        let admin_rpc_handle = rpc::run_server_admin(ctx)
+            .await
+            .map_err(|e| format!("Unable to start HTTP admin RPC server: {:?}", e))?;
 
         executor.spawn(rpc_handle, "rpc");
+        executor.spawn(admin_rpc_handle, "rpc_admin");
         executor.spawn(chunk_pool_handler.run(), "chunk_pool_handler");
         executor.spawn(
             MemoryChunkPool::monitor_log_entry(chunk_pool_clone, synced_tx_recv),
