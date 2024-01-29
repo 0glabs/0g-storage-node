@@ -20,7 +20,8 @@ jobs:
       with:
         submodules: recursive
 
-    - uses: ./.github/actions/setup-rust
+    - name: Setup Rust (cache & toolchain)
+      uses: ./.github/actions/setup-rust
 
     - name: Build
       run: cargo build --release --verbose

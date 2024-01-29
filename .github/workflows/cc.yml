@@ -20,7 +20,8 @@ jobs:
       with:
         submodules: recursive
 
-    - uses: ./.github/actions/setup-rust
+    - name: Setup Rust (cache & toolchain)
+      uses: ./.github/actions/setup-rust
 
     - name: Run unittest
       run: cargo test --all-features --no-fail-fast

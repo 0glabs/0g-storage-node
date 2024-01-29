@@ -1,4 +1,4 @@
-name: Setup Rust
+name: Setup Rust (cache & toolchain)
 runs:
   using: composite
   steps:
@@ -13,9 +13,9 @@ runs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Install stable toolchain
+    - name: Install toolchain 1.75.0
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: stable
+        toolchain: 1.75.0
         components: rustfmt, clippy
