@@ -61,7 +61,9 @@ impl Context {
     }
 }
 
-pub async fn run_server(ctx: Context) -> Result<(HttpServerHandle, Option<HttpServerHandle>), Box<dyn Error>> {
+pub async fn run_server(
+    ctx: Context,
+) -> Result<(HttpServerHandle, Option<HttpServerHandle>), Box<dyn Error>> {
     let handles = match ctx.config.listen_address_admin {
         Some(listen_addr_private) => run_server_public_private(ctx, listen_addr_private).await?,
         None => (run_server_all(ctx).await?, None),
@@ -76,7 +78,7 @@ pub async fn run_server(ctx: Context) -> Result<(HttpServerHandle, Option<HttpSe
 async fn run_server_all(ctx: Context) -> Result<HttpServerHandle, Box<dyn Error>> {
     // public rpc
     let mut zgs = (zgs::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
-    
+
     // admin rpc
     let admin = (admin::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
     zgs.merge(admin)?;
@@ -94,7 +96,10 @@ async fn run_server_all(ctx: Context) -> Result<HttpServerHandle, Box<dyn Error>
 }
 
 /// Run 2 RPC servers (public & private) for different namespace RPCs.
-async fn run_server_public_private(ctx: Context, listen_addr_private: SocketAddr) -> Result<(HttpServerHandle, Option<HttpServerHandle>), Box<dyn Error>> {
+async fn run_server_public_private(
+    ctx: Context,
+    listen_addr_private: SocketAddr,
+) -> Result<(HttpServerHandle, Option<HttpServerHandle>), Box<dyn Error>> {
     // public rpc
     let zgs = (zgs::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
 
