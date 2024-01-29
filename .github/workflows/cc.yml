@@ -15,25 +15,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout sources
+      uses: actions/checkout@v3
       with:
         submodules: recursive
 
-    - name: Cargo cache
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-        key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Install 1.71.0 toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: 1.71.0
-        override: true
+    - name: Setup Rust (cache & toolchain)
+      uses: ./.github/actions/setup-rust
 
     - name: Run unittest
       run: cargo test --all-features --no-fail-fast

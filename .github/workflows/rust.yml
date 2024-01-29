@@ -24,18 +24,13 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: recursive
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-
+      - name: Setup Rust (cache & toolchain)
+        uses: ./.github/actions/setup-rust
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
           command: check
+          args: --release
 
   test:
     name: test
@@ -45,25 +40,8 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: recursive
-
-      - name: Cargo cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-
+      - name: Setup Rust (cache & toolchain)
+        uses: ./.github/actions/setup-rust
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
@@ -78,21 +56,13 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: recursive
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-          components: rustfmt, clippy
-
+      - name: Setup Rust (cache & toolchain)
+        uses: ./.github/actions/setup-rust
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
-
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
