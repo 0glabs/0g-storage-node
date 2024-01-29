@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: ./.github/workflows/setup-rust.yml
+    - uses: ./.github/actions/setup-rust
 
     - name: Build
       run: cargo build --release --verbose
