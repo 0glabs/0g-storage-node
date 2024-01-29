@@ -78,6 +78,24 @@ impl RpcServer for RpcServerImpl {
     }
 
     #[tracing::instrument(skip(self), err)]
+    async fn terminate_sync(&self, tx_seq: u64) -> RpcResult<()> {
+        info!("admin_terminateSync({tx_seq})");
+
+        let response = self
+            .ctx
+            .request_sync(SyncRequest::TerminateFileSync {
+                tx_seq,
+                is_reverted: false,
+            })
+            .await?;
+
+        match response {
+            SyncResponse::TerminateFileSync { .. } => Ok(()),
+            _ => Err(error::internal_error("unexpected response type")),
+        }
+    }
+
+    #[tracing::instrument(skip(self), err)]
     async fn get_sync_status(&self, tx_seq: u64) -> RpcResult<String> {
         info!("admin_getSyncStatus({tx_seq})");
 
