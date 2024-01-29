@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: /.github/actions/setup-rust
+    - uses: ./.github/actions/setup-rust
 
     - name: Run unittest
       run: cargo test --all-features --no-fail-fast
