@@ -20,6 +20,10 @@ jobs:
     name: check
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
       - uses: ./.github/actions/setup-rust
       - name: Run cargo check
         uses: actions-rs/cargo@v1
@@ -31,6 +35,10 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
       - uses: ./.github/actions/setup-rust
       - name: Run cargo test
         uses: actions-rs/cargo@v1
@@ -42,6 +50,10 @@ jobs:
     name: lints
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
       - uses: ./.github/actions/setup-rust
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1

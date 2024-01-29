@@ -15,6 +15,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout sources
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
     - uses: ./.github/actions/setup-rust
 
     - name: Run unittest
