@@ -574,24 +574,9 @@ impl SyncService {
             }
         };
 
-        // trigger retry after failure
-        if let SyncState::Failed { .. } = controller.get_status() {
-            let goal = controller.get_sync_info().goal;
-
-            match maybe_range {
-                Some((start, end)) => {
-                    if goal.is_all_chunks() || start != goal.index_start || end != goal.index_end {
-                        bail!("Cannot change failed file sync to chunks sync");
-                    }
-                }
-                None => {
-                    if !goal.is_all_chunks() {
-                        bail!("Cannot change failed chunks sync to file sync");
-                    }
-                }
-            }
-
-            controller.reset();
+        // Trigger file or chunks sync again if completed or failed.
+        if controller.is_completed_or_failed() {
+            controller.reset(maybe_range);
         }
 
         if let Some((peer_id, addr)) = maybe_peer {
