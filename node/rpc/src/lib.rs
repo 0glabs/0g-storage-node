@@ -19,6 +19,7 @@ use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
 use network::NetworkGlobals;
 use network::NetworkMessage;
 use std::error::Error;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use storage_async::Store;
 use sync::{SyncRequest, SyncResponse, SyncSender};
@@ -60,23 +61,66 @@ impl Context {
     }
 }
 
-pub async fn run_server(ctx: Context) -> Result<HttpServerHandle, Box<dyn Error>> {
-    let server = HttpServerBuilder::default()
-        .build(ctx.config.listen_address)
-        .await?;
+pub async fn run_server(
+    ctx: Context,
+) -> Result<(HttpServerHandle, Option<HttpServerHandle>), Box<dyn Error>> {
+    let handles = match ctx.config.listen_address_admin {
+        Some(listen_addr_private) => run_server_public_private(ctx, listen_addr_private).await?,
+        None => (run_server_all(ctx).await?, None),
+    };
 
+    info!("Server started");
+
+    Ok(handles)
+}
+
+/// Run a single RPC server for all namespace RPCs.
+async fn run_server_all(ctx: Context) -> Result<HttpServerHandle, Box<dyn Error>> {
+    // public rpc
     let mut zgs = (zgs::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
+
+    // admin rpc
     let admin = (admin::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
     zgs.merge(admin)?;
 
+    // mine rpc if configured
     if ctx.mine_service_sender.is_some() {
-        let mine = (miner::RpcServerImpl { ctx }).into_rpc();
+        let mine = (miner::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
         zgs.merge(mine)?;
     }
 
-    let addr = server.local_addr()?;
-    let handle = server.start(zgs)?;
-    info!("Server started http://{}", addr);
+    Ok(HttpServerBuilder::default()
+        .build(ctx.config.listen_address)
+        .await?
+        .start(zgs)?)
+}
 
-    Ok(handle)
+/// Run 2 RPC servers (public & private) for different namespace RPCs.
+async fn run_server_public_private(
+    ctx: Context,
+    listen_addr_private: SocketAddr,
+) -> Result<(HttpServerHandle, Option<HttpServerHandle>), Box<dyn Error>> {
+    // public rpc
+    let zgs = (zgs::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
+
+    // admin rpc
+    let mut admin = (admin::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
+
+    // mine rpc if configured
+    if ctx.mine_service_sender.is_some() {
+        let mine = (miner::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
+        admin.merge(mine)?;
+    }
+
+    let handle_public = HttpServerBuilder::default()
+        .build(ctx.config.listen_address)
+        .await?
+        .start(zgs)?;
+
+    let handle_private = HttpServerBuilder::default()
+        .build(listen_addr_private)
+        .await?
+        .start(admin)?;
+
+    Ok((handle_public, Some(handle_private)))
 }

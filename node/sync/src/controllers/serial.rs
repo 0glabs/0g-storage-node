@@ -126,9 +126,29 @@ impl SerialSyncController {
         &self.state
     }
 
+    pub fn is_completed_or_failed(&self) -> bool {
+        matches!(self.state, SyncState::Completed | SyncState::Failed { .. })
+    }
+
     /// Resets the status to re-sync file when failed.
-    pub fn reset(&mut self) {
-        self.next_chunk = self.goal.index_start;
+    pub fn reset(&mut self, maybe_range: Option<(u64, u64)>) {
+        if let Some((start, end)) = maybe_range {
+            // Sync new chunks regardless of previously downloaded file or chunks.
+            // It's up to client to avoid duplicated chunks sync.
+            self.goal = FileSyncGoal::new(self.goal.num_chunks, start, end);
+            self.next_chunk = start;
+        } else if self.goal.is_all_chunks() {
+            // retry the failed file sync at break point
+            debug!(
+                "Continue to sync failed file, tx_seq = {}, next_chunk = {}",
+                self.tx_seq, self.next_chunk
+            );
+        } else {
+            // Ignore the failed chunks sync, and change to file sync.
+            self.goal = FileSyncGoal::new_file(self.goal.num_chunks);
+            self.next_chunk = 0;
+        }
+
         self.failures = 0;
         self.state = SyncState::Idle;
         // remove disconnected peers
@@ -606,7 +626,7 @@ mod tests {
         controller.state = SyncState::Completed;
         assert_eq!(*controller.get_status(), SyncState::Completed);
 
-        controller.reset();
+        controller.reset(None);
         assert_eq!(*controller.get_status(), SyncState::Idle);
     }
 

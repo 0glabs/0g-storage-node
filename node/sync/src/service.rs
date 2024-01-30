@@ -539,7 +539,7 @@ impl SyncService {
             Entry::Vacant(entry) => {
                 let tx = match self.store.get_tx_by_seq_number(tx_seq).await? {
                     Some(tx) => tx,
-                    None => bail!("transaction not found"),
+                    None => bail!("Transaction not found"),
                 };
 
                 let num_chunks = match usize::try_from(tx.size) {
@@ -561,7 +561,7 @@ impl SyncService {
                 };
 
                 if index_start >= index_end || index_end > num_chunks {
-                    bail!("invalid chunk range");
+                    bail!("Invalid chunk range");
                 }
 
                 entry.insert(SerialSyncController::new(
@@ -574,9 +574,9 @@ impl SyncService {
             }
         };
 
-        // trigger retry after failure
-        if let SyncState::Failed { .. } = controller.get_status() {
-            controller.reset();
+        // Trigger file or chunks sync again if completed or failed.
+        if controller.is_completed_or_failed() {
+            controller.reset(maybe_range);
         }
 
         if let Some((peer_id, addr)) = maybe_peer {

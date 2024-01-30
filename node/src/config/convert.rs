@@ -63,9 +63,20 @@ impl ZgsConfig {
             .parse::<std::net::SocketAddr>()
             .map_err(|e| format!("Unable to parse rpc_listen_address: {:?}", e))?;
 
+        let listen_address_admin = if self.rpc_listen_address_admin.is_empty() {
+            None
+        } else {
+            Some(
+                self.rpc_listen_address_admin
+                    .parse::<std::net::SocketAddr>()
+                    .map_err(|e| format!("Unable to parse rpc_listen_address_admin: {:?}", e))?,
+            )
+        };
+
         Ok(RPCConfig {
             enabled: self.rpc_enabled,
             listen_address,
+            listen_address_admin,
             chunks_per_segment: self.rpc_chunks_per_segment,
             max_cache_file_size: self.rpc_max_cache_file_size,
         })

@@ -39,6 +39,7 @@ class ZgsNode(TestNode):
             "network_libp2p_port": p2p_port(index),
             "network_discovery_port": p2p_port(index),
             "rpc_listen_address": f"127.0.0.1:{rpc_port(index)}",
+            "rpc_listen_address_admin": "",
             "network_libp2p_nodes": libp2p_nodes,
             "log_contract_address": log_contract_address,
             "mine_contract_address": mine_contract_address,
