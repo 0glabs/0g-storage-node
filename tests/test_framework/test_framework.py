@@ -44,17 +44,19 @@ class TestFramework:
         self.blockchain_node_type = blockchain_node_type
 
         binary_ext = ".exe" if is_windows_platform() else ""
-        self.__default_conflux_binary__ = os.path.join(__file_path__,
-            "..", "tmp", "conflux" + binary_ext
+        tests_dir = os.path.dirname(__file_path__)
+        root_dir = os.path.dirname(tests_dir)
+        self.__default_conflux_binary__ = os.path.join(
+            tests_dir, "tmp", "conflux" + binary_ext
         )
-        self.__default_geth_binary__ = os.path.join(__file_path__,
-            "..", "tmp", "geth" + binary_ext
+        self.__default_geth_binary__ = os.path.join(
+            tests_dir, "tmp", "geth" + binary_ext
         )
-        self.__default_zgs_node_binary__ = os.path.join(__file_path__,
-            "..", "..", "target", "release", "zgs_node" + binary_ext
+        self.__default_zgs_node_binary__ = os.path.join(
+            root_dir, "target", "release", "zgs_node" + binary_ext
         )
-        self.__default_zgs_cli_binary__ = os.path.join(__file_path__,
-            "..", "..", "target", "zerog-storage-client"  + binary_ext
+        self.__default_zgs_cli_binary__ = os.path.join(
+            root_dir, "target", "zerog-storage-client"  + binary_ext
         )
 
     def __setup_blockchain_node(self):
