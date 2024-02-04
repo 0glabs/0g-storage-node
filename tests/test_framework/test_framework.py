@@ -175,9 +175,7 @@ class TestFramework:
         for node in self.nodes:
             node.wait_for_rpc_connection()
 
-    def __parse_arguments(self):
-        parser = argparse.ArgumentParser(usage="%(prog)s [options]")
-
+    def add_arguments(self, parser: argparse.ArgumentParser):
         parser.add_argument(
             "--conflux-binary",
             dest="conflux",
@@ -264,8 +262,6 @@ class TestFramework:
             action="store_true",
             help="Attach a python debugger if test fails",
         )
-
-        self.options = parser.parse_args()
 
     def __start_logging(self):
         # Add logger and logging handlers
@@ -391,7 +387,9 @@ class TestFramework:
         raise NotImplementedError
 
     def main(self):
-        self.__parse_arguments()
+        parser = argparse.ArgumentParser(usage="%(prog)s [options]")
+        self.add_arguments(parser)
+        self.options = parser.parse_args()
         PortMin.n = self.options.port_min
 
         # Set up temp directory and start logging
