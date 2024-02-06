@@ -213,6 +213,10 @@ impl MemoryChunkPool {
 
     /// Updates the cached file info when log entry retrieved from blockchain.
     pub async fn update_file_info(&self, tx: &Transaction) -> Result<bool> {
+        info!(
+            "start to flush cached segments to log store. data root: {}, tx_seq:{}",
+            tx.data_merkle_root, tx.seq
+        );
         let maybe_file = self
             .inner
             .lock()
@@ -225,7 +229,7 @@ impl MemoryChunkPool {
                 self.write_chunks(
                     SegmentInfo {
                         root: tx.data_merkle_root,
-                        seg_data: seg.data.clone(),
+                        seg_data: seg.data,
                         seg_proof: proof,
                         seg_index,
                         chunks_per_segment: file.chunks_per_segment,
@@ -236,6 +240,10 @@ impl MemoryChunkPool {
                 .await?
             }
         }
+        info!(
+            "cached segments flushed to log store. data root: {}, tx_seq:{}",
+            tx.data_merkle_root, tx.seq
+        );
         Ok(true)
     }
 
