@@ -89,6 +89,11 @@ class SyncTest(TestFramework):
         assert_equal(client2.zgs_get_file_info(data_root)["finalized"], False)
         assert(client2.zgs_download_segment_decoded(data_root, 1024, 2048) is None)
 
+        # Restart node 1 to check if the proof nodes are persisted.
+        self.stop_storage_node(0)
+        self.start_storage_node(0)
+        self.nodes[0].wait_for_rpc_connection()
+
         # Trigger chunks sync by rpc
         assert(client2.admin_start_sync_chunks(1, 1024, 2048) is None)
         wait_until(lambda: client2.sycn_status_is_completed_or_unknown(1))
