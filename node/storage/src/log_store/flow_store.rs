@@ -1,7 +1,9 @@
 use super::load_chunk::EntryBatch;
 use super::{MineLoadChunk, SealAnswer, SealTask};
 use crate::error::Error;
-use crate::log_store::log_manager::{bytes_to_entries, COL_ENTRY_BATCH, COL_ENTRY_BATCH_ROOT};
+use crate::log_store::log_manager::{
+    bytes_to_entries, COL_ENTRY_BATCH, COL_ENTRY_BATCH_ROOT, COL_FLOW_MPT_NODES,
+};
 use crate::log_store::{FlowRead, FlowSeal, FlowWrite};
 use crate::{try_option, ZgsKeyValueDB};
 use anyhow::{anyhow, bail, Result};
@@ -69,6 +71,10 @@ impl FlowStore {
             )
         })?;
         merkle.gen_proof(sector_index)
+    }
+
+    pub fn put_mpt_node_list(&self, node_list: Vec<(usize, usize, DataRoot)>) -> Result<()> {
+        self.db.put_mpt_node_list(node_list)
     }
 }
 
@@ -441,9 +447,11 @@ impl FlowDBStore {
                 );
             }
         }
+        let extra_node_list = self.get_mpt_node_list()?;
         Ok(MerkleTreeInitialData {
             subtree_list: root_list,
             known_leaves: leaf_list,
+            extra_mpt_nodes: extra_node_list,
         })
     }
 
@@ -492,6 +500,32 @@ impl FlowDBStore {
         self.kvdb.write(tx)?;
         Ok(index_to_reseal)
     }
+
+    fn put_mpt_node_list(&self, mpt_node_list: Vec<(usize, usize, DataRoot)>) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+        for (layer_index, position, data) in mpt_node_list {
+            tx.put(
+                COL_FLOW_MPT_NODES,
+                &encode_mpt_node_key(layer_index, position),
+                data.as_bytes(),
+            );
+        }
+        Ok(self.kvdb.write(tx)?)
+    }
+
+    fn get_mpt_node_list(&self) -> Result<Vec<(usize, usize, DataRoot)>> {
+        let mut node_list = Vec::new();
+        for r in self.kvdb.iter(COL_FLOW_MPT_NODES) {
+            let (index_bytes, node_bytes) = r?;
+            let (layer_index, position) = decode_mpt_node_key(index_bytes.as_ref())?;
+            node_list.push((
+                layer_index,
+                position,
+                DataRoot::from_slice(node_bytes.as_ref()),
+            ));
+        }
+        Ok(node_list)
+    }
 }
 
 #[derive(DeriveEncode, DeriveDecode, Clone, Debug)]
@@ -536,4 +570,19 @@ fn decode_batch_root_key(data: &[u8]) -> Result<(usize, usize)> {
     let batch_index = try_decode_usize(&data[..mem::size_of::<u64>()])?;
     let subtree_depth = usize::MAX - try_decode_usize(&data[mem::size_of::<u64>()..])?;
     Ok((batch_index, subtree_depth))
+}
+
+fn encode_mpt_node_key(layer_index: usize, position: usize) -> Vec<u8> {
+    let mut key = layer_index.to_be_bytes().to_vec();
+    key.extend_from_slice(&position.to_be_bytes());
+    key
+}
+
+fn decode_mpt_node_key(data: &[u8]) -> Result<(usize, usize)> {
+    if data.len() != mem::size_of::<usize>() * 2 {
+        bail!("invalid data length");
+    }
+    let layer_index = try_decode_usize(&data[..mem::size_of::<u64>()])?;
+    let position = try_decode_usize(&data[mem::size_of::<u64>()..])?;
+    Ok((layer_index, position))
 }

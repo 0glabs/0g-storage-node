@@ -36,7 +36,8 @@ pub const COL_ENTRY_BATCH_ROOT: u32 = 3;
 pub const COL_TX_COMPLETED: u32 = 4;
 pub const COL_MISC: u32 = 5;
 pub const COL_SEAL_CONTEXT: u32 = 6;
-pub const COL_NUM: u32 = 7;
+pub const COL_FLOW_MPT_NODES: u32 = 7;
+pub const COL_NUM: u32 = 8;
 
 pub struct LogManager {
     pub(crate) db: Arc<dyn ZgsKeyValueDB>,
@@ -119,11 +120,12 @@ impl LogStoreChunkWrite for LogManager {
         self.append_entries(flow_entry_array)?;
 
         if let Some(file_proof) = maybe_file_proof {
-            self.pora_chunks_merkle.fill_with_file_proof(
+            let updated_node_list = self.pora_chunks_merkle.fill_with_file_proof(
                 file_proof,
                 tx.merkle_nodes,
                 tx.start_entry_index,
             )?;
+            self.flow_store.put_mpt_node_list(updated_node_list)?;
         }
         Ok(true)
     }
@@ -273,8 +275,10 @@ impl LogStoreWrite for LogManager {
     ) -> Result<bool> {
         let valid = self.validate_range_proof(tx_seq, data)?;
         if valid {
-            self.pora_chunks_merkle
+            let updated_nodes = self
+                .pora_chunks_merkle
                 .fill_with_range_proof(data.proof.clone())?;
+            self.flow_store.put_mpt_node_list(updated_nodes)?;
         }
         Ok(valid)
     }

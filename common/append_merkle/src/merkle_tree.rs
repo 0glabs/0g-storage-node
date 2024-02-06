@@ -127,6 +127,11 @@ pub struct MerkleTreeInitialData<E: HashElement> {
     /// These leaves are in some large subtrees of `subtree_list`. 1-node subtrees are also leaves,
     /// but they will not be duplicated in `known_leaves`.
     pub known_leaves: Vec<(usize, E)>,
+
+    /// A list of `(layer_index, position, hash)`.
+    /// These are the nodes known from proofs.
+    /// They should only be inserted after constructing the tree.
+    pub extra_mpt_nodes: Vec<(usize, usize, E)>,
 }
 
 impl<E: HashElement> MerkleTreeInitialData<E> {

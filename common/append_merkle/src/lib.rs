@@ -88,6 +88,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         for (index, h) in initial_data.known_leaves {
             merkle.fill_leaf(index, h);
         }
+        for (layer_index, position, h) in initial_data.extra_mpt_nodes {
+            // TODO: Delete duplicate nodes from DB.
+            merkle.layers[layer_index][position] = h;
+        }
         Ok(merkle)
     }
 
@@ -192,7 +196,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     /// This requires that the proof is built against this tree.
     /// This should only be called after validating the proof (including checking root existence).
     /// Returns `Error` if the data is conflict with existing ones.
-    pub fn fill_with_range_proof(&mut self, proof: RangeProof<E>) -> Result<()> {
+    pub fn fill_with_range_proof(
+        &mut self,
+        proof: RangeProof<E>,
+    ) -> Result<Vec<(usize, usize, E)>> {
         self.fill_with_proof(
             proof
                 .left_proof
@@ -212,7 +219,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         proof: Proof<E>,
         mut tx_merkle_nodes: Vec<(usize, E)>,
         start_index: u64,
-    ) -> Result<()> {
+    ) -> Result<Vec<(usize, usize, E)>> {
         let tx_merkle_nodes_size = tx_merkle_nodes.len();
         if self.leaf_height != 0 {
             tx_merkle_nodes = tx_merkle_nodes
@@ -227,7 +234,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                 .collect();
         }
         if tx_merkle_nodes.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
         let mut position_and_data =
             proof.file_proof_nodes_in_tree(tx_merkle_nodes, tx_merkle_nodes_size);
@@ -239,7 +246,12 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     /// This assumes that the proof leaf is no lower than the tree leaf. It holds for both SegmentProof and ChunkProof.
-    fn fill_with_proof(&mut self, position_and_data: Vec<(usize, E)>) -> Result<()> {
+    /// Return the inserted nodes and position.
+    fn fill_with_proof(
+        &mut self,
+        position_and_data: Vec<(usize, E)>,
+    ) -> Result<Vec<(usize, usize, E)>> {
+        let mut updated_nodes = Vec::new();
         // A valid proof should not fail the following checks.
         for (i, (position, data)) in position_and_data.into_iter().enumerate() {
             let layer = &mut self.layers[i];
@@ -254,7 +266,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                 // skip padding node.
                 continue;
             }
-            if layer[position] != E::null() && layer[position] != data {
+            if layer[position] == E::null() {
+                layer[position] = data.clone();
+                updated_nodes.push((i, position, data))
+            } else if layer[position] != data {
                 bail!(
                     "conflict data layer={} position={} tree_data={:?} proof_data={:?}",
                     i,
@@ -263,9 +278,8 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                     data
                 );
             }
-            layer[position] = data;
         }
-        Ok(())
+        Ok(updated_nodes)
     }
 
     pub fn gen_range_proof(&self, start_index: usize, end_index: usize) -> Result<RangeProof<E>> {
