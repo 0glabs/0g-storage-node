@@ -74,6 +74,10 @@ pub async fn run_server(
     Ok(handles)
 }
 
+fn server_builder(ctx: Context) -> HttpServerBuilder {
+    HttpServerBuilder::default().max_request_body_size(ctx.config.max_request_body_size)
+}
+
 /// Run a single RPC server for all namespace RPCs.
 async fn run_server_all(ctx: Context) -> Result<HttpServerHandle, Box<dyn Error>> {
     // public rpc
@@ -89,7 +93,7 @@ async fn run_server_all(ctx: Context) -> Result<HttpServerHandle, Box<dyn Error>
         zgs.merge(mine)?;
     }
 
-    Ok(HttpServerBuilder::default()
+    Ok(server_builder(ctx.clone())
         .build(ctx.config.listen_address)
         .await?
         .start(zgs)?)
@@ -112,12 +116,12 @@ async fn run_server_public_private(
         admin.merge(mine)?;
     }
 
-    let handle_public = HttpServerBuilder::default()
+    let handle_public = server_builder(ctx.clone())
         .build(ctx.config.listen_address)
         .await?
         .start(zgs)?;
 
-    let handle_private = HttpServerBuilder::default()
+    let handle_private = server_builder(ctx.clone())
         .build(listen_addr_private)
         .await?
         .start(admin)?;

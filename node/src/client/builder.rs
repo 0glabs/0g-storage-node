@@ -219,7 +219,7 @@ impl ClientBuilder {
         let async_store = require!("rpc", self, async_store).clone();
         let network_send = require!("rpc", self, network).send.clone();
         let mine_send = self.miner.as_ref().map(|x| x.send.clone());
-        let synced_tx_recv = require!("sync", self, log_sync).send.subscribe();
+        let synced_tx_recv = require!("rpc", self, log_sync).send.subscribe();
 
         let (chunk_pool, chunk_pool_handler) =
             chunk_pool::unbounded(chunk_pool_config, async_store.clone(), network_send.clone());

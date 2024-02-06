@@ -77,6 +77,7 @@ impl ZgsConfig {
             enabled: self.rpc_enabled,
             listen_address,
             listen_address_admin,
+            max_request_body_size: self.max_request_body_size,
             chunks_per_segment: self.rpc_chunks_per_segment,
             max_cache_file_size: self.rpc_max_cache_file_size,
         })

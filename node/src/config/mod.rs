@@ -38,6 +38,7 @@ build_config! {
     (rpc_enabled, (bool), true)
     (rpc_listen_address, (String), "127.0.0.1:5678".to_string())
     (rpc_listen_address_admin, (String), "127.0.0.1:5679".to_string())
+    (max_request_body_size, (u32), 100*1024*1024) // 100MB
     (rpc_chunks_per_segment, (usize), 1024)
     (rpc_max_cache_file_size, (usize), 10*1024*1024) //10MB
 
