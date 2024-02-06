@@ -11,6 +11,9 @@ pub trait Rpc {
     #[method(name = "uploadSegment")]
     async fn upload_segment(&self, segment: SegmentWithProof) -> RpcResult<()>;
 
+    #[method(name = "uploadSegments")]
+    async fn upload_segments(&self, segments: Vec<SegmentWithProof>) -> RpcResult<()>;
+
     #[method(name = "downloadSegment")]
     async fn download_segment(
         &self,

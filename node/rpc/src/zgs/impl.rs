@@ -35,52 +35,14 @@ impl RpcServer for RpcServerImpl {
 
     async fn upload_segment(&self, segment: SegmentWithProof) -> RpcResult<()> {
         debug!(root = %segment.root, index = %segment.index, "zgs_uploadSegment");
+        self.put_segment(segment).await
+    }
 
-        let _ = self.ctx.chunk_pool.validate_segment_size(&segment.data)?;
-
-        let maybe_tx = self
-            .ctx
-            .log_store
-            .get_tx_by_data_root(&segment.root)
-            .await?;
-        let mut need_cache = false;
-
-        if self
-            .ctx
-            .chunk_pool
-            .check_already_has_cache(&segment.root)
-            .await
-        {
-            need_cache = true;
+    async fn upload_segments(&self, segments: Vec<SegmentWithProof>) -> RpcResult<()> {
+        debug!("zgs_uploadSegments()");
+        for segment in segments.into_iter() {
+            self.put_segment(segment).await?;
         }
-
-        if !need_cache {
-            need_cache = self.check_need_cache(&maybe_tx, segment.file_size).await?;
-        }
-
-        segment.validate(self.ctx.config.chunks_per_segment)?;
-
-        let seg_info = SegmentInfo {
-            root: segment.root,
-            seg_data: segment.data,
-            seg_proof: segment.proof,
-            seg_index: segment.index,
-            chunks_per_segment: self.ctx.config.chunks_per_segment,
-        };
-
-        if need_cache {
-            self.ctx.chunk_pool.cache_chunks(seg_info).await?;
-        } else {
-            let file_id = FileID {
-                root: seg_info.root,
-                tx_id: maybe_tx.unwrap().id(),
-            };
-            self.ctx
-                .chunk_pool
-                .write_chunks(seg_info, file_id, segment.file_size)
-                .await?;
-        }
-
         Ok(())
     }
 
@@ -235,5 +197,55 @@ impl RpcServerImpl {
             is_cached,
             uploaded_seg_num,
         })
+    }
+
+    async fn put_segment(&self, segment: SegmentWithProof) -> RpcResult<()> {
+        debug!(root = %segment.root, index = %segment.index, "putSegment");
+
+        self.ctx.chunk_pool.validate_segment_size(&segment.data)?;
+
+        let maybe_tx = self
+            .ctx
+            .log_store
+            .get_tx_by_data_root(&segment.root)
+            .await?;
+        let mut need_cache = false;
+
+        if self
+            .ctx
+            .chunk_pool
+            .check_already_has_cache(&segment.root)
+            .await
+        {
+            need_cache = true;
+        }
+
+        if !need_cache {
+            need_cache = self.check_need_cache(&maybe_tx, segment.file_size).await?;
+        }
+
+        segment.validate(self.ctx.config.chunks_per_segment)?;
+
+        let seg_info = SegmentInfo {
+            root: segment.root,
+            seg_data: segment.data,
+            seg_proof: segment.proof,
+            seg_index: segment.index,
+            chunks_per_segment: self.ctx.config.chunks_per_segment,
+        };
+
+        if need_cache {
+            self.ctx.chunk_pool.cache_chunks(seg_info).await?;
+        } else {
+            let file_id = FileID {
+                root: seg_info.root,
+                tx_id: maybe_tx.unwrap().id(),
+            };
+            self.ctx
+                .chunk_pool
+                .write_chunks(seg_info, file_id, segment.file_size)
+                .await?;
+        }
+        Ok(())
     }
 }
