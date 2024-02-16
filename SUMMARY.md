@@ -4,5 +4,6 @@
 * [ZeroG Storage Spec](doc/README.md)
   * [Overview](doc/overview.md)
   * [Introduction](doc/introduction.md)
+  * [Architecture](doc/architecture.md)
   * [Install](doc/install.md)
   * [Run](doc/run.md)
