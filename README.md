@@ -8,7 +8,7 @@ ZeroG Storage is the storage layer for the ZeroGravity data availability (DA) sy
 * General purpose - It is designed to support atomic transactions, mutable kv stores as well as archive log systems to enable wide range of applications with various data types.
 * Incentive - Instead of being just a decentralized database, ZeroG Storage introduces PoRA mining algorithm to incentivize storage network participants.
 
-To dive deep into the technical details, continue reading ZeroG Storage spec.
+To dive deep into the technical details, continue reading [ZeroG Storage Spec.](doc/)
 
 ## Install
 
