@@ -13,3 +13,45 @@ To dive deep into the technical details, continue reading ZeroG Storage spec.
 ## Install
 
 Please refer to Install page for detailed steps to compile and start a ZeroG Storage node.
+
+## Test
+
+### Prerequisites
+
+1. Required python version: 3.8, 3.9, 3.10, higher version is not guaranteed (e.g. failed to install `pysha3`).
+2. Install dependencies under root folder:
+
+```
+pip3 install -r requirements.txt
+```
+
+### Dependent Binaries
+
+Python test framework will launch blockchain fullnodes at local for storage node to interact with. There are 2 kinds of fullnodes supported:
+
+* Conflux eSpace node (by default).
+* BSC node (geth).
+
+For Conflux eSpace node, the test framework will automatically compile the binary at runtime, and copy the binary to `tests/tmp` folder. For BSC node, the test framework will automatically download the latest version binary from [github](https://github.com/bnb-chain/bsc/releases) to `tests/tmp` folder.
+
+Alternatively, you could also manually copy specific versoin binaries (conflux or geth) to the `tests/tmp` folder. Note, do **NOT** copy released conflux binary on github, since block height of some CIPs are hardcoded.
+
+### Run Tests
+
+Go to the `tests` folder and run following command to run all tests:
+
+```
+python test_all.py
+```
+
+or, run any single test, e.g.
+
+```
+python sync_test.py
+```
+
+### Troubleshootings
+
+1. Test failed due to blockchain fullnode rpc inaccessible.
+   * Traceback: `node.wait_for_rpc_connection()`
+   * Solution: unset the `http_proxy` and `https_proxy` environment variables if configured.
