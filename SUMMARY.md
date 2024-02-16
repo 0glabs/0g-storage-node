@@ -4,7 +4,6 @@
 * [doc](doc/README.md)
   * [Install](doc/install.md)
   * [Run](doc/run.md)
-* [Python Tests for Storage node](tests/readme.md)
 * [common](common/README.md)
   * [merkle\_light](common/merkle\_light/README.md)
 * [version-meld](version-meld/README.md)
