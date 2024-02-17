@@ -6,9 +6,8 @@ The mining reward is paid to miners for providing data service. Miners receive m
 
 The mining reward consists of two parts:
 
-* Base reward: the base reward, denoted by Rbase, is paid for every accepted mining proof. The base reward per proof decreases over time.
-* Storage reward: the storage reward, denoted by Rstorage, is the perpetual reward from storing data. When a PoRA falls in a pricing segment, half of the balance in its Reward Pool are claimed as the storage reward.
+* Base reward: the base reward, denoted by $R_{base}$, is paid for every accepted mining proof. The base reward per proof decreases over time.
+* Storage reward: the storage reward, denoted by $R_{storage}$, is the perpetual reward from storing data. When a PoRA falls in a pricing segment, half of the balance in its Reward Pool are claimed as the storage reward.
 
 The total reward for a new mining proof is thus:
-
-$ Rtotal = Rbase + Rstorage $
+$$ R_{total} = R_{base} + R_{storage} $$
