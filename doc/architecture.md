@@ -6,13 +6,13 @@ _ZeroGravity_ system consists of a data availability layer (0G DA) on top of a d
 
 Figure 1 illustrates the architecture of the 0G system. When a data block enters the 0G DA, it is first erasure coded and organized into multiple consecutive chunks through erasure coding. The merkle root as a commitment of the encoded data block is then submitted to the consensus layer to keep the order of the data entering the system. The chunks are then dispersed to different storage nodes in 0G Storage where the data may be further replicated to other nodes depending on the storage fee that the user pays. The storage nodes periodically participate the mining process by interacting with the consensus network to accrue rewards from the system.&#x20;
 
-<figure><img src="../.gitbook/assets/image (1).png" alt=""><figcaption><p>Figure 1. The Architecture of ZeroG System</p></figcaption></figure>
+<figure><img src="../.gitbook/assets/image (1) (1).png" alt=""><figcaption><p>Figure 1. The Architecture of ZeroG System</p></figcaption></figure>
 
 ## ZeroG Storage
 
 0G Storage employs layered design targetting to support different types of decentralized applications. Figure 2 shows the overview of the full stack layers of 0G Storage.
 
-<figure><img src="../.gitbook/assets/image.png" alt=""><figcaption><p>Figure 2. Full Stack Solution of ZeroG Storage</p></figcaption></figure>
+<figure><img src="../.gitbook/assets/image (1).png" alt=""><figcaption><p>Figure 2. Full Stack Solution of ZeroG Storage</p></figcaption></figure>
 
 The lowest is a log layer that is a decentralized system. It consists of multiple storage nodes to form a storage network. The network has built-in incentive mechanism to reward the data storage. The ordering of the uploaded data is guaranteed by a sequencing mechanism to provide a log-based semantics and abstraction. This layer is used to store unstructured raw data for permanent persistency.
 
