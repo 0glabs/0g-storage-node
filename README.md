@@ -10,9 +10,21 @@ ZeroG Storage is the storage layer for the ZeroGravity data availability (DA) sy
 
 To dive deep into the technical details, continue reading [ZeroG Storage Spec.](doc/)
 
-## Install
+## Integration
 
-Please refer to Install page for detailed steps to compile and start a ZeroG Storage node.
+We provide a [SDK](https://github.com/zero-gravity-labs/js-zerog-storage-sdk) for users to easily integrate ZeroG Storage in their applications with the following features:
+
+* File Merkle Tree Class
+* Flow Contract Types
+* RPC methods support
+* File upload
+* Support browser environment
+* Tests for different environments (In Progress)
+* File download (In Progress)
+
+## Deployment
+
+Please refer to [Deployment](doc/install.md) page for detailed steps to compile and start a ZeroG Storage node.
 
 ## Test
 
@@ -50,8 +62,12 @@ or, run any single test, e.g.
 python sync_test.py
 ```
 
-### Troubleshootings
+### Troubleshooting
 
-1. Test failed due to blockchain fullnode rpc inaccessible.
+1. Test failed due to blockchain full node rpc inaccessible.
    * Traceback: `node.wait_for_rpc_connection()`
    * Solution: unset the `http_proxy` and `https_proxy` environment variables if configured.
+
+## Contributing
+
+To make contributions to the project, please follow the guidelines [here](./#contributing).
