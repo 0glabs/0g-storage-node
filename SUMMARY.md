@@ -13,4 +13,4 @@
     * [Storage Pricing](doc/incentive-mechanism/storage-pricing.md)
     * [Mining Reward](doc/incentive-mechanism/mining-reward.md)
   * [Deployment](doc/install.md)
-  * [Contributing](doc/contributing.md)
+* [Contributing](contributing.md)
