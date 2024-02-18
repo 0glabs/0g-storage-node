@@ -70,4 +70,4 @@ python sync_test.py
 
 ## Contributing
 
-To make contributions to the project, please follow the guidelines [here](./#contributing).
+To make contributions to the project, please follow the guidelines [here](contributing.md).
