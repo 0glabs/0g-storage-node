@@ -6,8 +6,10 @@
 
 Install dependencies Node.js, yarn, hardhat.
 
-* Linux
-  * Ubuntu
+- Linux
+
+  - Ubuntu
+
   ```shell
   # node >=12.18
   sudo apt install npm
@@ -15,27 +17,30 @@ Install dependencies Node.js, yarn, hardhat.
   sudo npm install --global hardhat
   ```
 
-* Mac
+- Mac
+
   ```shell
   brew install node
   sudo npm install --global yarn
   sudo npm install --global hardhat
   ```
 
-* Windows  
-Download and install node from [here](https://nodejs.org/en/download/)
+- Windows  
+  Download and install node from [here](https://nodejs.org/en/download/)
   ```shell
   npm install --global yarn
   npm install --global hardhat
   ```
 
 ### Download contract source code
+
 ```shell
 git clone https://github.com/0glabs/0g-storage-contracts.git
 cd 0g-storage-contracts
 ```
 
 Add target network to your hardhat.config.js, i.e.
+
 ```shell
 # example
 networks: {
@@ -49,19 +54,22 @@ networks: {
 ```
 
 ### Compile
+
 ```shell
 yarn
 yarn compile
 ```
 
 ### Deploy contract
+
 ```shell
 npx hardhat run scripts/deploy.ts --network targetnetwork
 ```
 
 Keep contracts addresses
 
-## Run ZeroGStorage 
+## Run ZeroGStorage
+
 Update coinfig run/config.toml as required:
 
 ```shell
@@ -85,6 +93,7 @@ blockchain_rpc_endpoint
 ```
 
 Run node
+
 ```shell
 cd run
 ../target/release/zgs_node --config config.toml

@@ -12,5 +12,5 @@
     * [Proof of Random Access](doc/incentive-mechanism/proof-of-random-access.md)
     * [Storage Pricing](doc/incentive-mechanism/storage-pricing.md)
     * [Mining Reward](doc/incentive-mechanism/mining-reward.md)
-  * [Install](doc/install.md)
-  * [Run](doc/run.md)
+  * [Deployment](doc/install.md)
+  * [Contributing](doc/contributing.md)

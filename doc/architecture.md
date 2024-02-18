@@ -29,16 +29,3 @@ The ZeroG Storage Node depends on [ZeroG Storage Contract](https://github.com/ze
   * PoraMine: It contains apis to submit PoRA answers.
 * ZeroG Storage Client: It is used to interact with certain ZeroG Storage Nodes to upload/download files.
 * ZeroG Storage KV: It is used
-
-## Integration
-
-We also provide a [SDK](https://github.com/zero-gravity-labs/js-zerog-storage-sdk) for users to easily integrate ZeroG Storage in their applications with the following features:
-
-* File Merkle Tree Class
-* Flow Contract Types
-* RPC methods support
-* File upload
-* Support browser environment
-* Tests for different environments (In Progress)
-* File download (In Progress)
-

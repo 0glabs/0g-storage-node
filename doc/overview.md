@@ -9,3 +9,4 @@
    1. [Proof of Random Access (PoRA)](incentive-mechanism/proof-of-random-access.md)
    2. [Storage Pricing](incentive-mechanism/storage-pricing.md)
    3. [Mining Reward](incentive-mechanism/mining-reward.md)
+7. [Deployment](install.md)
