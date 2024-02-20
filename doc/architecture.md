@@ -22,10 +22,4 @@ On top of the log layer, 0G Storage provides a Key-Value store runtime to manage
 
 ## Dependencies
 
-The ZeroG Storage Node depends on [ZeroG Storage Contract](https://github.com/zero-gravity-labs/zerog-storage-contracts/tree/main) and is connected with [ZeroG Storage Client](https://github.com/zero-gravity-labs/zerog-storage-client). It is also depended by the [ZeroG Storage KV](https://github.com/zero-gravity-labs/zerog-storage-kv).
-
-* ZeroG Storage Contract: It essentially provides two abi interfaces for ZeroG Storage Node to interact with the on-chain contracts.
-  * ZgsFlow: It contains apis to submit chunk data.
-  * PoraMine: It contains apis to submit PoRA answers.
-* ZeroG Storage Client: It is used to interact with certain ZeroG Storage Nodes to upload/download files.
-* ZeroG Storage KV: It is used
+The ZeroG Storage Node is depended by the [ZeroG Storage KV](https://github.com/zero-gravity-labs/zerog-storage-kv). ZeroG Storage KV is essentially a wrapper layer on top of ZeroG Storage Node in order to provide mutable kv store and transaction processing to applications. ZeroG DA uses the kv store to store metadata of the data blobs.
