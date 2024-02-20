@@ -23,10 +23,10 @@ Precisely, the mining process has following steps:
    3. Compute the number of minable entries n = \[data\_length/256KB].
    4. For each iteration, repeat the following steps:
       1. Pick a random 32-byte nonce.
-      2. Decide the mining range parameters start\_position and mine\_length; mine\_length should be equal to $min(8TB, n \* 256KB)$.
+      2. Decide the mining range parameters start\_position and mine\_length; mine\_length should be equal to min(8TB, n \* 256KB).
       3. Compute the recall position and the scratchpad s by the algorithm in Figure 1.
       4. Load the 256-kilobyte sealed data chunk d started from the position of h 256KB.
-      5. Compute \~w = \~d XOR \~s and divide \~w into 64 4-kilobyte pieces.
+      5. Compute w = \~d XOR \~s and divide \~w into 64 4-kilobyte pieces.
       6. For each piece \~v, compute the Blake2b hash of the tuple (miner id, nonce, context digest, start position, mine length, \~v).
       7. If one of Blake2b hash output is smaller than a target value, the miner finds a legitimate PoRA solution.
 
