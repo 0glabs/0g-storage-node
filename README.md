@@ -30,14 +30,10 @@ Please refer to [Deployment](doc/install.md) page for detailed steps to compile 
 
 ### Prerequisites
 
-1. Required python version: 3.8, 3.9, 3.10, higher version is not guaranteed (e.g. failed to install `pysha3`).
-2. Install dependencies under root folder:
+* Required python version: 3.8, 3.9, 3.10, higher version is not guaranteed (e.g. failed to install `pysha3`).
+* Install dependencies under root folder: `pip3 install -r requirements.txt`
 
-```
-pip3 install -r requirements.txt
-```
-
-### Dependent Binaries
+### Dependencies
 
 Python test framework will launch blockchain fullnodes at local for storage node to interact with. There are 2 kinds of fullnodes supported:
 
@@ -47,6 +43,13 @@ Python test framework will launch blockchain fullnodes at local for storage node
 For Conflux eSpace node, the test framework will automatically compile the binary at runtime, and copy the binary to `tests/tmp` folder. For BSC node, the test framework will automatically download the latest version binary from [github](https://github.com/bnb-chain/bsc/releases) to `tests/tmp` folder.
 
 Alternatively, you could also manually copy specific versoin binaries (conflux or geth) to the `tests/tmp` folder. Note, do **NOT** copy released conflux binary on github, since block height of some CIPs are hardcoded.
+
+For testing, it's also dependent on the following repos:
+
+* [ZeroG Storage Contract](https://github.com/zero-gravity-labs/zerog-storage-contracts): It essentially provides two abi interfaces for ZeroG Storage Node to interact with the on-chain contracts.
+  * ZgsFlow: It contains apis to submit chunk data.
+  * PoraMine: It contains apis to submit PoRA answers.
+* [ZeroG Storage Client](https://github.com/zero-gravity-labs/zerog-storage-client): It is used to interact with certain ZeroG Storage Nodes to upload/download files.
 
 ### Run Tests
 
