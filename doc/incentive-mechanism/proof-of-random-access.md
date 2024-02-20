@@ -19,15 +19,15 @@ Precisely, the mining process has following steps:
 1. Register the miner id on the mining contract
 2. For each mining epoch, repeat the following steps:
    1. Wait for the layer-1 blockchain release a block at a given epoch height.
-   2. Get the block hash block hash of this block and the relevant context (including merkle root, data length, context digest) at this time.
-   3. Compute the number of minable entries n = \[data\_length/256KB].
+   2. Get the block hash $$\mathsf{block\_hash}$$ of this block and the relevant context (including $$\mathsf{merkle\_root}$$, $$\mathsf{data\_length}$$, $$\mathsf{context\_digest}$$) at this time.
+   3. Compute the number of minable entries $$\text{n} = [\mathsf{data\_length}/256\mathsf{KB}]$$.
    4. For each iteration, repeat the following steps:
-      1. Pick a random 32-byte nonce.
-      2. Decide the mining range parameters start\_position and mine\_length; mine\_length should be equal to min(8TB, n \* 256KB).
-      3. Compute the recall position and the scratchpad s by the algorithm in Figure 1.
-      4. Load the 256-kilobyte sealed data chunk d started from the position of h 256KB.
-      5. Compute w = \~d XOR \~s and divide \~w into 64 4-kilobyte pieces.
-      6. For each piece \~v, compute the Blake2b hash of the tuple (miner id, nonce, context digest, start position, mine length, \~v).
+      1. Pick a random 32-byte $$\mathsf{nonce}$$.
+      2. Decide the mining range parameters $$\mathsf{start\_position}$$ and $$\mathsf{mine\_length}$$; $$\mathsf{mine\_length}$$ should be equal to $$\text{min}(8\mathrm{TB}, n \times 256 \mathrm{KB})$$.
+      3. Compute the recall position $$\tau$$ and the scratchpad $$\overrightarrow{s}$$ by the algorithm in Figure 1.
+      4. Load the 256-kilobyte sealed data chunk $$\overrightarrow{d}$$ started from the position of $$h \cdot 256\mathrm{KB}$$.
+      5. Compute $$\overrightarrow{w} = \overrightarrow{d}\ \mathtt{XOR}\ \overrightarrow{s}$$ and divide $$\overrightarrow{w}$$ into 64 4-kilobyte pieces.
+      6. For each piece $$\overrightarrow{v}$$, compute the Blake2b hash of the tuple ($$\mathsf{miner\_id}$$, $$\mathsf{nonce}$$, $$\mathsf{context\_digest}$$, $$\mathsf{start\_position}$$, $$\mathsf{mine\_length}$$, $$\overrightarrow{v}$$).
       7. If one of Blake2b hash output is smaller than a target value, the miner finds a legitimate PoRA solution.
 
 <figure><img src="../../.gitbook/assets/image (3).png" alt=""><figcaption><p>Figure 1. Recall Position and Scratchpat Computation</p></figcaption></figure>
