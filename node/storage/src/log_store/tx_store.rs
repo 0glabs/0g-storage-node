@@ -41,8 +41,14 @@ impl TransactionStore {
     #[instrument(skip(self))]
     /// Return `Ok(Some(tx_seq))` if a previous transaction has the same tx root.
     pub fn put_tx(&self, mut tx: Transaction) -> Result<Vec<u64>> {
-        let mut db_tx = self.kvdb.transaction();
+        let old_tx_seq_list = self.get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
+        if old_tx_seq_list.last().is_some_and(|seq| *seq == tx.seq) {
+            // The last tx is inserted again, so no need to process it.
+            self.next_tx_seq.store(tx.seq + 1, Ordering::SeqCst);
+            return Ok(old_tx_seq_list);
+        }
 
+        let mut db_tx = self.kvdb.transaction();
         if !tx.data.is_empty() {
             tx.size = tx.data.len() as u64;
             let mut padded_data = tx.data.clone();
@@ -56,7 +62,6 @@ impl TransactionStore {
 
         db_tx.put(COL_TX, &tx.seq.to_be_bytes(), &tx.as_ssz_bytes());
         db_tx.put(COL_TX, NEXT_TX_KEY.as_bytes(), &(tx.seq + 1).to_be_bytes());
-        let old_tx_seq_list = self.get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
         // The list is sorted, and we always call `put_tx` in order.
         assert!(old_tx_seq_list
             .last()
