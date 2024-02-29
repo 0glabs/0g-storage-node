@@ -37,7 +37,7 @@ impl Algorithm<H256> for Sha3Algorithm {
     fn parent(left: &H256, right: &H256) -> H256 {
         if left == right {
             if let Some(v) = ZERO_HASHES_MAP.get(left) {
-                return v.clone();
+                return *v;
             }
         }
         Self::parent_raw(left, right)
