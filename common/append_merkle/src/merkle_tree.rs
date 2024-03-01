@@ -2,7 +2,7 @@ use crate::sha3::Sha3Algorithm;
 use crate::Proof;
 use anyhow::{bail, Result};
 use ethereum_types::H256;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use ssz::{Decode, Encode};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -28,22 +28,21 @@ impl HashElement for H256 {
     }
 }
 
-lazy_static! {
-    static ref ZERO_HASHES: [H256; 64] = {
-        let leaf_zero_hash: H256 = Sha3Algorithm::leaf(&[0u8; 256]);
-        let mut list = [H256::zero(); 64];
-        list[0] = leaf_zero_hash;
-        for i in 1..list.len() {
-            list[i] = Sha3Algorithm::parent(&list[i - 1], &list[i - 1]);
-        }
-        list
-    };
-}
+pub static ZERO_HASHES: Lazy<[H256; 64]> = Lazy::new(|| {
+    let leaf_zero_hash: H256 = Sha3Algorithm::leaf_raw(&[0u8; 256]);
+    let mut list = [H256::zero(); 64];
+    list[0] = leaf_zero_hash;
+    for i in 1..list.len() {
+        list[i] = Sha3Algorithm::parent_raw(&list[i - 1], &list[i - 1]);
+    }
+    list
+});
 
 pub trait Algorithm<E: HashElement> {
     fn parent(left: &E, right: &E) -> E;
     fn parent_single(r: &E, height: usize) -> E {
-        Self::parent(r, &E::end_pad(height))
+        let right = E::end_pad(height);
+        Self::parent(r, &right)
     }
     fn leaf(data: &[u8]) -> E;
 }
