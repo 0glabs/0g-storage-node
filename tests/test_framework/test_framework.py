@@ -56,7 +56,7 @@ class TestFramework:
             root_dir, "target", "release", "zgs_node" + binary_ext
         )
         self.__default_zgs_cli_binary__ = os.path.join(
-            root_dir, "target", "zerog-storage-client"  + binary_ext
+            root_dir, "target", "0g-storage-client"  + binary_ext
         )
 
     def __setup_blockchain_node(self):
@@ -212,7 +212,7 @@ class TestFramework:
             dest="contract",
             default=os.path.join(
                 __file_path__,
-                "../../zerog-storage-contracts/artifacts/contracts/dataFlow/Flow.sol/Flow.json",
+                "../../0g-storage-contracts/artifacts/contracts/dataFlow/Flow.sol/Flow.json",
             ),
             type=str,
         )
@@ -232,7 +232,7 @@ class TestFramework:
             dest="mine_contract",
             default=os.path.join(
                 __file_path__,
-                "../../zerog-storage-contracts/artifacts/contracts/test/PoraMineTest.sol/PoraMineTest.json",
+                "../../0g-storage-contracts/artifacts/contracts/test/PoraMineTest.sol/PoraMineTest.json",
             ),
             type=str,
         )

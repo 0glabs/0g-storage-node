@@ -1,6 +1,6 @@
-[submodule "zerog-storage-contracts"]
-	path = zerog-storage-contracts
-	url = https://github.com/zero-gravity-labs/zerog-storage-contracts.git
-[submodule "zerog-storage-client"]
-	path = zerog-storage-client
-	url = https://github.com/zero-gravity-labs/zerog-storage-client.git
+[submodule "0g-storage-contracts"]
+	path = 0g-storage-contracts
+	url = git@github.com:0glabs/0g-storage-contracts.git
+[submodule "0g-storage-client"]
+	path = 0g-storage-client
+	url = git@github.com:0glabs/0g-storage-client.git

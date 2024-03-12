@@ -31,8 +31,8 @@ Download and install node from [here](https://nodejs.org/en/download/)
 
 ### Download contract source code
 ```shell
-git clone https://github.com/zero-gravity-labs/zerog-storage-contracts.git
-cd zerog-storage-contracts
+git clone https://github.com/0glabs/0g-storage-contracts.git
+cd 0g-storage-contracts
 ```
 
 Add target network to your hardhat.config.js, i.e.

@@ -4,10 +4,10 @@ use ethers::prelude::abigen;
 
 abigen!(
     ZgsFlow,
-    "../../zerog-storage-contracts/artifacts/contracts/dataFlow/Flow.sol/Flow.json"
+    "../../0g-storage-contracts/artifacts/contracts/dataFlow/Flow.sol/Flow.json"
 );
 
 abigen!(
     PoraMine,
-    "../../zerog-storage-contracts/artifacts/contracts/test/PoraMineTest.sol/PoraMineTest.json"
+    "../../0g-storage-contracts/artifacts/contracts/test/PoraMineTest.sol/PoraMineTest.json"
 );
