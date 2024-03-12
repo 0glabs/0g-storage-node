@@ -61,8 +61,8 @@ We recommend installing Rust through [rustup](https://www.rustup.rs/).
 ## Build from source
 ```shell
 # Download code
-$ git clone https://github.com/zero-gravity-labs/zerog-storage-rust.git
-$ cd zerog-storage-rust
+$ git clone https://github.com/0glabs/0g-storage-node.git
+$ cd 0g-storage-node
 $ git submodule update --init
 
 # Build in release mode
