@@ -1,6 +1,6 @@
 [submodule "0g-storage-contracts"]
 	path = 0g-storage-contracts
-	url = git@github.com:0glabs/0g-storage-contracts.git
+	url = https://github.com/0glabs/0g-storage-contracts.git
 [submodule "0g-storage-client"]
 	path = 0g-storage-client
-	url = git@github.com:0glabs/0g-storage-client.git
+	url = https://github.com/0glabs/0g-storage-client.git
