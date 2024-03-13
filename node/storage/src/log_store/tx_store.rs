@@ -263,7 +263,7 @@ impl TransactionStore {
             if merkle.leaves() % first_subtree != 0 {
                 let pad_len =
                     cmp::min(first_subtree, PORA_CHUNK_SIZE) - (merkle.leaves() % first_subtree);
-                merkle.append_list(data_to_merkle_leaves(&LogManager::padding(pad_len))?);
+                merkle.append_list(data_to_merkle_leaves(&LogManager::padding_raw(pad_len))?);
             }
             // Since we are building the last merkle with a given last tx_seq, it's ensured
             // that appending subtrees will not go beyond the max size.
