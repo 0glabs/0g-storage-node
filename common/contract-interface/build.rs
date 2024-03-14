@@ -5,6 +5,7 @@ const INSTALL_ERROR_MESSAGE: &str =
 const COMPILE_ERROR_MESSAGE: &str =
     "Compile solidity contracts fail, try to run `yarn compile` in folder '0g-storage-contracts'";
 
+#[allow(dead_code)]
 fn compile_contracts() {
     println!("cargo:rerun-if-changed=../../0g-storage-contracts/contracts/");
     println!("cargo:rerun-if-changed=../../0g-storage-contracts/hardhat.config.ts");
@@ -26,10 +27,9 @@ fn compile_contracts() {
 }
 
 fn main() {
-    if false /*  Disable build contracts on rust compilation */ && cfg!(feature = "compile-contracts")
-    {
-        compile_contracts();
-        return;
+    if cfg!(feature = "compile-contracts") {
+        // compile_contracts();
+        // return;
     }
     println!("cargo:rerun-if-changed=../../0g-storage-contracts/artifacts/");
 }
