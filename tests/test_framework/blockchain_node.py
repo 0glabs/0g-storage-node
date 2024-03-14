@@ -3,8 +3,9 @@ import os
 import subprocess
 import tempfile
 import time
+import rlp
 
-from eth_utils import decode_hex
+from eth_utils import decode_hex, keccak
 from web3 import Web3, HTTPProvider
 from web3.middleware import construct_sign_and_send_raw_middleware
 from enum import Enum, unique
@@ -22,6 +23,7 @@ from utility.utils import (
     initialize_config,
     wait_until,
 )
+from test_framework.contracts import load_contract_metadata
 
 
 @unique
@@ -218,15 +220,11 @@ class BlockchainNode(TestNode):
         binary,
         local_conf,
         contract_path,
-        token_contract_path,
-        mine_contract_path,
         log,
         blockchain_node_type,
         rpc_timeout=10,
     ):
         self.contract_path = contract_path
-        self.token_contract_path = token_contract_path
-        self.mine_contract_path = mine_contract_path
 
         self.blockchain_node_type = blockchain_node_type
 
@@ -261,14 +259,15 @@ class BlockchainNode(TestNode):
         # account = w3.eth.account.from_key(GENESIS_PRIV_KEY1)
         # w3.middleware_onion.add(construct_sign_and_send_raw_middleware(account))
 
-        def deploy_contract(path, args=None):
+        def deploy_contract(name, args=None):
             if args is None:
                 args = []
-            contract_interface = json.load(open(path, "r"))
+            contract_interface = load_contract_metadata(base_path=self.contract_path, name=name)
             contract = w3.eth.contract(
                 abi=contract_interface["abi"],
                 bytecode=contract_interface["bytecode"],
             )
+            
             tx_params = TX_PARAMS.copy()
             del tx_params["gas"]
             tx_hash = contract.constructor(*args).transact(tx_params)
@@ -278,37 +277,35 @@ class BlockchainNode(TestNode):
                 abi=contract_interface["abi"],
             )
             return contract, tx_hash
+        
+        def predict_contract_address(offset):
+            nonce = w3.eth.get_transaction_count(account1.address)
+            rlp_encoded = rlp.encode([decode_hex(account1.address), nonce + offset])
+            contract_address_bytes = keccak(rlp_encoded)[-20:]
+            contract_address = '0x' + contract_address_bytes.hex()           
+            return Web3.to_checksum_address(contract_address)
+        
+        
+        flowAddress = predict_contract_address(1)
+        mineAddress = predict_contract_address(2)
+
+        ZERO = "0x0000000000000000000000000000000000000000"
 
         self.log.debug("Start deploy contracts")
-        token_contract, _ = deploy_contract(self.token_contract_path)
-        self.log.debug("ERC20 deployed")
+        book, _ = deploy_contract("AddressBook", [flowAddress, ZERO, ZERO, mineAddress]);
+        self.log.debug("AddressBook deployed")
+
         flow_contract, flow_contract_hash = deploy_contract(
-            self.contract_path, ["0x0000000000000000000000000000000000000000", 100, 0]
+            "Flow", [book.address, 100, 0]
         )
         self.log.debug("Flow deployed")
+
         mine_contract, _ = deploy_contract(
-            self.mine_contract_path,
-            [flow_contract.address, "0x0000000000000000000000000000000000000000", 7],
+            "PoraMineTest",
+            [book.address, 3],
         )
         self.log.debug("Mine deployed")
         self.log.info("All contracts deployed")
-
-        tx_hash = token_contract.functions.approve(
-            flow_contract.address, int(1e9)
-        ).transact(TX_PARAMS)
-        self.wait_for_transaction_receipt(w3, tx_hash)
-
-        # setup second account
-        amount = int(1e8)
-        tx_hash = token_contract.functions.transfer(account2.address, amount).transact(
-            TX_PARAMS
-        )
-        self.wait_for_transaction_receipt(w3, tx_hash)
-
-        tx_hash = token_contract.functions.approve(
-            flow_contract.address, amount
-        ).transact(TX_PARAMS1)
-        self.wait_for_transaction_receipt(w3, tx_hash)
 
         tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
         self.wait_for_transaction_receipt(w3, tx_hash)
@@ -324,7 +321,7 @@ class BlockchainNode(TestNode):
             construct_sign_and_send_raw_middleware([account1, account2])
         )
 
-        contract_interface = json.load(open(self.contract_path, "r"))
+        contract_interface = load_contract_metadata(self.contract_path, "Flow")
         return w3.eth.contract(address=contract_address, abi=contract_interface["abi"])
 
     def wait_for_transaction(self, tx_hash):
