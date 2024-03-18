@@ -1,6 +1,7 @@
 from gettext import npgettext
 from config.node_config import TX_PARAMS
 from utility.utils import assert_equal
+from copy import copy
 
 
 class ContractProxy:
@@ -35,6 +36,13 @@ class ContractProxy:
     
         return getattr(contract.events, event_name).create_filter(fromBlock =0, toBlock="latest").get_all_entries()
 
+    def transfer(self, value, node_idx = 0):
+        tx_params = TX_PARAMS
+        tx_params["value"] = value
+
+        contract = self._get_contract(node_idx)
+        contract.receive.transact(tx_params)
+    
     def address(self):
         return self.contract_address
 

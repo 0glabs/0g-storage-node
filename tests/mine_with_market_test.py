@@ -4,7 +4,7 @@ from test_framework.test_framework import TestFramework
 from config.node_config import MINER_ID, GENESIS_PRIV_KEY
 from test_framework.blockchain_node import BlockChainNodeType
 from utility.submission import create_submission, submit_data
-from utility.utils import wait_until, assert_equal
+from utility.utils import wait_until, assert_equal, assert_greater_than
 
 import math
 
@@ -52,7 +52,7 @@ class MineTest(TestFramework):
         self.log.info("Submit the data hash only (8 GB)")
         self.submit_data(b"\x11", int(SECTORS_PER_PRICING), no_submit=True)
 
-        self.log.info("Sumission Done. Current block number %d", int(blockchain.eth_blockNumber(), 16))
+        self.log.info("Sumission Done, Current block number %d", int(blockchain.eth_blockNumber(), 16))
         self.log.info("Wait for mine context release")
         wait_until(lambda: self.contract.get_mine_context()[0] > 0, timeout=180)
         self.log.info("Current flow length: %d", self.contract.get_mine_context()[3])
@@ -62,7 +62,29 @@ class MineTest(TestFramework):
 
         rewards = self.reward_contract.reward_distributes()
         assert_equal(len(self.reward_contract.reward_distributes()), 1)
-        self.log.info("Received reward %d Gwei", rewards[0].args.amount / (10**9))
+        firstReward = rewards[0].args.amount
+        self.log.info("Received reward %d Gwei", firstReward / (10**9))
+
+        self.reward_contract.transfer(10000 * 10 ** 18)
+        self.log.info("Donation Done")
+        self.log.info("Submit the data hash only (8 GB)")
+        self.submit_data(b"\x11", int(SECTORS_PER_PRICING), no_submit=True)
+        self.log.info("Sumission Done, Current block number %d", int(blockchain.eth_blockNumber(), 16))
+
+        
+        self.log.info("Wait for mine context release")
+        wait_until(lambda: self.contract.get_mine_context()[0] > 1, timeout=180)
+
+        self.log.info("Wait for mine answer")
+        wait_until(lambda: self.mine_contract.last_mined_epoch() == 2)
+        rewards = self.reward_contract.reward_distributes()
+        assert_equal(len(self.reward_contract.reward_distributes()), 2)
+        secondReward = rewards[1].args.amount
+        self.log.info("Received reward %d Gwei", secondReward / (10**9))
+
+        assert_greater_than(secondReward, 100 * firstReward)
+
+
 
 if __name__ == "__main__":
     MineTest(blockchain_node_type=BlockChainNodeType.BSC).main()
