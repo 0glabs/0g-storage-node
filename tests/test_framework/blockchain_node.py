@@ -248,7 +248,7 @@ class BlockchainNode(TestNode):
     def wait_for_transaction_receipt(self, w3, tx_hash, timeout=120, parent_hash=None):
         return w3.eth.wait_for_transaction_receipt(tx_hash, timeout)
 
-    def setup_contract(self):
+    def setup_contract(self, enable_market, mine_period):
         w3 = Web3(HTTPProvider(self.rpc_url))
 
         account1 = w3.eth.account.from_key(GENESIS_PRIV_KEY)
@@ -285,32 +285,61 @@ class BlockchainNode(TestNode):
             contract_address = '0x' + contract_address_bytes.hex()           
             return Web3.to_checksum_address(contract_address)
         
+        def deploy_no_market():
+            flowAddress = predict_contract_address(1)
+            mineAddress = predict_contract_address(2)
+
+            ZERO = "0x0000000000000000000000000000000000000000"
+
+            self.log.debug("Start deploy contracts")
+            book, _ = deploy_contract("AddressBook", [flowAddress, ZERO, ZERO, mineAddress]);
+            self.log.debug("AddressBook deployed")
+
+            flow_contract, flow_contract_hash = deploy_contract("Flow", [book.address, mine_period, 0])
+            self.log.debug("Flow deployed")
+
+            mine_contract, _ = deploy_contract("PoraMineTest", [book.address, 3])
+            self.log.debug("Mine deployed")
+            self.log.info("All contracts deployed")
+
+            tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
+            self.wait_for_transaction_receipt(w3, tx_hash)
+            
+            dummy_reward_contract = w3.eth.contract(
+                address = book.functions.reward().call(),
+                abi=load_contract_metadata(base_path=self.contract_path, name="IReward")["abi"],
+            )
+
+            return flow_contract, flow_contract_hash, mine_contract, dummy_reward_contract
         
-        flowAddress = predict_contract_address(1)
-        mineAddress = predict_contract_address(2)
+        def deploy_with_market():
+            mineAddress = predict_contract_address(1)
+            marketAddress = predict_contract_address(2)
+            rewardAddress = predict_contract_address(3)
+            flowAddress = predict_contract_address(4)
 
-        ZERO = "0x0000000000000000000000000000000000000000"
+            LIFETIME_MONTH = 1
 
-        self.log.debug("Start deploy contracts")
-        book, _ = deploy_contract("AddressBook", [flowAddress, ZERO, ZERO, mineAddress]);
-        self.log.debug("AddressBook deployed")
+            self.log.debug("Start deploy contracts")
+            book, _ = deploy_contract("AddressBook", [flowAddress, marketAddress, rewardAddress, mineAddress]);
+            self.log.debug("AddressBook deployed")
 
-        flow_contract, flow_contract_hash = deploy_contract(
-            "Flow", [book.address, 100, 0]
-        )
-        self.log.debug("Flow deployed")
+            mine_contract, _ = deploy_contract("PoraMineTest", [book.address, 3])
+            deploy_contract("FixedPrice", [book.address, LIFETIME_MONTH])
+            reward_contract, _ =deploy_contract("OnePoolReward", [book.address, LIFETIME_MONTH])
+            flow_contract, flow_contract_hash = deploy_contract("FixedPriceFlow", [book.address, mine_period, 0])
 
-        mine_contract, _ = deploy_contract(
-            "PoraMineTest",
-            [book.address, 3],
-        )
-        self.log.debug("Mine deployed")
-        self.log.info("All contracts deployed")
+            self.log.info("All contracts deployed")
 
-        tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
-        self.wait_for_transaction_receipt(w3, tx_hash)
+            tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
+            self.wait_for_transaction_receipt(w3, tx_hash)
 
-        return flow_contract, flow_contract_hash, mine_contract
+            return flow_contract, flow_contract_hash, mine_contract, reward_contract
+        
+        if enable_market:
+            return deploy_with_market()
+        else:
+            return deploy_no_market()
 
     def get_contract(self, contract_address):
         w3 = Web3(HTTPProvider(self.rpc_url))

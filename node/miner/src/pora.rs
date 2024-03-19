@@ -43,6 +43,10 @@ impl<'a> Miner<'a> {
     pub async fn iteration(&self, nonce: H256) -> Option<AnswerWithoutProof> {
         let (scratch_pad, recall_seed) = self.make_scratch_pad(&nonce);
 
+        if self.mining_length == 0 {
+            return None;
+        }
+
         let (_, recall_offset) = U256::from_big_endian(&recall_seed)
             .div_mod(U256::from((self.mining_length as usize) / SECTORS_PER_LOAD));
         let recall_offset = recall_offset.as_u64();

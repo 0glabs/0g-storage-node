@@ -1,6 +1,7 @@
 import sha3
 
 from math import log2
+from utility.spec import ENTRY_SIZE
 
 
 def decompose(num):
@@ -153,6 +154,28 @@ class MerkleTree:
     def encrypt(self, data):
         leaf = Leaf.from_data(data, self.hasher)
         self.add_leaf(leaf)
+
+    @classmethod
+    def from_data_list(cls, data, encoding="utf-8"):
+        tree = cls(encoding)
+
+        n = len(data)
+        if n < ENTRY_SIZE or (n & (n - 1)) != 0:
+            raise Exception("Input length is not power of 2")
+        
+        leaves = [Leaf.from_data(data[i:i + ENTRY_SIZE], tree.hasher) for i in range(0, n, ENTRY_SIZE)]
+        tree.__leaves = leaves
+
+        nodes = leaves
+        while len(nodes) > 1:
+            next_nodes = []
+            for i in range(0, len(nodes), 2):
+                next_nodes.append(Node.from_children(nodes[i], nodes[i+1], tree.hasher))
+
+            nodes = next_nodes
+
+        tree.__root = nodes[0]
+        return tree
 
     def add_leaf(self, leaf):
         if self:
