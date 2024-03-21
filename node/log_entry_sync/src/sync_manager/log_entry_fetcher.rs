@@ -79,8 +79,7 @@ impl LogEntryFetcher {
                                             block_number={:?} expect={:?} get={:?}",
                                     block_number, block_hash, b.hash
                                 );
-                                // Assume the blocks before this are not reverted.
-                                // block_number.saturating_sub(log_sync_manager.config.confirmation_block_count)
+                                
                                 match revert_one_block(
                                     provider.as_ref(),
                                     block_hash,
