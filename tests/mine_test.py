@@ -15,6 +15,9 @@ class MineTest(TestFramework):
             "miner_id": MINER_ID,
             "miner_key": GENESIS_PRIV_KEY,
         }
+        self.mine_config = {
+            "init_rate": 8000 / 60,
+        }
 
     def submit_data(self, item, size):
         submissions_before = self.contract.num_submissions()
@@ -33,9 +36,6 @@ class MineTest(TestFramework):
 
         self.log.info("flow address: %s", self.contract.address())
         self.log.info("mine address: %s", self.mine_contract.address())
-
-        quality = int(2**256 / 40960)
-        self.mine_contract.set_quality(quality)
 
         self.log.info("Submit the first data chunk")
         self.submit_data(b"\x11", 2000)

@@ -248,8 +248,12 @@ class BlockchainNode(TestNode):
     def wait_for_transaction_receipt(self, w3, tx_hash, timeout=120, parent_hash=None):
         return w3.eth.wait_for_transaction_receipt(tx_hash, timeout)
 
-    def setup_contract(self, enable_market, mine_period):
+    def setup_contract(self, mine_config):
         w3 = Web3(HTTPProvider(self.rpc_url))
+
+        enable_market = mine_config.get("enable_market", False)
+        mine_period = mine_config.get("mine_period", 100)
+        init_rate = int(mine_config.get("init_rate", 1024))
 
         account1 = w3.eth.account.from_key(GENESIS_PRIV_KEY)
         account2 = w3.eth.account.from_key(GENESIS_PRIV_KEY1)
@@ -298,11 +302,11 @@ class BlockchainNode(TestNode):
             flow_contract, flow_contract_hash = deploy_contract("Flow", [book.address, mine_period, 0])
             self.log.debug("Flow deployed")
 
-            mine_contract, _ = deploy_contract("PoraMineTest", [book.address, 3])
+            mine_contract, _ = deploy_contract("PoraMine", [book.address, 1, 1, 7])
             self.log.debug("Mine deployed")
             self.log.info("All contracts deployed")
 
-            tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
+            tx_hash = mine_contract.functions.registMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
             self.wait_for_transaction_receipt(w3, tx_hash)
             
             dummy_reward_contract = w3.eth.contract(
@@ -324,14 +328,14 @@ class BlockchainNode(TestNode):
             book, _ = deploy_contract("AddressBook", [flowAddress, marketAddress, rewardAddress, mineAddress]);
             self.log.debug("AddressBook deployed")
 
-            mine_contract, _ = deploy_contract("PoraMineTest", [book.address, 3])
+            mine_contract, _ = deploy_contract("PoraMine", [book.address, init_rate, 20, 3])
             deploy_contract("FixedPrice", [book.address, LIFETIME_MONTH])
             reward_contract, _ =deploy_contract("OnePoolReward", [book.address, LIFETIME_MONTH])
             flow_contract, flow_contract_hash = deploy_contract("FixedPriceFlow", [book.address, mine_period, 0])
 
             self.log.info("All contracts deployed")
 
-            tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
+            tx_hash = mine_contract.functions.registMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
             self.wait_for_transaction_receipt(w3, tx_hash)
 
             return flow_contract, flow_contract_hash, mine_contract, reward_contract

@@ -87,8 +87,8 @@ class MineContractProxy(ContractProxy):
     def last_mined_epoch(self, node_idx=0):
         return self._call("lastMinedEpoch", node_idx)
 
-    def set_quality(self, quality, node_idx=0):
-        return self._send("setQuality", node_idx, _targetQuality=quality)
+    # def set_quality(self, quality, node_idx=0):
+    #     return self._send("setQuality", node_idx, _targetQuality=quality)
     
 
 

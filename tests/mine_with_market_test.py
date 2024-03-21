@@ -18,8 +18,11 @@ class MineTest(TestFramework):
             "miner_id": MINER_ID,
             "miner_key": GENESIS_PRIV_KEY,
         }
-        self.enable_market = True
-        self.mine_period = 150
+        self.mine_config = {
+            "enable_market": True,
+            "mine_period": 150,
+            "init_rate": 800 / 60,
+        }
 
     def submit_data(self, item, size, no_submit = False):
         submissions_before = self.contract.num_submissions()
@@ -40,9 +43,6 @@ class MineTest(TestFramework):
 
         self.log.info("flow address: %s", self.contract.address())
         self.log.info("mine address: %s", self.mine_contract.address())
-
-        quality = int(2**256 / 4096)
-        self.mine_contract.set_quality(quality)
 
         SECTORS_PER_PRICING = int(8 * ( 2 ** 30 ) / 256)
 

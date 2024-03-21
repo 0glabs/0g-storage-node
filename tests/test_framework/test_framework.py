@@ -46,8 +46,7 @@ class TestFramework:
         self.blockchain_node_configs = {}
         self.zgs_node_configs = {}
         self.blockchain_node_type = blockchain_node_type
-        self.enable_market = False
-        self.mine_period = 100
+        self.mine_config = {}
 
         binary_ext = ".exe" if is_windows_platform() else ""
         tests_dir = os.path.dirname(__file_path__)
@@ -140,7 +139,7 @@ class TestFramework:
                 connect_sample_nodes(self.blockchain_nodes, self.log)
                 sync_blocks(self.blockchain_nodes)
 
-        contract, tx_hash, mine_contract, reward_contract = self.blockchain_nodes[0].setup_contract(self.enable_market, self.mine_period)
+        contract, tx_hash, mine_contract, reward_contract = self.blockchain_nodes[0].setup_contract(self.mine_config)
         self.contract = FlowContractProxy(contract, self.blockchain_nodes)
         self.mine_contract = MineContractProxy(mine_contract, self.blockchain_nodes)
         self.reward_contract = IRewardContractProxy(reward_contract, self.blockchain_nodes)
