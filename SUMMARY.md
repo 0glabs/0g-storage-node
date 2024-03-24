@@ -1,0 +1,15 @@
+# Table of contents
+
+* [0G Storage](README.md)
+* [0G Storage Spec](docs/README.md)
+  * [Introduction](<docs/introduction.md>)
+  * [Architecture](<docs/architecture.md>)
+  * [Log System](<docs/log-system.md>)
+  * [K-V Store](<docs/k-v-store.md>)
+  * [Transaction Processing](<docs/transaction-processing.md>)
+  * [Incentive Mechanism](<docs/incentive-mechanism/README.md>)
+    * [Proof of Random Access](<docs/incentive-mechanism/proof-of-random-access.md>)
+    * [Storage Pricing](<docs/incentive-mechanism/storage-pricing.md>)
+    * [Mining Reward](<docs/incentive-mechanism/mining-reward.md>)
+  * [Deployment](docs/run.md)
+* [Contributing](contributing.md)
