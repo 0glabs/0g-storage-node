@@ -68,7 +68,7 @@ npx hardhat run scripts/deploy.ts --network targetnetwork
 
 Keep contracts addresses
 
-## Run ZeroGStorage
+## Run 0G Storage
 
 Update coinfig run/config.toml as required:
 

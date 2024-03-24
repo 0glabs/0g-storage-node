@@ -6,4 +6,4 @@ A user-defined function will be used to deserialize the raw content in the log e
 
 When a new key-value node just joins the network, it connects to the log layer and plays the log entries from head to tail to construct the latest state of the key-value store. During the log entry playing, an application-specific key-value node can skip irrelevant log entries which do not contain stream IDs that it cares.
 
-<figure><img src="../.gitbook/assets/image (2).png" alt=""><figcaption><p>Figure 1. Decentralized K-V Store</p></figcaption></figure>
+<figure><img src="../../.gitbook/assets/zg-storage-log.png" alt=""><figcaption><p>Figure 1. Decentralized K-V Store</p></figcaption></figure>

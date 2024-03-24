@@ -1,4 +1,4 @@
-# 0G Storage
+# Introduction
 
 ## Overview
 
@@ -7,8 +7,6 @@
 * Buit-in - It is natively built into the ZeroGravity DA system for data storage and retrieval.
 * General purpose - It is designed to support atomic transactions, mutable kv stores as well as archive log systems to enable wide range of applications with various data types.
 * Incentive - Instead of being just a decentralized database, 0G Storage introduces PoRA mining algorithm to incentivize storage network participants.
-
-To dive deep into the technical details, continue reading [0G Storage Spec.](docs/)
 
 ## Integration
 
@@ -24,7 +22,7 @@ We provide a [SDK](https://github.com/0glabs/0g-js-storage-sdk) for users to eas
 
 ## Deployment
 
-Please refer to [Deployment](docs/run.md) page for detailed steps to compile and start a 0G Storage node.
+Please refer to [Deployment](../0G%20Storage/doc/install.md) page for detailed steps to compile and start a 0G Storage node.
 
 ## Test
 
@@ -71,6 +69,3 @@ python sync_test.py
    * Traceback: `node.wait_for_rpc_connection()`
    * Solution: unset the `http_proxy` and `https_proxy` environment variables if configured.
 
-## Contributing
-
-To make contributions to the project, please follow the guidelines [here](contributing.md).
