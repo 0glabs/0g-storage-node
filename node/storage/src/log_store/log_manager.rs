@@ -22,6 +22,7 @@ use std::path::Path;
 use std::sync::Arc;
 use tracing::{debug, error, info, instrument, trace, warn};
 
+use super::tx_store::BlockHashAndSubmissionIndex;
 use super::LogStoreInner;
 
 /// 256 Bytes
@@ -435,7 +436,7 @@ impl LogStoreRead for LogManager {
         self.tx_store.get_block_hash_by_number(block_number)
     }
 
-    fn get_block_hashes(&self) -> Result<Vec<(u64, (H256, Option<u64>))>> {
+    fn get_block_hashes(&self) -> Result<Vec<(u64, BlockHashAndSubmissionIndex)>> {
         self.tx_store.get_block_hashes()
     }
 

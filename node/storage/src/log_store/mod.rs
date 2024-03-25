@@ -8,13 +8,15 @@ use zgs_spec::{BYTES_PER_SEAL, SEALS_PER_LOAD};
 
 use crate::error::Result;
 
+use self::tx_store::BlockHashAndSubmissionIndex;
+
 pub mod config;
 mod flow_store;
 mod load_chunk;
 pub mod log_manager;
 #[cfg(test)]
 mod tests;
-mod tx_store;
+pub mod tx_store;
 
 /// The trait to read the transactions already appended to the log.
 ///
@@ -55,7 +57,7 @@ pub trait LogStoreRead: LogStoreChunkRead {
 
     fn get_block_hash_by_number(&self, block_number: u64) -> Result<Option<(H256, Option<u64>)>>;
 
-    fn get_block_hashes(&self) -> Result<Vec<(u64, (H256, Option<u64>))>>;
+    fn get_block_hashes(&self) -> Result<Vec<(u64, BlockHashAndSubmissionIndex)>>;
 
     fn validate_range_proof(&self, tx_seq: u64, data: &ChunkArrayWithProof) -> Result<bool>;
 

@@ -20,6 +20,12 @@ use tracing::{error, instrument};
 const LOG_SYNC_PROGRESS_KEY: &str = "log_sync_progress";
 const NEXT_TX_KEY: &str = "next_tx_seq";
 
+#[derive(Clone, Debug)]
+pub struct BlockHashAndSubmissionIndex {
+    pub block_hash: H256,
+    pub first_submission_index: Option<u64>,
+}
+
 pub struct TransactionStore {
     kvdb: Arc<dyn ZgsKeyValueDB>,
     /// This is always updated before writing the database to ensure no intermediate states.
@@ -203,7 +209,7 @@ impl TransactionStore {
         ))
     }
 
-    pub fn get_block_hashes(&self) -> Result<Vec<(u64, (H256, Option<u64>))>> {
+    pub fn get_block_hashes(&self) -> Result<Vec<(u64, BlockHashAndSubmissionIndex)>> {
         let mut block_numbers = vec![];
         for r in self.kvdb.iter(COL_BLOCK_PROGRESS) {
             let (key, val) = r?;
@@ -211,7 +217,13 @@ impl TransactionStore {
                 u64::from_be_bytes(key.as_ref().try_into().map_err(|e| anyhow!("{:?}", e))?);
             let val = <(H256, Option<u64>)>::from_ssz_bytes(val.as_ref()).map_err(Error::from)?;
 
-            block_numbers.push((block_number, val));
+            block_numbers.push((
+                block_number,
+                BlockHashAndSubmissionIndex {
+                    block_hash: val.0,
+                    first_submission_index: val.1,
+                },
+            ));
         }
 
         Ok(block_numbers)

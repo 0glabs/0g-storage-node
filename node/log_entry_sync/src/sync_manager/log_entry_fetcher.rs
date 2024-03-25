@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
-use storage::log_store::Store;
+use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::TaskExecutor;
 use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
@@ -65,7 +65,7 @@ impl LogEntryFetcher {
         block_number: u64,
         block_hash: H256,
         executor: &TaskExecutor,
-        block_hash_cache: Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (reorg_tx, reorg_rx) = tokio::sync::mpsc::unbounded_channel();
         let provider = self.provider.clone();
@@ -126,7 +126,7 @@ impl LogEntryFetcher {
         &self,
         executor: &TaskExecutor,
         store: Arc<RwLock<dyn Store>>,
-        block_hash_cache: Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
     ) {
         let provider = self.provider.clone();
         executor.spawn(
@@ -287,7 +287,7 @@ impl LogEntryFetcher {
         start_block_hash: H256,
         executor: &TaskExecutor,
         log_query_delay: Duration,
-        block_hash_cache: Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (watch_tx, watch_rx) = tokio::sync::mpsc::unbounded_channel();
         let contract = ZgsFlow::new(self.contract_address, self.provider.clone());
@@ -335,6 +335,7 @@ impl LogEntryFetcher {
         watch_rx
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn watch_loop(
         provider: &Provider<RetryClient<Http>>,
         block_number: u64,
@@ -343,7 +344,7 @@ impl LogEntryFetcher {
         confirmation_delay: u64,
         contract: &ZgsFlow<Provider<RetryClient<Http>>>,
         log_query_delay: Duration,
-        block_hash_cache: &Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
+        block_hash_cache: &Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
     ) -> Result<Option<(u64, H256, Option<Option<u64>>)>> {
         debug!("get block");
         let latest_block = provider
@@ -480,27 +481,29 @@ async fn revert_one_block(
     block_hash: H256,
     block_number: u64,
     watch_tx: &UnboundedSender<LogFetchProgress>,
-    block_hash_cache: &Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
+    block_hash_cache: &Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
 ) -> Result<(u64, H256), anyhow::Error> {
     debug!("revert block {}, block hash {:?}", block_number, block_hash);
-    let (hash, first_submission_index) = block_hash_cache
+    let block = block_hash_cache
         .read()
         .await
         .get(&block_number)
         .ok_or_else(|| anyhow!("None for block {}", block_number))?
         .clone();
-    assert!(block_hash == hash);
-    if let Some(reverted) = first_submission_index {
+
+    assert!(block_hash == block.block_hash);
+    if let Some(reverted) = block.first_submission_index {
         watch_tx.send(LogFetchProgress::Reverted(reverted))?;
     }
 
     let parent_block_number = block_number.saturating_sub(1);
-    let (parent_block_hash, _) = block_hash_cache
+    let parent_block_hash = block_hash_cache
         .read()
         .await
         .get(&parent_block_number)
         .ok_or_else(|| anyhow!("None for block {}", block_number))?
-        .clone();
+        .clone()
+        .block_hash;
 
     let synced_block =
         LogFetchProgress::SyncedBlock((parent_block_number, parent_block_hash, None));

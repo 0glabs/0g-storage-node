@@ -2,10 +2,7 @@ use crate::sync_manager::config::LogSyncConfig;
 use crate::sync_manager::data_cache::DataCache;
 use crate::sync_manager::log_entry_fetcher::{LogEntryFetcher, LogFetchProgress};
 use anyhow::{anyhow, bail, Result};
-use ethers::{
-    prelude::Middleware,
-    types::{BlockNumber, H256},
-};
+use ethers::{prelude::Middleware, types::BlockNumber};
 use futures::FutureExt;
 use jsonrpsee::tracing::{debug, error, trace, warn};
 use shared_types::{ChunkArray, Transaction};
@@ -14,7 +11,7 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
-use storage::log_store::Store;
+use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::{ShutdownReason, TaskExecutor};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -44,7 +41,7 @@ pub struct LogSyncManager {
     /// To broadcast events to handle in advance.
     event_send: broadcast::Sender<LogSyncEvent>,
 
-    block_hash_cache: Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
+    block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
 }
 
 impl LogSyncManager {
@@ -301,7 +298,10 @@ impl LogSyncManager {
                     if first_submission_index.is_some() {
                         self.block_hash_cache.write().await.insert(
                             block_number,
-                            (block_hash, first_submission_index.clone().unwrap()),
+                            BlockHashAndSubmissionIndex {
+                                block_hash,
+                                first_submission_index: first_submission_index.unwrap(),
+                            },
                         );
                     }
 
