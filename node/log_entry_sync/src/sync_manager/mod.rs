@@ -2,10 +2,14 @@ use crate::sync_manager::config::LogSyncConfig;
 use crate::sync_manager::data_cache::DataCache;
 use crate::sync_manager::log_entry_fetcher::{LogEntryFetcher, LogFetchProgress};
 use anyhow::{anyhow, bail, Result};
-use ethers::{prelude::Middleware, types::BlockNumber};
+use ethers::{
+    prelude::Middleware,
+    types::{BlockNumber, H256},
+};
 use futures::FutureExt;
 use jsonrpsee::tracing::{debug, error, trace, warn};
 use shared_types::{ChunkArray, Transaction};
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
@@ -39,6 +43,8 @@ pub struct LogSyncManager {
 
     /// To broadcast events to handle in advance.
     event_send: broadcast::Sender<LogSyncEvent>,
+
+    block_hash_cache: Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
 }
 
 impl LogSyncManager {
@@ -75,6 +81,15 @@ impl LogSyncManager {
                     )
                     .await?;
                     let data_cache = DataCache::new(config.cache_config.clone());
+
+                    let block_hash_cache = Arc::new(RwLock::new(
+                        store
+                            .read()
+                            .await
+                            .get_block_hashes()?
+                            .into_iter()
+                            .collect::<BTreeMap<_, _>>(),
+                    ));
                     let mut log_sync_manager = Self {
                         config,
                         log_fetcher,
@@ -82,14 +97,26 @@ impl LogSyncManager {
                         store,
                         data_cache,
                         event_send,
+                        block_hash_cache,
                     };
 
-                    let finalized_block = log_sync_manager
+                    let finalized_block = match log_sync_manager
                         .log_fetcher
                         .provider()
                         .get_block(BlockNumber::Finalized)
-                        .await?
-                        .ok_or_else(|| anyhow!("None for finalized block"))?;
+                        .await
+                    {
+                        Ok(Some(finalized_block)) => finalized_block,
+                        e => {
+                            warn!("unable to get finalized block: {:?}", e);
+                            log_sync_manager
+                                .log_fetcher
+                                .provider()
+                                .get_block(0)
+                                .await?
+                                .ok_or_else(|| anyhow!("None for block 0"))?
+                        }
+                    };
                     let finalized_block_number = finalized_block
                         .number
                         .ok_or_else(|| anyhow!("None block number for finalized block"))?
@@ -146,7 +173,7 @@ impl LogSyncManager {
                             start_block_number,
                             start_block_hash,
                             &executor_clone,
-                            Duration::from_millis(log_sync_manager.config.recover_query_delay),
+                            log_sync_manager.block_hash_cache.clone(),
                         );
                         log_sync_manager.handle_data(reorg_rx).await?;
 
@@ -163,12 +190,12 @@ impl LogSyncManager {
                     // Start watching before recovery to ensure that no log is skipped.
                     // TODO(zz): Rate limit to avoid OOM during recovery.
                     let watch_rx = log_sync_manager.log_fetcher.start_watch(
-                        if start_block_number > finalized_block_number {
+                        if start_block_number >= finalized_block_number {
                             start_block_number
                         } else {
                             finalized_block_number
                         },
-                        if start_block_number > finalized_block_number {
+                        if start_block_number >= finalized_block_number {
                             start_block_hash
                         } else {
                             finalized_block
@@ -177,9 +204,10 @@ impl LogSyncManager {
                         },
                         &executor_clone,
                         Duration::from_millis(log_sync_manager.config.recover_query_delay),
+                        log_sync_manager.block_hash_cache.clone(),
                     );
 
-                    if start_block_number <= finalized_block_number {
+                    if start_block_number < finalized_block_number {
                         let recover_rx = log_sync_manager.log_fetcher.start_recover(
                             start_block_number,
                             finalized_block_number,
@@ -188,6 +216,13 @@ impl LogSyncManager {
                         );
                         log_sync_manager.handle_data(recover_rx).await?;
                     }
+
+                    log_sync_manager.log_fetcher.remove_finalized_block_in_db(
+                        &executor_clone,
+                        log_sync_manager.store.clone(),
+                        log_sync_manager.block_hash_cache.clone(),
+                    );
+
                     // Syncing `watch_rx` is supposed to block forever.
                     log_sync_manager.handle_data(watch_rx).await?;
                     Ok(())
@@ -258,11 +293,23 @@ impl LogSyncManager {
         while let Some(data) = rx.recv().await {
             trace!("handle_data: data={:?}", data);
             match data {
-                LogFetchProgress::SyncedBlock((block_number, block_hash)) => {
-                    self.store
-                        .write()
-                        .await
-                        .put_sync_progress((block_number, block_hash))?;
+                LogFetchProgress::SyncedBlock((
+                    block_number,
+                    block_hash,
+                    first_submission_index,
+                )) => {
+                    if first_submission_index.is_some() {
+                        self.block_hash_cache.write().await.insert(
+                            block_number,
+                            (block_hash, first_submission_index.clone().unwrap()),
+                        );
+                    }
+
+                    self.store.write().await.put_sync_progress((
+                        block_number,
+                        block_hash,
+                        first_submission_index,
+                    ))?;
 
                     match self.log_fetcher.provider().get_block(block_number).await {
                         Ok(Some(b)) => {

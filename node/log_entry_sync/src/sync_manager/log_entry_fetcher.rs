@@ -11,12 +11,20 @@ use ethers::types::H256;
 use futures::StreamExt;
 use jsonrpsee::tracing::{debug, error, info, warn};
 use shared_types::{DataRoot, Transaction};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use storage::log_store::Store;
 use task_executor::TaskExecutor;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::{
+    mpsc::{UnboundedReceiver, UnboundedSender},
+    RwLock,
+};
+
+const FINALIZED_BLOCK_COUNT: u64 = 100;
+const CLEAN_FINALIZED_BLOCK_INTERVAL_MINUTES: u64 = 30;
+const WATCH_WAIT_MS: u64 = 1;
 
 pub struct LogEntryFetcher {
     contract_address: ContractAddress,
@@ -57,16 +65,20 @@ impl LogEntryFetcher {
         block_number: u64,
         block_hash: H256,
         executor: &TaskExecutor,
-        log_query_delay: Duration,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (reorg_tx, reorg_rx) = tokio::sync::mpsc::unbounded_channel();
-        let contract = ZgsFlow::new(self.contract_address, self.provider.clone());
         let provider = self.provider.clone();
 
         executor.spawn(
             async move {
                 let mut block_number = block_number;
                 let mut block_hash = block_hash;
+
+                debug!(
+                    "handle_reorg starts, block number={} hash={}",
+                    block_number, block_hash
+                );
 
                 loop {
                     match provider.get_block(block_number).await {
@@ -79,14 +91,12 @@ impl LogEntryFetcher {
                                             block_number={:?} expect={:?} get={:?}",
                                     block_number, block_hash, b.hash
                                 );
-                                
+
                                 match revert_one_block(
-                                    provider.as_ref(),
                                     block_hash,
                                     block_number,
-                                    &contract,
-                                    log_query_delay,
                                     &reorg_tx,
+                                    &block_hash_cache,
                                 )
                                 .await
                                 {
@@ -110,6 +120,86 @@ impl LogEntryFetcher {
         );
 
         reorg_rx
+    }
+
+    pub fn remove_finalized_block_in_db(
+        &self,
+        executor: &TaskExecutor,
+        store: Arc<RwLock<dyn Store>>,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
+    ) {
+        let provider = self.provider.clone();
+        executor.spawn(
+            async move {
+                loop {
+                    debug!("processing finalized block");
+
+                    let processed_block_number = match store.read().await.get_sync_progress() {
+                        Ok(Some((processed_block_number, _))) => Some(processed_block_number),
+                        Ok(None) => None,
+                        Err(e) => {
+                            error!("get sync progress error: e={:?}", e);
+                            None
+                        }
+                    };
+
+                    if let Some(processed_block_number) = processed_block_number {
+                        let finalized_block_number =
+                            match provider.get_block(BlockNumber::Finalized).await {
+                                Ok(block) => match block {
+                                    Some(b) => match b.number {
+                                        Some(f) => Some(f.as_u64()),
+                                        None => {
+                                            error!("block number is none for finalized block");
+                                            None
+                                        }
+                                    },
+                                    None => {
+                                        error!("finalized block is none");
+                                        None
+                                    }
+                                },
+                                Err(e) => {
+                                    error!("get finalized block number: e={:?}", e);
+                                    Some(processed_block_number - FINALIZED_BLOCK_COUNT)
+                                }
+                            };
+
+                        if let Some(finalized_block_number) = finalized_block_number {
+                            if processed_block_number >= finalized_block_number {
+                                let mut pending_keys = vec![];
+                                for (key, _) in block_hash_cache.read().await.iter() {
+                                    if *key <= finalized_block_number {
+                                        pending_keys.push(*key);
+                                    } else {
+                                        break;
+                                    }
+                                }
+
+                                for key in pending_keys.into_iter() {
+                                    if let Err(e) =
+                                        store.write().await.delete_block_hash_by_number(key)
+                                    {
+                                        error!(
+                                            "remove block tx for number {} error: e={:?}",
+                                            key, e
+                                        );
+                                    } else {
+                                        block_hash_cache.write().await.remove(&key);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    tokio::time::sleep(Duration::from_secs(
+                        60 * CLEAN_FINALIZED_BLOCK_INTERVAL_MINUTES,
+                    ))
+                    .await;
+                }
+            },
+            "handle reorg",
+        );
     }
 
     pub fn start_recover(
@@ -147,6 +237,7 @@ impl LogEntryFetcher {
                                     let synced_block = LogFetchProgress::SyncedBlock((
                                         log.block_number.unwrap().as_u64(),
                                         log.block_hash.unwrap(),
+                                        None,
                                     ));
                                     progress = log.block_number.unwrap().as_u64();
                                     Some(synced_block)
@@ -196,6 +287,7 @@ impl LogEntryFetcher {
         start_block_hash: H256,
         executor: &TaskExecutor,
         log_query_delay: Duration,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (watch_tx, watch_rx) = tokio::sync::mpsc::unbounded_channel();
         let contract = ZgsFlow::new(self.contract_address, self.provider.clone());
@@ -216,14 +308,15 @@ impl LogEntryFetcher {
                         confirmation_delay,
                         &contract,
                         log_query_delay,
+                        &block_hash_cache,
                     )
                     .await
                     {
                         Err(e) => {
                             error!("log sync watch error: e={:?}", e);
                         }
-                        Ok(Some((p, h))) => {
-                            progress = p;
+                        Ok(Some((p, h, _))) => {
+                            progress = p.saturating_add(1);
                             parent_block_hash = h;
                             info!("log sync to block number {:?}", progress);
                         }
@@ -234,7 +327,7 @@ impl LogEntryFetcher {
                             )
                         }
                     }
-                    tokio::time::sleep(Duration::from_millis(RETRY_WAIT_MS)).await;
+                    tokio::time::sleep(Duration::from_millis(WATCH_WAIT_MS)).await;
                 }
             },
             "log watch",
@@ -250,7 +343,8 @@ impl LogEntryFetcher {
         confirmation_delay: u64,
         contract: &ZgsFlow<Provider<RetryClient<Http>>>,
         log_query_delay: Duration,
-    ) -> Result<Option<(u64, H256)>> {
+        block_hash_cache: &Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
+    ) -> Result<Option<(u64, H256, Option<Option<u64>>)>> {
         debug!("get block");
         let latest_block = provider
             .get_block(BlockNumber::Latest)
@@ -261,7 +355,11 @@ impl LogEntryFetcher {
             _ => return Ok(None),
         };
 
-        if block_number > latest_block_number - confirmation_delay {
+        debug!(
+            "block number {}, latest block number {}, confirmation_delay {}",
+            block_number, latest_block_number, confirmation_delay
+        );
+        if block_number > latest_block_number.saturating_sub(confirmation_delay) {
             return Ok(None);
         }
 
@@ -272,15 +370,13 @@ impl LogEntryFetcher {
         if block.parent_hash != parent_block_hash {
             // reorg happened
             let (parent_block_number, block_hash) = revert_one_block(
-                provider,
                 parent_block_hash,
                 block_number.saturating_sub(1),
-                contract,
-                log_query_delay,
                 watch_tx,
+                block_hash_cache,
             )
             .await?;
-            return Ok(Some((parent_block_number.saturating_add(1), block_hash)));
+            return Ok(Some((parent_block_number, block_hash, None)));
         }
 
         debug!(
@@ -300,7 +396,9 @@ impl LogEntryFetcher {
             .to_block(block_number)
             .address(contract.address().into())
             .filter;
-        let mut stream = LogQuery::new(&provider, &filter, log_query_delay);
+        let mut stream = LogQuery::new(provider, &filter, log_query_delay);
+        let mut logs = vec![];
+        let mut first_submission_index = None;
         while let Some(maybe_log) = stream.next().await {
             match maybe_log {
                 Ok(log) => {
@@ -335,25 +433,41 @@ impl LogEntryFetcher {
                         topics: log.topics,
                         data: log.data.to_vec(),
                     })?;
-                    watch_tx.send(submission_event_to_transaction(tx))?;
+
+                    if first_submission_index.is_none()
+                        || first_submission_index > Some(tx.submission_index.as_u64())
+                    {
+                        first_submission_index = Some(tx.submission_index.as_u64());
+                    }
+
+                    logs.push(submission_event_to_transaction(tx));
                 }
                 Err(e) => {
                     error!("log query error: e={:?}", e);
                     filter = filter.from_block(block_number).address(contract.address());
-                    stream = LogQuery::new(&provider, &filter, log_query_delay);
+                    stream = LogQuery::new(provider, &filter, log_query_delay);
                     tokio::time::sleep(Duration::from_millis(RETRY_WAIT_MS)).await;
                 }
             }
         }
 
         let progress = if block.hash.is_some() && block.number.is_some() {
-            Some((block.number.unwrap().as_u64(), block.hash.unwrap()))
+            Some((
+                block.number.unwrap().as_u64(),
+                block.hash.unwrap(),
+                Some(first_submission_index),
+            ))
         } else {
             None
         };
         if let Some(p) = &progress {
             watch_tx.send(LogFetchProgress::SyncedBlock(*p))?;
         }
+
+        for log in logs.into_iter() {
+            watch_tx.send(log)?;
+        }
+
         Ok(progress)
     }
 
@@ -363,65 +477,41 @@ impl LogEntryFetcher {
 }
 
 async fn revert_one_block(
-    provider: &Provider<RetryClient<Http>>,
     block_hash: H256,
     block_number: u64,
-    contract: &ZgsFlow<Provider<RetryClient<Http>>>,
-    log_query_delay: Duration,
     watch_tx: &UnboundedSender<LogFetchProgress>,
+    block_hash_cache: &Arc<RwLock<BTreeMap<u64, (H256, Option<u64>)>>>,
 ) -> Result<(u64, H256), anyhow::Error> {
-    let block = provider
-        .get_block(block_hash)
-        .await?
-        .ok_or_else(|| anyhow!("None for block {}", block_hash))?;
-
-    let filter = contract
-        .submit_filter()
-        .at_block_hash(block_hash)
-        .address(contract.address().into())
-        .filter;
-    let mut stream = LogQuery::new(&provider, &filter, log_query_delay);
-    let mut reverted = None;
-    while let Some(maybe_log) = stream.next().await {
-        match maybe_log {
-            Ok(log) => {
-                assert!(log.removed.unwrap_or(false));
-                match SubmitFilter::decode_log(&RawLog {
-                    topics: log.topics,
-                    data: log.data.to_vec(),
-                }) {
-                    Ok(event) => {
-                        if reverted.is_none() {
-                            reverted = Some(event.submission_index.as_u64());
-                            // break;
-                        } else {
-                            assert!(reverted < Some(event.submission_index.as_u64()));
-                        }
-                    }
-                    Err(e) => {
-                        error!("log decode error: e={:?}", e);
-                    }
-                }
-            }
-            Err(e) => {
-                error!("get log error: e={:?}", e);
-            }
-        }
-    }
-    if let Some(reverted) = reverted {
+    debug!("revert block {}, block hash {:?}", block_number, block_hash);
+    let (hash, first_submission_index) = block_hash_cache
+        .read()
+        .await
+        .get(&block_number)
+        .ok_or_else(|| anyhow!("None for block {}", block_number))?
+        .clone();
+    assert!(block_hash == hash);
+    if let Some(reverted) = first_submission_index {
         watch_tx.send(LogFetchProgress::Reverted(reverted))?;
     }
 
+    let parent_block_number = block_number.saturating_sub(1);
+    let (parent_block_hash, _) = block_hash_cache
+        .read()
+        .await
+        .get(&parent_block_number)
+        .ok_or_else(|| anyhow!("None for block {}", block_number))?
+        .clone();
+
     let synced_block =
-        LogFetchProgress::SyncedBlock((block_number.saturating_sub(1), block.parent_hash));
+        LogFetchProgress::SyncedBlock((parent_block_number, parent_block_hash, None));
     watch_tx.send(synced_block)?;
 
-    Ok((block_number.saturating_sub(1), block.parent_hash))
+    Ok((parent_block_number, parent_block_hash))
 }
 
 #[derive(Debug)]
 pub enum LogFetchProgress {
-    SyncedBlock((u64, H256)),
+    SyncedBlock((u64, H256, Option<Option<u64>>)),
     Transaction(Transaction),
     Reverted(u64),
 }

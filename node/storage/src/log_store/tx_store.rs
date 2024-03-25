@@ -1,6 +1,6 @@
 use crate::error::Error;
 use crate::log_store::log_manager::{
-    data_to_merkle_leaves, sub_merkle_tree, COL_MISC, COL_TX, COL_TX_COMPLETED,
+    data_to_merkle_leaves, sub_merkle_tree, COL_BLOCK_PROGRESS, COL_MISC, COL_TX, COL_TX_COMPLETED,
     COL_TX_DATA_ROOT_INDEX, ENTRY_SIZE, PORA_CHUNK_SIZE,
 };
 use crate::{try_option, LogManager, ZgsKeyValueDB};
@@ -164,12 +164,21 @@ impl TransactionStore {
     }
 
     #[instrument(skip(self))]
-    pub fn put_progress(&self, progress: (u64, H256)) -> Result<()> {
-        Ok(self.kvdb.put(
+    pub fn put_progress(&self, progress: (u64, H256, Option<Option<u64>>)) -> Result<()> {
+        let mut items = vec![(
             COL_MISC,
-            LOG_SYNC_PROGRESS_KEY.as_bytes(),
-            &progress.as_ssz_bytes(),
-        )?)
+            LOG_SYNC_PROGRESS_KEY.as_bytes().to_vec(),
+            (progress.0, progress.1).as_ssz_bytes(),
+        )];
+
+        if let Some(p) = progress.2 {
+            items.push((
+                COL_BLOCK_PROGRESS,
+                progress.0.to_be_bytes().to_vec(),
+                (progress.1, p).as_ssz_bytes(),
+            ));
+        }
+        Ok(self.kvdb.puts(items)?)
     }
 
     #[instrument(skip(self))]
@@ -180,6 +189,38 @@ impl TransactionStore {
                 .get(COL_MISC, LOG_SYNC_PROGRESS_KEY.as_bytes())?))
             .map_err(Error::from)?,
         ))
+    }
+
+    pub fn get_block_hash_by_number(
+        &self,
+        block_number: u64,
+    ) -> Result<Option<(H256, Option<u64>)>> {
+        Ok(Some(
+            <(H256, Option<u64>)>::from_ssz_bytes(&try_option!(self
+                .kvdb
+                .get(COL_BLOCK_PROGRESS, &block_number.to_be_bytes())?))
+            .map_err(Error::from)?,
+        ))
+    }
+
+    pub fn get_block_hashes(&self) -> Result<Vec<(u64, (H256, Option<u64>))>> {
+        let mut block_numbers = vec![];
+        for r in self.kvdb.iter(COL_BLOCK_PROGRESS) {
+            let (key, val) = r?;
+            let block_number =
+                u64::from_be_bytes(key.as_ref().try_into().map_err(|e| anyhow!("{:?}", e))?);
+            let val = <(H256, Option<u64>)>::from_ssz_bytes(val.as_ref()).map_err(Error::from)?;
+
+            block_numbers.push((block_number, val));
+        }
+
+        Ok(block_numbers)
+    }
+
+    pub fn delete_block_hash_by_number(&self, block_number: u64) -> Result<()> {
+        Ok(self
+            .kvdb
+            .delete(COL_BLOCK_PROGRESS, &block_number.to_be_bytes())?)
     }
 
     /// Build the merkle tree at `pora_chunk_index` with the data before (including) `tx_seq`.

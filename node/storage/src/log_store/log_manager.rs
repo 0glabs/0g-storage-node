@@ -37,7 +37,8 @@ pub const COL_TX_COMPLETED: u32 = 4;
 pub const COL_MISC: u32 = 5;
 pub const COL_SEAL_CONTEXT: u32 = 6;
 pub const COL_FLOW_MPT_NODES: u32 = 7;
-pub const COL_NUM: u32 = 8;
+pub const COL_BLOCK_PROGRESS: u32 = 8;
+pub const COL_NUM: u32 = 9;
 
 // Process at most 1M entries (256MB) pad data at a time.
 const PAD_MAX_SIZE: usize = 1 << 20;
@@ -255,7 +256,7 @@ impl LogStoreWrite for LogManager {
         }
     }
 
-    fn put_sync_progress(&self, progress: (u64, H256)) -> Result<()> {
+    fn put_sync_progress(&self, progress: (u64, H256, Option<Option<u64>>)) -> Result<()> {
         self.tx_store.put_progress(progress)
     }
 
@@ -284,6 +285,10 @@ impl LogStoreWrite for LogManager {
             self.flow_store.put_mpt_node_list(updated_nodes)?;
         }
         Ok(valid)
+    }
+
+    fn delete_block_hash_by_number(&self, block_number: u64) -> Result<()> {
+        self.tx_store.delete_block_hash_by_number(block_number)
     }
 }
 
@@ -424,6 +429,14 @@ impl LogStoreRead for LogManager {
 
     fn get_sync_progress(&self) -> Result<Option<(u64, H256)>> {
         self.tx_store.get_progress()
+    }
+
+    fn get_block_hash_by_number(&self, block_number: u64) -> Result<Option<(H256, Option<u64>)>> {
+        self.tx_store.get_block_hash_by_number(block_number)
+    }
+
+    fn get_block_hashes(&self) -> Result<Vec<(u64, (H256, Option<u64>))>> {
+        self.tx_store.get_block_hashes()
     }
 
     fn next_tx_seq(&self) -> u64 {

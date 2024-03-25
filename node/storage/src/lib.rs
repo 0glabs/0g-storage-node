@@ -16,6 +16,14 @@ pub trait ZgsKeyValueDB: KeyValueDB {
         self.write(tx)
     }
 
+    fn puts(&self, items: Vec<(u32, Vec<u8>, Vec<u8>)>) -> std::io::Result<()> {
+        let mut tx = self.transaction();
+        items
+            .into_iter()
+            .for_each(|(col, key, val)| tx.put(col, &key, &val));
+        self.write(tx)
+    }
+
     fn delete(&self, col: u32, key: &[u8]) -> std::io::Result<()> {
         let mut tx = self.transaction();
         tx.delete(col, key);
