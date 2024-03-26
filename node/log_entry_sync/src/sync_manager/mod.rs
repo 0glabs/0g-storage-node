@@ -186,19 +186,53 @@ impl LogSyncManager {
 
                     // Start watching before recovery to ensure that no log is skipped.
                     // TODO(zz): Rate limit to avoid OOM during recovery.
+                    let mut submission_idx = None;
+                    let parent_block_hash = if start_block_number >= finalized_block_number {
+                        if start_block_number > 0 {
+                            let parent_block_number = start_block_number.saturating_sub(1);
+                            match log_sync_manager
+                                .block_hash_cache
+                                .read()
+                                .await
+                                .get(&parent_block_number)
+                            {
+                                Some(b) => {
+                                    submission_idx = b.first_submission_index; // special case avoid reorg
+                                    b.block_hash
+                                }
+                                _ => log_sync_manager
+                                    .log_fetcher
+                                    .provider()
+                                    .get_block(parent_block_number)
+                                    .await?
+                                    .ok_or_else(|| {
+                                        anyhow!("None for block {}", parent_block_number)
+                                    })?
+                                    .hash
+                                    .ok_or_else(|| {
+                                        anyhow!("None block hash for block {}", parent_block_number)
+                                    })?,
+                            }
+                        } else {
+                            start_block_hash
+                        }
+                    } else {
+                        finalized_block
+                            .hash
+                            .ok_or_else(|| anyhow!("None for finalized block hash"))?
+                    };
+
+                    if let Some(submission_idx) = submission_idx {
+                        log_sync_manager.process_reverted(submission_idx).await;
+                    }
+
                     let watch_rx = log_sync_manager.log_fetcher.start_watch(
                         if start_block_number >= finalized_block_number {
                             start_block_number
                         } else {
-                            finalized_block_number
+                            finalized_block_number.saturating_add(1)
                         },
-                        if start_block_number >= finalized_block_number {
-                            start_block_hash
-                        } else {
-                            finalized_block
-                                .hash
-                                .ok_or_else(|| anyhow!("None for finalized block hash"))?
-                        },
+                        parent_block_hash,
                         &executor_clone,
                         Duration::from_millis(log_sync_manager.config.recover_query_delay),
                         log_sync_manager.block_hash_cache.clone(),

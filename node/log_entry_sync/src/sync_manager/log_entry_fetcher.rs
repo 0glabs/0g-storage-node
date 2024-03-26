@@ -284,7 +284,7 @@ impl LogEntryFetcher {
     pub fn start_watch(
         &self,
         start_block_number: u64,
-        start_block_hash: H256,
+        parent_block_hash: H256,
         executor: &TaskExecutor,
         log_query_delay: Duration,
         block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
@@ -296,8 +296,8 @@ impl LogEntryFetcher {
         executor.spawn(
             async move {
                 debug!("start_watch starts, start={}", start_block_number);
-                let mut progress = start_block_number.saturating_add(1);
-                let mut parent_block_hash = start_block_hash;
+                let mut progress = start_block_number;
+                let mut parent_block_hash = parent_block_hash;
 
                 loop {
                     match Self::watch_loop(
@@ -368,7 +368,7 @@ impl LogEntryFetcher {
             .get_block_with_txs(block_number)
             .await?
             .ok_or_else(|| anyhow!("None for block {}", block_number))?;
-        if block.parent_hash != parent_block_hash {
+        if block_number > 0 && block.parent_hash != parent_block_hash {
             // reorg happened
             let (parent_block_number, block_hash) = revert_one_block(
                 parent_block_hash,
@@ -501,7 +501,7 @@ async fn revert_one_block(
         .read()
         .await
         .get(&parent_block_number)
-        .ok_or_else(|| anyhow!("None for block {}", block_number))?
+        .ok_or_else(|| anyhow!("None for block {}", parent_block_number))?
         .clone()
         .block_hash;
 
