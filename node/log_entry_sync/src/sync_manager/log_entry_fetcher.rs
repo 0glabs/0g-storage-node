@@ -284,7 +284,6 @@ impl LogEntryFetcher {
         start_block_number: u64,
         parent_block_hash: H256,
         executor: &TaskExecutor,
-        log_query_delay: Duration,
         block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
         watch_loop_wait_time_ms: u64,
     ) -> UnboundedReceiver<LogFetchProgress> {
@@ -306,7 +305,6 @@ impl LogEntryFetcher {
                         &watch_tx,
                         confirmation_delay,
                         &contract,
-                        log_query_delay,
                         &block_hash_cache,
                     )
                     .await
@@ -342,19 +340,9 @@ impl LogEntryFetcher {
         watch_tx: &UnboundedSender<LogFetchProgress>,
         confirmation_delay: u64,
         contract: &ZgsFlow<Provider<RetryClient<Http>>>,
-        log_query_delay: Duration,
         block_hash_cache: &Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
     ) -> Result<Option<(u64, H256, Option<Option<u64>>)>> {
-        debug!("get block");
-        let latest_block = provider
-            .get_block(BlockNumber::Latest)
-            .await?
-            .ok_or_else(|| anyhow!("None for latest block"))?;
-        let latest_block_number = match latest_block.number {
-            Some(b) => b.as_u64(),
-            _ => return Ok(None),
-        };
-
+        let latest_block_number = provider.get_block_number().await?.as_u64();
         debug!(
             "block number {}, latest block number {}, confirmation_delay {}",
             block_number, latest_block_number, confirmation_delay
@@ -379,76 +367,64 @@ impl LogEntryFetcher {
             return Ok(Some((parent_block_number, block_hash, None)));
         }
 
-        debug!(
-            "create log filter, start={} end={}",
-            block_number, block_number
-        );
-
         let txs_hm = block
             .transactions
             .iter()
             .map(|tx| (tx.transaction_index, tx))
             .collect::<HashMap<_, _>>();
 
-        let mut filter = contract
+        let filter = contract
             .submit_filter()
             .from_block(block_number)
             .to_block(block_number)
             .address(contract.address().into())
             .filter;
-        let mut stream = LogQuery::new(provider, &filter, log_query_delay);
         let mut logs = vec![];
         let mut first_submission_index = None;
-        while let Some(maybe_log) = stream.next().await {
-            match maybe_log {
-                Ok(log) => {
-                    if log.block_hash != block.hash {
-                        bail!(
-                            "log block hash mismatch, log block hash {:?}, block hash {:?}",
-                            log.block_hash,
-                            block.hash
-                        );
-                    }
-                    if log.block_number != block.number {
-                        bail!(
-                            "log block num mismatch, log block number {:?}, block number {:?}",
-                            log.block_number,
-                            block.number
-                        );
-                    }
-
-                    let tx = txs_hm[&log.transaction_index];
-                    if log.transaction_hash != Some(tx.hash) {
-                        bail!(
-                            "log tx hash mismatch, log transaction {:?}, block transaction {:?}",
-                            log.transaction_hash,
-                            tx.hash
-                        );
-                    }
-                    if log.transaction_index != tx.transaction_index {
-                        bail!("log tx index mismatch, log tx index {:?}, block transaction index {:?}",log.transaction_index, tx.transaction_index );
-                    }
-
-                    let tx = SubmitFilter::decode_log(&RawLog {
-                        topics: log.topics,
-                        data: log.data.to_vec(),
-                    })?;
-
-                    if first_submission_index.is_none()
-                        || first_submission_index > Some(tx.submission_index.as_u64())
-                    {
-                        first_submission_index = Some(tx.submission_index.as_u64());
-                    }
-
-                    logs.push(submission_event_to_transaction(tx));
-                }
-                Err(e) => {
-                    error!("log query error: e={:?}", e);
-                    filter = filter.from_block(block_number).address(contract.address());
-                    stream = LogQuery::new(provider, &filter, log_query_delay);
-                    tokio::time::sleep(Duration::from_millis(RETRY_WAIT_MS)).await;
-                }
+        for log in provider.get_logs(&filter).await? {
+            if log.block_hash != block.hash {
+                bail!(
+                    "log block hash mismatch, log block hash {:?}, block hash {:?}",
+                    log.block_hash,
+                    block.hash
+                );
             }
+            if log.block_number != block.number {
+                bail!(
+                    "log block num mismatch, log block number {:?}, block number {:?}",
+                    log.block_number,
+                    block.number
+                );
+            }
+
+            let tx = txs_hm[&log.transaction_index];
+            if log.transaction_hash != Some(tx.hash) {
+                bail!(
+                    "log tx hash mismatch, log transaction {:?}, block transaction {:?}",
+                    log.transaction_hash,
+                    tx.hash
+                );
+            }
+            if log.transaction_index != tx.transaction_index {
+                bail!(
+                    "log tx index mismatch, log tx index {:?}, block transaction index {:?}",
+                    log.transaction_index,
+                    tx.transaction_index
+                );
+            }
+
+            let tx = SubmitFilter::decode_log(&RawLog {
+                topics: log.topics,
+                data: log.data.to_vec(),
+            })?;
+
+            if first_submission_index.is_none()
+                || first_submission_index > Some(tx.submission_index.as_u64())
+            {
+                first_submission_index = Some(tx.submission_index.as_u64());
+            }
+
+            logs.push(submission_event_to_transaction(tx));
         }
 
         let progress = if block.hash.is_some() && block.number.is_some() {

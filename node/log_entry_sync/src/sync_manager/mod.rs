@@ -234,7 +234,6 @@ impl LogSyncManager {
                         },
                         parent_block_hash,
                         &executor_clone,
-                        Duration::from_millis(log_sync_manager.config.recover_query_delay),
                         log_sync_manager.block_hash_cache.clone(),
                         log_sync_manager.config.watch_loop_wait_time_ms,
                     );
