@@ -105,6 +105,9 @@ impl ZgsConfig {
             self.timeout_retries,
             self.initial_backoff,
             self.recover_query_delay,
+            self.default_finalized_block_count,
+            self.remove_finalized_block_interval_minutes,
+            self.watch_loop_wait_time_ms,
         ))
     }
 

@@ -52,7 +52,7 @@ class RandomTest(TestFramework):
                 for node_index in range(len(self.nodes)):
                     if node_index != chosen_node:
                         self.log.debug(f"check {node_index}")
-                        wait_until(lambda: self.nodes[node_index].zgs_get_file_info(data_root) is not None, timeout=120)
+                        wait_until(lambda: self.nodes[node_index].zgs_get_file_info(data_root) is not None, timeout=300)
                         wait_until(lambda: self.nodes[node_index].zgs_get_file_info(data_root)["finalized"], timeout=300)
             # TODO(zz): This is a temp solution to trigger auto sync after all nodes started.
             if i >= tx_count - 2:

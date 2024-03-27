@@ -1,16 +1,17 @@
 use crate::sync_manager::config::LogSyncConfig;
 use crate::sync_manager::data_cache::DataCache;
 use crate::sync_manager::log_entry_fetcher::{LogEntryFetcher, LogFetchProgress};
-use anyhow::{bail, Result};
-use ethers::prelude::Middleware;
+use anyhow::{anyhow, bail, Result};
+use ethers::{prelude::Middleware, types::BlockNumber};
 use futures::FutureExt;
 use jsonrpsee::tracing::{debug, error, trace, warn};
 use shared_types::{ChunkArray, Transaction};
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
-use storage::log_store::Store;
+use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::{ShutdownReason, TaskExecutor};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -39,6 +40,8 @@ pub struct LogSyncManager {
 
     /// To broadcast events to handle in advance.
     event_send: broadcast::Sender<LogSyncEvent>,
+
+    block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
 }
 
 impl LogSyncManager {
@@ -75,6 +78,15 @@ impl LogSyncManager {
                     )
                     .await?;
                     let data_cache = DataCache::new(config.cache_config.clone());
+
+                    let block_hash_cache = Arc::new(RwLock::new(
+                        store
+                            .read()
+                            .await
+                            .get_block_hashes()?
+                            .into_iter()
+                            .collect::<BTreeMap<_, _>>(),
+                    ));
                     let mut log_sync_manager = Self {
                         config,
                         log_fetcher,
@@ -82,63 +94,172 @@ impl LogSyncManager {
                         store,
                         data_cache,
                         event_send,
+                        block_hash_cache,
                     };
+
+                    let finalized_block = match log_sync_manager
+                        .log_fetcher
+                        .provider()
+                        .get_block(BlockNumber::Finalized)
+                        .await
+                    {
+                        Ok(Some(finalized_block)) => finalized_block,
+                        e => {
+                            warn!("unable to get finalized block: {:?}", e);
+                            log_sync_manager
+                                .log_fetcher
+                                .provider()
+                                .get_block(0)
+                                .await?
+                                .ok_or_else(|| anyhow!("None for block 0"))?
+                        }
+                    };
+                    let finalized_block_number = finalized_block
+                        .number
+                        .ok_or_else(|| anyhow!("None block number for finalized block"))?
+                        .as_u64();
 
                     // Load previous progress from db and check if chain reorg happens after restart.
                     // TODO(zz): Handle reorg instead of return.
-                    let start_block_number =
+                    let mut need_handle_reorg = false;
+                    let (mut start_block_number, mut start_block_hash) =
                         match log_sync_manager.store.read().await.get_sync_progress()? {
                             // No previous progress, so just use config.
-                            None => log_sync_manager.config.start_block_number,
-                            Some((block_number, block_hash)) => {
-                                match log_sync_manager
+                            None => {
+                                let block_number = log_sync_manager.config.start_block_number;
+                                let block_hash = log_sync_manager
                                     .log_fetcher
                                     .provider()
                                     .get_block(block_number)
-                                    .await
-                                {
-                                    Ok(Some(b)) => {
-                                        if b.hash == Some(block_hash) {
-                                            block_number
-                                        } else {
-                                            warn!(
-                                                "log sync progress check hash fails, \
-                                            block_number={:?} expect={:?} get={:?}",
-                                                block_number, block_hash, b.hash
-                                            );
-                                            // Assume the blocks before this are not reverted.
-                                            block_number.saturating_sub(
-                                                log_sync_manager.config.confirmation_block_count,
-                                            )
-                                        }
-                                    }
-                                    e => {
-                                        error!("log sync progress check rpc fails, e={:?}", e);
-                                        bail!("log sync start error");
+                                    .await?
+                                    .ok_or_else(|| anyhow!("None for block {}", block_number))?
+                                    .hash
+                                    .ok_or_else(|| {
+                                        anyhow!("None block hash for block {}", block_number)
+                                    })?;
+                                (block_number, block_hash)
+                            }
+                            Some((block_number, block_hash)) => {
+                                if block_number <= finalized_block_number {
+                                    let expect_block_hash = log_sync_manager
+                                        .log_fetcher
+                                        .provider()
+                                        .get_block(block_number)
+                                        .await?
+                                        .ok_or_else(|| anyhow!("None for block {}", block_number))?
+                                        .hash
+                                        .ok_or_else(|| {
+                                            anyhow!("None block hash for block {}", block_number)
+                                        })?;
+
+                                    if expect_block_hash != block_hash {
+                                        need_handle_reorg = true;
                                     }
                                 }
+
+                                (block_number, block_hash)
                             }
                         };
-                    let latest_block_number = log_sync_manager
-                        .log_fetcher
-                        .provider()
-                        .get_block_number()
-                        .await?
-                        .as_u64();
+                    debug!(
+                        "current start block number {}, block hash {}, finalized block number {}",
+                        start_block_number, start_block_hash, finalized_block_number
+                    );
+
+                    if need_handle_reorg {
+                        let reorg_rx = log_sync_manager.log_fetcher.handle_reorg(
+                            start_block_number,
+                            start_block_hash,
+                            &executor_clone,
+                            log_sync_manager.block_hash_cache.clone(),
+                        );
+                        log_sync_manager.handle_data(reorg_rx).await?;
+
+                        if let Some((block_number, block_hash)) =
+                            log_sync_manager.store.read().await.get_sync_progress()?
+                        {
+                            start_block_number = block_number;
+                            start_block_hash = block_hash;
+                        } else {
+                            bail!("get log sync progress error");
+                        }
+                    }
 
                     // Start watching before recovery to ensure that no log is skipped.
                     // TODO(zz): Rate limit to avoid OOM during recovery.
-                    let watch_rx = log_sync_manager
-                        .log_fetcher
-                        .start_watch(latest_block_number, &executor_clone);
-                    let recover_rx = log_sync_manager.log_fetcher.start_recover(
-                        start_block_number,
-                        // -1 so the recover and watch ranges do not overlap.
-                        latest_block_number.wrapping_sub(1),
+                    let mut submission_idx = None;
+                    let parent_block_hash = if start_block_number >= finalized_block_number {
+                        if start_block_number > 0 {
+                            let parent_block_number = start_block_number.saturating_sub(1);
+                            match log_sync_manager
+                                .block_hash_cache
+                                .read()
+                                .await
+                                .get(&parent_block_number)
+                            {
+                                Some(b) => {
+                                    submission_idx = b.first_submission_index; // special case avoid reorg
+                                    b.block_hash
+                                }
+                                _ => log_sync_manager
+                                    .log_fetcher
+                                    .provider()
+                                    .get_block(parent_block_number)
+                                    .await?
+                                    .ok_or_else(|| {
+                                        anyhow!("None for block {}", parent_block_number)
+                                    })?
+                                    .hash
+                                    .ok_or_else(|| {
+                                        anyhow!("None block hash for block {}", parent_block_number)
+                                    })?,
+                            }
+                        } else {
+                            start_block_hash
+                        }
+                    } else {
+                        finalized_block
+                            .hash
+                            .ok_or_else(|| anyhow!("None for finalized block hash"))?
+                    };
+
+                    if let Some(submission_idx) = submission_idx {
+                        log_sync_manager.process_reverted(submission_idx).await;
+                    }
+
+                    let watch_rx = log_sync_manager.log_fetcher.start_watch(
+                        if start_block_number >= finalized_block_number {
+                            start_block_number
+                        } else {
+                            finalized_block_number.saturating_add(1)
+                        },
+                        parent_block_hash,
                         &executor_clone,
-                        Duration::from_millis(log_sync_manager.config.recover_query_delay),
+                        log_sync_manager.block_hash_cache.clone(),
+                        log_sync_manager.config.watch_loop_wait_time_ms,
                     );
-                    log_sync_manager.handle_data(recover_rx).await?;
+
+                    if start_block_number < finalized_block_number {
+                        let recover_rx = log_sync_manager.log_fetcher.start_recover(
+                            start_block_number,
+                            finalized_block_number,
+                            &executor_clone,
+                            Duration::from_millis(log_sync_manager.config.recover_query_delay),
+                        );
+                        log_sync_manager.handle_data(recover_rx).await?;
+                    }
+
+                    log_sync_manager
+                        .log_fetcher
+                        .start_remove_finalized_block_task(
+                            &executor_clone,
+                            log_sync_manager.store.clone(),
+                            log_sync_manager.block_hash_cache.clone(),
+                            log_sync_manager.config.default_finalized_block_count,
+                            log_sync_manager
+                                .config
+                                .remove_finalized_block_interval_minutes,
+                        );
+
                     // Syncing `watch_rx` is supposed to block forever.
                     log_sync_manager.handle_data(watch_rx).await?;
                     Ok(())
@@ -209,23 +330,35 @@ impl LogSyncManager {
         while let Some(data) = rx.recv().await {
             trace!("handle_data: data={:?}", data);
             match data {
-                LogFetchProgress::SyncedBlock(progress) => {
-                    match self
-                        .log_fetcher
-                        .provider()
-                        .get_block(
-                            progress
-                                .0
-                                .saturating_sub(self.config.confirmation_block_count),
-                        )
-                        .await
-                    {
+                LogFetchProgress::SyncedBlock((
+                    block_number,
+                    block_hash,
+                    first_submission_index,
+                )) => {
+                    if first_submission_index.is_some() {
+                        self.block_hash_cache.write().await.insert(
+                            block_number,
+                            BlockHashAndSubmissionIndex {
+                                block_hash,
+                                first_submission_index: first_submission_index.unwrap(),
+                            },
+                        );
+                    }
+
+                    self.store.write().await.put_sync_progress((
+                        block_number,
+                        block_hash,
+                        first_submission_index,
+                    ))?;
+
+                    match self.log_fetcher.provider().get_block(block_number).await {
                         Ok(Some(b)) => {
-                            if let (Some(block_number), Some(block_hash)) = (b.number, b.hash) {
-                                self.store
-                                    .write()
-                                    .await
-                                    .put_sync_progress((block_number.as_u64(), block_hash))?;
+                            if b.number != Some(block_number.into()) {
+                                error!(
+                                    "block number not match, reorg possible happened, block number {:?}, received {}", b.number, block_number 
+                                );
+                            } else if b.hash != Some(block_hash) {
+                                error!("block hash not match, reorg possible happened, block hash {:?}, received {}", b.hash, block_hash);
                             }
                         }
                         e => {
@@ -298,19 +431,6 @@ where
             None
         }
         Ok(r) => Some(r),
-    }
-}
-
-async fn repeat_run_and_log<R, E, F>(f: impl Fn() -> F) -> R
-where
-    E: Debug,
-    F: Future<Output = std::result::Result<R, E>> + Send,
-{
-    loop {
-        if let Some(r) = run_and_log(|| {}, f()).await {
-            break r;
-        }
-        tokio::time::sleep(Duration::from_millis(RETRY_WAIT_MS)).await;
     }
 }
 

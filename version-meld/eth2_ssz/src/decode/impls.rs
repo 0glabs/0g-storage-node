@@ -443,6 +443,20 @@ pub fn decode_list_of_variable_length_items<T: Decode>(
     Ok(values)
 }
 
+impl<T: Decode> Decode for Option<T> {
+	fn is_ssz_fixed_len() -> bool {
+		false
+	}
+	fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+		let (selector, body) = split_union_bytes(bytes)?;
+		match selector.into() {
+			0u8 => Ok(None),
+			1u8 => <T as Decode>::from_ssz_bytes(body).map(Option::Some),
+			other => Err(DecodeError::UnionSelectorInvalid(other)),
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -694,4 +708,10 @@ mod tests {
             Ok((65535, 0))
         );
     }
+
+    #[test]
+	fn option_u64() {
+		assert_eq!(<Option<u64>>::from_ssz_bytes(&[0]), Ok(None));
+		assert_eq!(<Option<u64>>::from_ssz_bytes(&[1, 2, 0, 0, 0, 0, 0, 0, 0]), Ok(Some(2)));
+	}
 }

@@ -392,6 +392,34 @@ macro_rules! impl_encodable_for_u8_array {
 impl_encodable_for_u8_array!(4);
 impl_encodable_for_u8_array!(32);
 
+
+impl<T: Encode> Encode for Option<T> {
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
+
+    fn ssz_append(&self, buf: &mut Vec<u8>) {
+        match self {
+            None => buf.push(0u8),
+            Some(t) => {
+                buf.push(1u8);
+                t.ssz_append(buf);
+            }
+        }
+    }
+
+    fn ssz_bytes_len(&self) -> usize {
+        match self {
+			Option::None => 1usize,
+			Option::Some(ref inner) => inner
+				.ssz_bytes_len()
+				.checked_add(1)
+				.expect("encoded length must be less than usize::max_value"),
+		}
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,4 +529,12 @@ mod tests {
         assert_eq!((10u32, 11u8).as_ssz_bytes(), vec![10, 0, 0, 0, 11]);
         assert_eq!((10u8, 11u8, 12u8).as_ssz_bytes(), vec![10, 11, 12]);
     }
+
+    #[test]
+	fn ssz_encode_option_u64() {
+		let opt: Option<u64> = None;
+		assert_eq!(opt.as_ssz_bytes(), vec![0]);
+		let opt: Option<u64> = Some(2);
+		assert_eq!(opt.as_ssz_bytes(), vec![1, 2, 0, 0, 0, 0, 0, 0, 0]);
+	}
 }

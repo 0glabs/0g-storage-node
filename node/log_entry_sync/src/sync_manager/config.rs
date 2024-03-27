@@ -25,6 +25,13 @@ pub struct LogSyncConfig {
     // the duration between each paginated getLogs RPC call, in ms.
     // This is set to avoid triggering the throttling mechanism in the RPC server.
     pub recover_query_delay: u64,
+
+    // the counter assumed the finalized block behind the latest block
+    pub default_finalized_block_count: u64,
+    // remove finalized block trigger interval
+    pub remove_finalized_block_interval_minutes: u64,
+    // watch_loop (eth_getLogs) trigger interval
+    pub watch_loop_wait_time_ms: u64,
 }
 
 #[derive(Clone)]
@@ -48,6 +55,9 @@ impl LogSyncConfig {
         timeout_retries: u32,
         initial_backoff: u64,
         recover_query_delay: u64,
+        default_finalized_block_count: u64,
+        remove_finalized_block_interval_minutes: u64,
+        watch_loop_wait_time_ms: u64,
     ) -> Self {
         Self {
             rpc_endpoint_url,
@@ -60,6 +70,9 @@ impl LogSyncConfig {
             timeout_retries,
             initial_backoff,
             recover_query_delay,
+            default_finalized_block_count,
+            remove_finalized_block_interval_minutes,
+            watch_loop_wait_time_ms,
         }
     }
 }

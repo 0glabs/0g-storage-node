@@ -1,22 +1,26 @@
 use crate::rpc_proxy::ContractAddress;
 use crate::sync_manager::log_query::LogQuery;
-use crate::sync_manager::{repeat_run_and_log, RETRY_WAIT_MS};
+use crate::sync_manager::RETRY_WAIT_MS;
 use anyhow::{anyhow, bail, Result};
 use append_merkle::{Algorithm, Sha3Algorithm};
 use contract_interface::{SubmissionNode, SubmitFilter, ZgsFlow};
 use ethers::abi::RawLog;
-use ethers::prelude::{BlockNumber, EthLogDecode, Http, Log, Middleware, Provider, U256};
-use ethers::providers::{FilterKind, HttpRateLimitRetryPolicy, RetryClient, RetryClientBuilder};
+use ethers::prelude::{BlockNumber, EthLogDecode, Http, Middleware, Provider};
+use ethers::providers::{HttpRateLimitRetryPolicy, RetryClient, RetryClientBuilder};
 use ethers::types::H256;
 use futures::StreamExt;
-use jsonrpsee::tracing::{debug, error, info};
+use jsonrpsee::tracing::{debug, error, info, warn};
 use shared_types::{DataRoot, Transaction};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::TaskExecutor;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::{
+    mpsc::{UnboundedReceiver, UnboundedSender},
+    RwLock,
+};
 
 pub struct LogEntryFetcher {
     contract_address: ContractAddress,
@@ -50,6 +54,150 @@ impl LogEntryFetcher {
             log_page_size,
             confirmation_delay,
         })
+    }
+
+    pub fn handle_reorg(
+        &self,
+        block_number: u64,
+        block_hash: H256,
+        executor: &TaskExecutor,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+    ) -> UnboundedReceiver<LogFetchProgress> {
+        let (reorg_tx, reorg_rx) = tokio::sync::mpsc::unbounded_channel();
+        let provider = self.provider.clone();
+
+        executor.spawn(
+            async move {
+                let mut block_number = block_number;
+                let mut block_hash = block_hash;
+
+                debug!(
+                    "handle_reorg starts, block number={} hash={}",
+                    block_number, block_hash
+                );
+
+                loop {
+                    match provider.get_block(block_number).await {
+                        Ok(Some(b)) => {
+                            if b.hash == Some(block_hash) {
+                                break;
+                            } else {
+                                warn!(
+                                    "log sync reorg check hash fails, \
+                                            block_number={:?} expect={:?} get={:?}",
+                                    block_number, block_hash, b.hash
+                                );
+
+                                match revert_one_block(
+                                    block_hash,
+                                    block_number,
+                                    &reorg_tx,
+                                    &block_hash_cache,
+                                )
+                                .await
+                                {
+                                    Ok((parent_block_number, parent_block_hash)) => {
+                                        block_number = parent_block_number;
+                                        block_hash = parent_block_hash;
+                                    }
+                                    Err(e) => {
+                                        error!("revert block fails, e={:?}", e);
+                                    }
+                                }
+                            }
+                        }
+                        e => {
+                            error!("handle reorg fails, e={:?}", e);
+                        }
+                    };
+                }
+            },
+            "handle reorg",
+        );
+
+        reorg_rx
+    }
+
+    pub fn start_remove_finalized_block_task(
+        &self,
+        executor: &TaskExecutor,
+        store: Arc<RwLock<dyn Store>>,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+        default_finalized_block_count: u64,
+        remove_finalized_block_interval_minutes: u64,
+    ) {
+        let provider = self.provider.clone();
+        executor.spawn(
+            async move {
+                loop {
+                    debug!("processing finalized block");
+
+                    let processed_block_number = match store.read().await.get_sync_progress() {
+                        Ok(Some((processed_block_number, _))) => Some(processed_block_number),
+                        Ok(None) => None,
+                        Err(e) => {
+                            error!("get sync progress error: e={:?}", e);
+                            None
+                        }
+                    };
+
+                    if let Some(processed_block_number) = processed_block_number {
+                        let finalized_block_number =
+                            match provider.get_block(BlockNumber::Finalized).await {
+                                Ok(block) => match block {
+                                    Some(b) => match b.number {
+                                        Some(f) => Some(f.as_u64()),
+                                        None => {
+                                            error!("block number is none for finalized block");
+                                            None
+                                        }
+                                    },
+                                    None => {
+                                        error!("finalized block is none");
+                                        None
+                                    }
+                                },
+                                Err(e) => {
+                                    error!("get finalized block number: e={:?}", e);
+                                    Some(processed_block_number - default_finalized_block_count)
+                                }
+                            };
+
+                        if let Some(finalized_block_number) = finalized_block_number {
+                            if processed_block_number >= finalized_block_number {
+                                let mut pending_keys = vec![];
+                                for (key, _) in block_hash_cache.read().await.iter() {
+                                    if *key <= finalized_block_number {
+                                        pending_keys.push(*key);
+                                    } else {
+                                        break;
+                                    }
+                                }
+
+                                for key in pending_keys.into_iter() {
+                                    if let Err(e) =
+                                        store.write().await.delete_block_hash_by_number(key)
+                                    {
+                                        error!(
+                                            "remove block tx for number {} error: e={:?}",
+                                            key, e
+                                        );
+                                    } else {
+                                        block_hash_cache.write().await.remove(&key);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    tokio::time::sleep(Duration::from_secs(
+                        60 * remove_finalized_block_interval_minutes,
+                    ))
+                    .await;
+                }
+            },
+            "handle reorg",
+        );
     }
 
     pub fn start_recover(
@@ -87,6 +235,7 @@ impl LogEntryFetcher {
                                     let synced_block = LogFetchProgress::SyncedBlock((
                                         log.block_number.unwrap().as_u64(),
                                         log.block_hash.unwrap(),
+                                        None,
                                     ));
                                     progress = log.block_number.unwrap().as_u64();
                                     Some(synced_block)
@@ -133,43 +282,39 @@ impl LogEntryFetcher {
     pub fn start_watch(
         &self,
         start_block_number: u64,
+        parent_block_hash: H256,
         executor: &TaskExecutor,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+        watch_loop_wait_time_ms: u64,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (watch_tx, watch_rx) = tokio::sync::mpsc::unbounded_channel();
         let contract = ZgsFlow::new(self.contract_address, self.provider.clone());
         let provider = self.provider.clone();
-        let mut log_confirmation_queue = LogConfirmationQueue::new(self.confirmation_delay);
+        let confirmation_delay = self.confirmation_delay;
         executor.spawn(
             async move {
-                let mut filter = contract
-                    .submit_filter()
-                    .from_block(start_block_number)
-                    .address(contract.address().into())
-                    .filter;
                 debug!("start_watch starts, start={}", start_block_number);
-                let mut filter_id =
-                    repeat_run_and_log(|| provider.new_filter(FilterKind::Logs(&filter))).await;
                 let mut progress = start_block_number;
+                let mut parent_block_hash = parent_block_hash;
 
                 loop {
                     match Self::watch_loop(
                         provider.as_ref(),
-                        filter_id,
+                        progress,
+                        parent_block_hash,
                         &watch_tx,
-                        &mut log_confirmation_queue,
+                        confirmation_delay,
+                        &contract,
+                        &block_hash_cache,
                     )
                     .await
                     {
                         Err(e) => {
                             error!("log sync watch error: e={:?}", e);
-                            filter = filter.from_block(progress).address(contract.address());
-                            filter_id = repeat_run_and_log(|| {
-                                provider.new_filter(FilterKind::Logs(&filter))
-                            })
-                            .await;
                         }
-                        Ok(Some(p)) => {
-                            progress = p;
+                        Ok(Some((p, h, _))) => {
+                            progress = p.saturating_add(1);
+                            parent_block_hash = h;
                             info!("log sync to block number {:?}", progress);
                         }
                         Ok(None) => {
@@ -179,7 +324,7 @@ impl LogEntryFetcher {
                             )
                         }
                     }
-                    tokio::time::sleep(Duration::from_millis(RETRY_WAIT_MS)).await;
+                    tokio::time::sleep(Duration::from_millis(watch_loop_wait_time_ms)).await;
                 }
             },
             "log watch",
@@ -187,36 +332,106 @@ impl LogEntryFetcher {
         watch_rx
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn watch_loop(
         provider: &Provider<RetryClient<Http>>,
-        filter_id: U256,
+        block_number: u64,
+        parent_block_hash: H256,
         watch_tx: &UnboundedSender<LogFetchProgress>,
-        log_confirmation_queue: &mut LogConfirmationQueue,
-    ) -> Result<Option<u64>> {
-        debug!("get block");
-        let latest_block = provider
-            .get_block(BlockNumber::Latest)
-            .await?
-            .ok_or_else(|| anyhow!("None for latest block"))?;
-        debug!("get filter changes");
-        let logs: Vec<Log> = provider.get_filter_changes(filter_id).await?;
-        if let Some(reverted) = log_confirmation_queue.push(logs)? {
-            watch_tx.send(LogFetchProgress::Reverted(reverted))?;
+        confirmation_delay: u64,
+        contract: &ZgsFlow<Provider<RetryClient<Http>>>,
+        block_hash_cache: &Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+    ) -> Result<Option<(u64, H256, Option<Option<u64>>)>> {
+        let latest_block_number = provider.get_block_number().await?.as_u64();
+        debug!(
+            "block number {}, latest block number {}, confirmation_delay {}",
+            block_number, latest_block_number, confirmation_delay
+        );
+        if block_number > latest_block_number.saturating_sub(confirmation_delay) {
+            return Ok(None);
         }
-        debug!("get filter end");
-        for log in log_confirmation_queue.confirm_logs(latest_block.number.unwrap().as_u64()) {
-            assert!(!log.removed.unwrap_or(false));
-            // TODO(zz): Log parse error means logs might be lost here.
+
+        let block = provider
+            .get_block_with_txs(block_number)
+            .await?
+            .ok_or_else(|| anyhow!("None for block {}", block_number))?;
+        if block_number > 0 && block.parent_hash != parent_block_hash {
+            // reorg happened
+            let (parent_block_number, block_hash) = revert_one_block(
+                parent_block_hash,
+                block_number.saturating_sub(1),
+                watch_tx,
+                block_hash_cache,
+            )
+            .await?;
+            return Ok(Some((parent_block_number, block_hash, None)));
+        }
+
+        let txs_hm = block
+            .transactions
+            .iter()
+            .map(|tx| (tx.transaction_index, tx))
+            .collect::<HashMap<_, _>>();
+
+        let filter = contract
+            .submit_filter()
+            .from_block(block_number)
+            .to_block(block_number)
+            .address(contract.address().into())
+            .filter;
+        let mut logs = vec![];
+        let mut first_submission_index = None;
+        for log in provider.get_logs(&filter).await? {
+            if log.block_hash != block.hash {
+                bail!(
+                    "log block hash mismatch, log block hash {:?}, block hash {:?}",
+                    log.block_hash,
+                    block.hash
+                );
+            }
+            if log.block_number != block.number {
+                bail!(
+                    "log block num mismatch, log block number {:?}, block number {:?}",
+                    log.block_number,
+                    block.number
+                );
+            }
+
+            let tx = txs_hm[&log.transaction_index];
+            if log.transaction_hash != Some(tx.hash) {
+                bail!(
+                    "log tx hash mismatch, log transaction {:?}, block transaction {:?}",
+                    log.transaction_hash,
+                    tx.hash
+                );
+            }
+            if log.transaction_index != tx.transaction_index {
+                bail!(
+                    "log tx index mismatch, log tx index {:?}, block transaction index {:?}",
+                    log.transaction_index,
+                    tx.transaction_index
+                );
+            }
+
             let tx = SubmitFilter::decode_log(&RawLog {
                 topics: log.topics,
                 data: log.data.to_vec(),
             })?;
-            watch_tx.send(submission_event_to_transaction(tx))?;
+
+            if first_submission_index.is_none()
+                || first_submission_index > Some(tx.submission_index.as_u64())
+            {
+                first_submission_index = Some(tx.submission_index.as_u64());
+            }
+
+            logs.push(submission_event_to_transaction(tx));
         }
-        let progress = if latest_block.hash.is_some() && latest_block.number.is_some() {
+
+        let progress = if block.hash.is_some() && block.number.is_some() {
             Some((
-                latest_block.number.unwrap().as_u64(),
-                latest_block.hash.unwrap(),
+                block.number.unwrap().as_u64(),
+                block.hash.unwrap(),
+                Some(first_submission_index),
             ))
         } else {
             None
@@ -224,7 +439,12 @@ impl LogEntryFetcher {
         if let Some(p) = &progress {
             watch_tx.send(LogFetchProgress::SyncedBlock(*p))?;
         }
-        Ok(progress.map(|p| p.0))
+
+        for log in logs.into_iter() {
+            watch_tx.send(log)?;
+        }
+
+        Ok(progress)
     }
 
     pub fn provider(&self) -> &Provider<RetryClient<Http>> {
@@ -232,101 +452,44 @@ impl LogEntryFetcher {
     }
 }
 
-struct LogConfirmationQueue {
-    /// Keep the unconfirmed new logs.
-    /// The key is the block number and the value is the set of needed logs in that block.
-    queue: VecDeque<(u64, Vec<Log>)>,
+async fn revert_one_block(
+    block_hash: H256,
+    block_number: u64,
+    watch_tx: &UnboundedSender<LogFetchProgress>,
+    block_hash_cache: &Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+) -> Result<(u64, H256), anyhow::Error> {
+    debug!("revert block {}, block hash {:?}", block_number, block_hash);
+    let block = block_hash_cache
+        .read()
+        .await
+        .get(&block_number)
+        .ok_or_else(|| anyhow!("None for block {}", block_number))?
+        .clone();
 
-    latest_block_number: u64,
-    confirmation_delay: u64,
-}
-
-impl LogConfirmationQueue {
-    fn new(confirmation_delay: u64) -> Self {
-        Self {
-            queue: VecDeque::new(),
-            latest_block_number: 0,
-            confirmation_delay,
-        }
-    }
-    /// Push a set of new logs.
-    /// We assumes that these logs are in order, and removed logs are returned first.
-    ///
-    /// Return `Ok(Some(tx_seq))` of the first reverted tx_seq if chain reorg happens.
-    /// `Err` is returned if assumptions are violated (like the log have missing fields).
-    fn push(&mut self, logs: Vec<Log>) -> Result<Option<u64>> {
-        let mut revert_to = None;
-        // First merge logs according to the block number.
-        let mut block_logs: BTreeMap<u64, Vec<Log>> = BTreeMap::new();
-        let mut removed_block_logs = BTreeMap::new();
-        for log in logs {
-            let set = if log.removed.unwrap_or(false) {
-                &mut removed_block_logs
-            } else {
-                &mut block_logs
-            };
-            let block_number = log
-                .block_number
-                .ok_or_else(|| anyhow!("block number missing"))?
-                .as_u64();
-            set.entry(block_number).or_default().push(log);
-        }
-
-        // Handle revert if it happens.
-        for (block_number, removed_logs) in &removed_block_logs {
-            if revert_to.is_none() {
-                let reverted_index = match self.queue.binary_search_by_key(block_number, |e| e.0) {
-                    Ok(x) => x,
-                    Err(x) => x,
-                };
-                self.queue.truncate(reverted_index);
-                let first = removed_logs.first().expect("not empty");
-                let first_reverted_tx_seq = SubmitFilter::decode_log(&RawLog {
-                    topics: first.topics.clone(),
-                    data: first.data.to_vec(),
-                })?
-                .submission_index
-                .as_u64();
-                revert_to = Some(first_reverted_tx_seq);
-            } else {
-                // Other removed logs should have larger tx seq, so no need to process them.
-                break;
-            }
-        }
-
-        // Add new logs to the queue.
-        for (block_number, new_logs) in block_logs {
-            if block_number <= self.queue.back().map(|e| e.0).unwrap_or(0) {
-                bail!("reverted without being notified");
-            }
-            self.queue.push_back((block_number, new_logs));
-        }
-
-        Ok(revert_to)
+    assert!(block_hash == block.block_hash);
+    if let Some(reverted) = block.first_submission_index {
+        watch_tx.send(LogFetchProgress::Reverted(reverted))?;
     }
 
-    /// Pass in the latest block number and return the confirmed logs.
-    fn confirm_logs(&mut self, latest_block_number: u64) -> Vec<Log> {
-        self.latest_block_number = latest_block_number;
-        let mut confirmed_logs = Vec::new();
-        while let Some((block_number, _)) = self.queue.front() {
-            if *block_number
-                > self
-                    .latest_block_number
-                    .wrapping_sub(self.confirmation_delay)
-            {
-                break;
-            }
-            let (_, mut logs) = self.queue.pop_front().unwrap();
-            confirmed_logs.append(&mut logs);
-        }
-        confirmed_logs
-    }
+    let parent_block_number = block_number.saturating_sub(1);
+    let parent_block_hash = block_hash_cache
+        .read()
+        .await
+        .get(&parent_block_number)
+        .ok_or_else(|| anyhow!("None for block {}", parent_block_number))?
+        .clone()
+        .block_hash;
+
+    let synced_block =
+        LogFetchProgress::SyncedBlock((parent_block_number, parent_block_hash, None));
+    watch_tx.send(synced_block)?;
+
+    Ok((parent_block_number, parent_block_hash))
 }
 
 #[derive(Debug)]
 pub enum LogFetchProgress {
-    SyncedBlock((u64, H256)),
+    SyncedBlock((u64, H256, Option<Option<u64>>)),
     Transaction(Transaction),
     Reverted(u64),
 }

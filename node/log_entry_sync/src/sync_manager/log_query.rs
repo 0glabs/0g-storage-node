@@ -4,6 +4,7 @@ use jsonrpsee::tracing::trace;
 use std::future::Future;
 use std::time::Duration;
 use std::{
+    cmp::min,
     collections::VecDeque,
     pin::Pin,
     task::{Context, Poll},
@@ -100,7 +101,12 @@ where
                     rewake_with_new_state!(ctx, self, LogQueryState::LoadLogs(fut));
                 } else {
                     // if paginatable, load last block
-                    let fut = self.provider.get_block_number();
+                    let fut = match self.filter.get_to_block() {
+                        // if to_block is not none in filter, getLogs from from_block to to_block
+                        Some(number) => Box::pin(async move { Ok(number) }),
+                        // if to_block is none in filter, getLogs from from_block to latest block
+                        _ => self.provider.get_block_number(),
+                    };
                     rewake_with_new_state!(ctx, self, LogQueryState::LoadLastBlock(fut));
                 }
             }
@@ -113,7 +119,7 @@ where
                         // this is okay because we will only enter this state when the filter is
                         // paginatable i.e. from block is set
                         let from_block = self.filter.get_from_block().unwrap();
-                        let to_block = from_block + self.page_size;
+                        let to_block = min(from_block + self.page_size, last_block);
                         self.from_block = Some(to_block + 1);
 
                         let filter = self
@@ -150,7 +156,12 @@ where
                         // load new logs if there are still more pages to go through
                         // can safely assume this will always be set in this state
                         let from_block = self.from_block.unwrap();
-                        let to_block = from_block + self.page_size;
+                        let to_block = if let Some(l) = self.last_block {
+                            // if last_block is not none, only getLogs from to_block to last_block
+                            min(from_block + self.page_size, l)
+                        } else {
+                            from_block + self.page_size
+                        };
 
                         // no more pages to load, and everything is consumed
                         // can safely assume this will always be set in this state
