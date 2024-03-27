@@ -34,6 +34,10 @@ build_config! {
     (initial_backoff, (u64), 500)
     (recover_query_delay, (u64), 50)
 
+    (default_finalized_block_count, (u64), 100)
+    (remove_finalized_block_interval_minutes, (u64), 30)
+    (watch_loop_wait_time_ms, (u64), 50)
+
     // rpc
     (rpc_enabled, (bool), true)
     (rpc_listen_address, (String), "127.0.0.1:5678".to_string())

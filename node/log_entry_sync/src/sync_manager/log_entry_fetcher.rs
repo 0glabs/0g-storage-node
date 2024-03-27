@@ -22,10 +22,6 @@ use tokio::sync::{
     RwLock,
 };
 
-const FINALIZED_BLOCK_COUNT: u64 = 100;
-const CLEAN_FINALIZED_BLOCK_INTERVAL_MINUTES: u64 = 30;
-const WATCH_WAIT_MS: u64 = 1;
-
 pub struct LogEntryFetcher {
     contract_address: ContractAddress,
     log_page_size: u64,
@@ -122,11 +118,13 @@ impl LogEntryFetcher {
         reorg_rx
     }
 
-    pub fn remove_finalized_block_in_db(
+    pub fn start_remove_finalized_block_task(
         &self,
         executor: &TaskExecutor,
         store: Arc<RwLock<dyn Store>>,
         block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+        default_finalized_block_count: u64,
+        remove_finalized_block_interval_minutes: u64,
     ) {
         let provider = self.provider.clone();
         executor.spawn(
@@ -161,7 +159,7 @@ impl LogEntryFetcher {
                                 },
                                 Err(e) => {
                                     error!("get finalized block number: e={:?}", e);
-                                    Some(processed_block_number - FINALIZED_BLOCK_COUNT)
+                                    Some(processed_block_number - default_finalized_block_count)
                                 }
                             };
 
@@ -193,7 +191,7 @@ impl LogEntryFetcher {
                     }
 
                     tokio::time::sleep(Duration::from_secs(
-                        60 * CLEAN_FINALIZED_BLOCK_INTERVAL_MINUTES,
+                        60 * remove_finalized_block_interval_minutes,
                     ))
                     .await;
                 }
@@ -288,6 +286,7 @@ impl LogEntryFetcher {
         executor: &TaskExecutor,
         log_query_delay: Duration,
         block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+        watch_loop_wait_time_ms: u64,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (watch_tx, watch_rx) = tokio::sync::mpsc::unbounded_channel();
         let contract = ZgsFlow::new(self.contract_address, self.provider.clone());
@@ -327,7 +326,7 @@ impl LogEntryFetcher {
                             )
                         }
                     }
-                    tokio::time::sleep(Duration::from_millis(WATCH_WAIT_MS)).await;
+                    tokio::time::sleep(Duration::from_millis(watch_loop_wait_time_ms)).await;
                 }
             },
             "log watch",

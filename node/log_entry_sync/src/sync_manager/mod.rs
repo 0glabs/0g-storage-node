@@ -236,6 +236,7 @@ impl LogSyncManager {
                         &executor_clone,
                         Duration::from_millis(log_sync_manager.config.recover_query_delay),
                         log_sync_manager.block_hash_cache.clone(),
+                        log_sync_manager.config.watch_loop_wait_time_ms,
                     );
 
                     if start_block_number < finalized_block_number {
@@ -248,11 +249,17 @@ impl LogSyncManager {
                         log_sync_manager.handle_data(recover_rx).await?;
                     }
 
-                    log_sync_manager.log_fetcher.remove_finalized_block_in_db(
-                        &executor_clone,
-                        log_sync_manager.store.clone(),
-                        log_sync_manager.block_hash_cache.clone(),
-                    );
+                    log_sync_manager
+                        .log_fetcher
+                        .start_remove_finalized_block_task(
+                            &executor_clone,
+                            log_sync_manager.store.clone(),
+                            log_sync_manager.block_hash_cache.clone(),
+                            log_sync_manager.config.default_finalized_block_count,
+                            log_sync_manager
+                                .config
+                                .remove_finalized_block_interval_minutes,
+                        );
 
                     // Syncing `watch_rx` is supposed to block forever.
                     log_sync_manager.handle_data(watch_rx).await?;

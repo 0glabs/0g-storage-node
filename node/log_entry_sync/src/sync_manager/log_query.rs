@@ -102,7 +102,9 @@ where
                 } else {
                     // if paginatable, load last block
                     let fut = match self.filter.get_to_block() {
+                        // if to_block is not none in filter, getLogs from from_block to to_block
                         Some(number) => Box::pin(async move { Ok(number) }),
+                        // if to_block is none in filter, getLogs from from_block to latest block
                         _ => self.provider.get_block_number(),
                     };
                     rewake_with_new_state!(ctx, self, LogQueryState::LoadLastBlock(fut));
@@ -155,6 +157,7 @@ where
                         // can safely assume this will always be set in this state
                         let from_block = self.from_block.unwrap();
                         let to_block = if let Some(l) = self.last_block {
+                            // if last_block is not none, only getLogs from to_block to last_block
                             min(from_block + self.page_size, l)
                         } else {
                             from_block + self.page_size
