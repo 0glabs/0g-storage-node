@@ -53,4 +53,4 @@ jobs:
     - name: Run tests
       run: |
         cd tests
-        python test_all.py --max-workers 4
+        python test_all.py --max-workers 3
