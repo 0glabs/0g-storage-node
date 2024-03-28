@@ -396,7 +396,7 @@ async fn test_predicate_search() {
 // The kbuckets table can have maximum 10 nodes in the same /24 subnet across all buckets
 #[tokio::test]
 async fn test_table_limits() {
-    // this seed generates 12 node id's that are distributed accross buckets such that no more than
+    // this seed generates 12 node id's that are distributed across buckets such that no more than
     // 2 exist in a single bucket.
     let mut keypairs = generate_deterministic_keypair(12, 9487);
     let ip: IpAddr = "127.0.0.1".parse().unwrap();

@@ -1195,7 +1195,7 @@ mod tests {
         assert_eq!(enr.tcp4(), Some(tcp));
         assert!(enr.verify());
 
-        // Compare the encoding as the key itself can be differnet
+        // Compare the encoding as the key itself can be different
         assert_eq!(enr.public_key().encode(), key.public().encode(),);
     }
 

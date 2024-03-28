@@ -26,7 +26,7 @@ impl NodeProof {
         chunks_per_segment: usize,
     ) -> Result<FileProof> {
         let mut node_depth = match self.leaf {
-            // In this case, some proof pathes missed between segment
+            // In this case, some proof paths missed between segment
             // root and submission node, which could be retrieved from
             // the flow proof.
             NodeProofLeaf::Full { node_depth } => node_depth,

@@ -10,7 +10,7 @@ Figure 1 illustrates the architecture of the 0G system. When a data block enters
 
 ## 0G Storage
 
-0G Storage employs layered design targetting to support different types of decentralized applications. Figure 2 shows the overview of the full stack layers of 0G Storage.
+0G Storage employs layered design targeting to support different types of decentralized applications. Figure 2 shows the overview of the full stack layers of 0G Storage.
 
 <figure><img src="../../.gitbook/assets/zg-storage-layer.png" alt=""><figcaption><p>Figure 2. Full Stack Solution of 0G Storage</p></figcaption></figure>
 

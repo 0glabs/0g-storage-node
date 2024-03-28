@@ -56,7 +56,7 @@ class BSCNode(BlockchainNode):
                 with open(f"{self.binary}", "xb") as f:
                     self.__try_download_node(f, log)
             except FileExistsError:
-                log.info("Binary is alrady under downloading")
+                log.info("Binary is already under downloading")
 
         wait_until(lambda: os.access(f"{self.binary}", os.X_OK), timeout=120)
 

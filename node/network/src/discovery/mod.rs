@@ -84,7 +84,7 @@ enum EventStream {
     InActive,
 }
 
-/// The main discovery service. This can be disabled via CLI arguements. When disabled the
+/// The main discovery service. This can be disabled via CLI arguments. When disabled the
 /// underlying processes are not started, but this struct still maintains our current ENR.
 pub struct Discovery {
     /// A collection of seen live ENRs for quick lookup and to map peer-id's to ENRs.
