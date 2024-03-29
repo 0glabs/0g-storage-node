@@ -373,8 +373,10 @@ impl LogSyncManager {
                         break;
                     }
                     if let Err(e) = self.event_send.send(LogSyncEvent::TxSynced { tx }) {
-                        error!("log sync broadcast error, error={:?}", e);
-                        break;
+                        // TODO: Do we need to wait until all receivers are initialized?
+                        // Auto-sync and txpool may need this event, but it's possible that
+                        // no receivers will be created.
+                        warn!("log sync broadcast error, error={:?}", e);
                     }
                 }
                 LogFetchProgress::Reverted(reverted) => {
