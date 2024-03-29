@@ -138,7 +138,9 @@ class TestFramework:
             # make nodes full connected
             if self.num_blockchain_nodes > 1:
                 connect_sample_nodes(self.blockchain_nodes, self.log)
-                sync_blocks(self.blockchain_nodes)
+                # The default is `dev` mode with auto mining, so it's not guaranteed that blocks
+                # can be synced in time for `sync_blocks` to pass.
+                # sync_blocks(self.blockchain_nodes)
 
         contract, tx_hash, mine_contract, reward_contract = self.blockchain_nodes[0].setup_contract(self.enable_market, self.mine_period)
         self.contract = FlowContractProxy(contract, self.blockchain_nodes)
