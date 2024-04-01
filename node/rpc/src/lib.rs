@@ -7,7 +7,7 @@ mod admin;
 mod config;
 mod error;
 mod miner;
-mod types;
+pub mod types;
 mod zgs;
 
 use crate::miner::RpcServer as MinerRpcServer;
