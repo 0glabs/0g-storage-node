@@ -37,7 +37,7 @@ tokio = { version = "1.19.2", features = ["time", "macros"] }
 tokio-io-timeout = "1.2.0"
 tokio-util = { version = "0.6.10", features = ["codec", "compat", "time"] }
 tracing = "0.1.35"
-unsigned-varint = { version = "0.7.1", features = ["codec"] }
+unsigned-varint = { version = "=0.7.1", features = ["codec"] }
 if-addrs = "0.10.1"
 slog = "2.7.0"
 igd = "0.12.1"

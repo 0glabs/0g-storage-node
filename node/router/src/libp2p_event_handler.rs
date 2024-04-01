@@ -23,6 +23,7 @@ lazy_static::lazy_static! {
     pub static ref TOLERABLE_DRIFT: chrono::Duration = chrono::Duration::seconds(5);
 }
 
+#[allow(deprecated)]
 fn duration_since(timestamp: u32) -> chrono::Duration {
     let timestamp = i64::from(timestamp);
     let timestamp = chrono::NaiveDateTime::from_timestamp_opt(timestamp, 0).expect("should fit");
