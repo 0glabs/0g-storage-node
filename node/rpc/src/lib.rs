@@ -7,7 +7,7 @@ mod admin;
 mod config;
 mod error;
 mod miner;
-mod types;
+pub mod types;
 mod zgs;
 
 use crate::miner::RpcServer as MinerRpcServer;
@@ -29,7 +29,10 @@ use tokio::sync::mpsc::UnboundedSender;
 use zgs::RpcServer as ZgsRpcServer;
 use zgs_miner::MinerMessage;
 
+pub use admin::RpcClient as ZgsAdminRpcClient;
 pub use config::Config as RPCConfig;
+pub use miner::RpcClient as ZgsMinerRpcClient;
+pub use zgs::RpcClient as ZgsRPCClient;
 
 /// A wrapper around all the items required to spawn the HTTP server.
 ///
