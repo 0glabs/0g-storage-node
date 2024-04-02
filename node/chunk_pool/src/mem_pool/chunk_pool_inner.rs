@@ -341,10 +341,11 @@ impl MemoryChunkPool {
 
         if let Some(file) = inner.segment_cache.get_file(root) {
             Some((file.segments.len(), true))
-        } else if let Some(file) = inner.write_control.get_file(root) {
-            Some((file.uploaded_seg_num(), false))
         } else {
-            None
+            inner
+                .write_control
+                .get_file(root)
+                .map(|file| (file.uploaded_seg_num(), false))
         }
     }
 }
