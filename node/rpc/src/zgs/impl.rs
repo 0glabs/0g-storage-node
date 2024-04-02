@@ -183,6 +183,7 @@ impl RpcServerImpl {
     }
 
     async fn get_file_info_by_tx(&self, tx: Transaction) -> RpcResult<FileInfo> {
+        let finalized = self.ctx.log_store.check_tx_completed(tx.seq).await?;
         let (uploaded_seg_num, is_cached) = match self
             .ctx
             .chunk_pool
@@ -196,11 +197,9 @@ impl RpcServerImpl {
                     tx.size as usize,
                     chunks_per_segment,
                 )?;
-                (num_segments, false)
+                (if finalized { num_segments } else { 0 }, false)
             }
         };
-
-        let finalized = self.ctx.log_store.check_tx_completed(tx.seq).await?;
 
         Ok(FileInfo {
             tx,
