@@ -191,14 +191,19 @@ impl RpcServerImpl {
             .await
         {
             Some(v) => v,
-            _ => {
-                let chunks_per_segment = self.ctx.config.chunks_per_segment;
-                let (num_segments, _) = SegmentWithProof::split_file_into_segments(
-                    tx.size as usize,
-                    chunks_per_segment,
-                )?;
-                (if finalized { num_segments } else { 0 }, false)
-            }
+            _ => (
+                if finalized {
+                    let chunks_per_segment = self.ctx.config.chunks_per_segment;
+                    let (num_segments, _) = SegmentWithProof::split_file_into_segments(
+                        tx.size as usize,
+                        chunks_per_segment,
+                    )?;
+                    num_segments
+                } else {
+                    0
+                },
+                false,
+            ),
         };
 
         Ok(FileInfo {
