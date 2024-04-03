@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = { version = "=1.0.58", features = ["backtrace"] }
+anyhow = { version = "1.0.58", features = ["backtrace"] }
 append_merkle = { path = "../../common/append_merkle" }
 async-trait = "0.1.56"
 ethereum-types = "0.14"
