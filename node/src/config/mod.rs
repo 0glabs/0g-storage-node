@@ -36,7 +36,7 @@ build_config! {
 
     (default_finalized_block_count, (u64), 100)
     (remove_finalized_block_interval_minutes, (u64), 30)
-    (watch_loop_wait_time_ms, (u64), 50)
+    (watch_loop_wait_time_ms, (u64), 500)
 
     // rpc
     (rpc_enabled, (bool), true)
