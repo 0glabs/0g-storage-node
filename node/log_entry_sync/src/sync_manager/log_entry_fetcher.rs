@@ -377,6 +377,7 @@ impl LogEntryFetcher {
         }
 
         let mut blocks: HashMap<u64, Block<ethers::types::Transaction>> = Default::default();
+        let mut parent_block_hash = block.hash;
         blocks.insert(from_block_number, block);
         for block_number in from_block_number + 1..to_block_number + 1 {
             let block = provider
@@ -390,6 +391,14 @@ impl LogEntryFetcher {
                     block.number
                 );
             }
+            if Some(block.parent_hash) != parent_block_hash {
+                bail!(
+                    "parent block hash mismatch, expected {:?}, actual {}",
+                    parent_block_hash,
+                    block.parent_hash
+                );
+            }
+            parent_block_hash = block.hash;
             blocks.insert(block_number, block);
         }
 
@@ -454,7 +463,7 @@ impl LogEntryFetcher {
                             return Ok(progress);
                         }
 
-                        let tx = match SubmitFilter::decode_log(&RawLog {
+                        let submit_filter = match SubmitFilter::decode_log(&RawLog {
                             topics: log.topics,
                             data: log.data.to_vec(),
                         }) {
@@ -468,12 +477,13 @@ impl LogEntryFetcher {
                         };
 
                         if first_submission_index.is_none()
-                            || first_submission_index > Some(tx.submission_index.as_u64())
+                            || first_submission_index
+                                > Some(submit_filter.submission_index.as_u64())
                         {
-                            first_submission_index = Some(tx.submission_index.as_u64());
+                            first_submission_index = Some(submit_filter.submission_index.as_u64());
                         }
 
-                        log_events.push(submission_event_to_transaction(tx));
+                        log_events.push(submission_event_to_transaction(submit_filter));
                     }
                 }
 
