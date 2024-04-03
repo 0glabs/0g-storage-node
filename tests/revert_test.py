@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from test_framework.test_framework import TestFramework
-from test_framework.blockchain_node import BlockChainNodeType
 from test_framework.conflux_node import connect_nodes, disconnect_nodes, sync_blocks
 from config.node_config import CONFLUX_CONFIG, TX_PARAMS1
 from utility.submission import create_submission, submit_data
@@ -75,4 +74,4 @@ class RevertTest(TestFramework):
 
 
 if __name__ == "__main__":
-    RevertTest(blockchain_node_type=BlockChainNodeType.Conflux).main()
+    RevertTest().main()
