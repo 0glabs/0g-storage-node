@@ -189,6 +189,16 @@ impl LogSyncManager {
                     let mut submission_idx = None;
                     let parent_block_hash = if start_block_number >= finalized_block_number {
                         if start_block_number > 0 {
+                            if let Some(b) = log_sync_manager
+                                .block_hash_cache
+                                .read()
+                                .await
+                                .get(&start_block_number)
+                            {
+                                // special case avoid reorg
+                                submission_idx = b.first_submission_index;
+                            }
+
                             let parent_block_number = start_block_number.saturating_sub(1);
                             match log_sync_manager
                                 .block_hash_cache
@@ -196,10 +206,7 @@ impl LogSyncManager {
                                 .await
                                 .get(&parent_block_number)
                             {
-                                Some(b) => {
-                                    submission_idx = b.first_submission_index; // special case avoid reorg
-                                    b.block_hash
-                                }
+                                Some(b) => b.block_hash,
                                 _ => log_sync_manager
                                     .log_fetcher
                                     .provider()
