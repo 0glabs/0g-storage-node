@@ -336,15 +336,16 @@ impl MemoryChunkPool {
         Ok(())
     }
 
-    pub async fn get_uploaded_seg_num(&self, root: &DataRoot) -> (usize, bool) {
+    pub async fn get_uploaded_seg_num(&self, root: &DataRoot) -> Option<(usize, bool)> {
         let inner = self.inner.lock().await;
 
         if let Some(file) = inner.segment_cache.get_file(root) {
-            (file.cached_chunk_num, true)
-        } else if let Some(file) = inner.write_control.get_file(root) {
-            (file.uploaded_seg_num(), false)
+            Some((file.segments.len(), true))
         } else {
-            (0, false)
+            inner
+                .write_control
+                .get_file(root)
+                .map(|file| (file.uploaded_seg_num(), false))
         }
     }
 }

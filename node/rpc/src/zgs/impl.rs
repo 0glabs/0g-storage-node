@@ -183,13 +183,28 @@ impl RpcServerImpl {
     }
 
     async fn get_file_info_by_tx(&self, tx: Transaction) -> RpcResult<FileInfo> {
-        let (uploaded_seg_num, is_cached) = self
+        let finalized = self.ctx.log_store.check_tx_completed(tx.seq).await?;
+        let (uploaded_seg_num, is_cached) = match self
             .ctx
             .chunk_pool
             .get_uploaded_seg_num(&tx.data_merkle_root)
-            .await;
-
-        let finalized = self.ctx.log_store.check_tx_completed(tx.seq).await?;
+            .await
+        {
+            Some(v) => v,
+            _ => (
+                if finalized {
+                    let chunks_per_segment = self.ctx.config.chunks_per_segment;
+                    let (num_segments, _) = SegmentWithProof::split_file_into_segments(
+                        tx.size as usize,
+                        chunks_per_segment,
+                    )?;
+                    num_segments
+                } else {
+                    0
+                },
+                false,
+            ),
+        };
 
         Ok(FileInfo {
             tx,
