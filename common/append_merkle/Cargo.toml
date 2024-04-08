@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = { version = "=1.0.58", features = ["backtrace"] }
+anyhow = { version = "1.0.58", features = ["backtrace"] }
 ethereum-types = "0.14"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 eth2_ssz = "0.4.0"
