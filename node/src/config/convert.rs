@@ -1,7 +1,7 @@
 #![allow(clippy::field_reassign_with_default)]
 
 use crate::ZgsConfig;
-use ethereum_types::H256;
+use ethereum_types::{U256, H256};
 use log_entry_sync::{CacheConfig, ContractAddress, LogSyncConfig};
 use miner::MinerConfig;
 use network::NetworkConfig;
@@ -136,12 +136,18 @@ impl ZgsConfig {
         } else {
             None
         };
+        let submission_gas = if let Some(ref gas_limit) = self.miner_submission_gas {
+            Some(gas_limit.parse::<U256>().map_err(|e| format!("Unable to parse miner_submission_gas: {:?}", e))?)
+        } else {
+            None
+        };
         Ok(MinerConfig::new(
             miner_id,
             miner_key,
             self.blockchain_rpc_endpoint.clone(),
             mine_address,
             flow_address,
+            submission_gas
         ))
     }
 
