@@ -13,7 +13,7 @@ pub struct MinerConfig {
     pub(crate) rpc_endpoint_url: String,
     pub(crate) mine_address: Address,
     pub(crate) flow_address: Address,
-    pub(crate) submission_gas: Option<U256>
+    pub(crate) submission_gas: Option<U256>,
 }
 
 pub type MineServiceMiddleware = SignerMiddleware<Provider<Http>, LocalWallet>;
@@ -25,7 +25,7 @@ impl MinerConfig {
         rpc_endpoint_url: String,
         mine_address: Address,
         flow_address: Address,
-        submission_gas: Option<U256>
+        submission_gas: Option<U256>,
     ) -> Option<MinerConfig> {
         match (miner_id, miner_key) {
             (Some(miner_id), Some(miner_key)) => Some(MinerConfig {
@@ -34,7 +34,7 @@ impl MinerConfig {
                 rpc_endpoint_url,
                 mine_address,
                 flow_address,
-                submission_gas
+                submission_gas,
             }),
             _ => None,
         }

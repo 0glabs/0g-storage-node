@@ -1,13 +1,13 @@
 use contract_interface::PoraAnswer;
 use contract_interface::{PoraMine, ZgsFlow};
+use ethereum_types::U256;
 use ethers::providers::PendingTransaction;
+use hex::ToHex;
 use shared_types::FlowRangeProof;
 use std::sync::Arc;
 use storage::log_store::Store;
 use task_executor::TaskExecutor;
 use tokio::sync::{mpsc, RwLock};
-use ethereum_types::U256;
-use hex::ToHex;
 
 use crate::config::{MineServiceMiddleware, MinerConfig};
 use crate::pora::AnswerWithoutProof;
@@ -41,7 +41,7 @@ impl Submitter {
             mine_contract,
             flow_contract,
             store,
-            default_gas_limit
+            default_gas_limit,
         };
         executor.spawn(
             async move { Box::pin(submitter.start()).await },
@@ -107,15 +107,21 @@ impl Submitter {
             submission_call = submission_call.gas(gas_limit);
         }
         if let Some(calldata) = submission_call.calldata() {
-            debug!("Submission transaction calldata: {}", calldata.encode_hex::<String>());
+            debug!(
+                "Submission transaction calldata: {}",
+                calldata.encode_hex::<String>()
+            );
         }
-        
+
         let pending_transaction: PendingTransaction<'_, _> = submission_call
             .send()
             .await
             .map_err(|e| format!("Fail to send mine answer transaction: {:?}", e))?;
 
-        debug!("Signed submission transaction hash: {}", pending_transaction.tx_hash());
+        debug!(
+            "Signed submission transaction hash: {}",
+            pending_transaction.tx_hash()
+        );
 
         let receipt = pending_transaction
             .retries(SUBMISSION_RETIES)
