@@ -45,8 +45,6 @@ class EvmosNode(BlockchainNode):
         log,
         rpc_timeout=10,
     ):
-        assert len(updated_config) == 0, "updated_config not supported for evmos"
-
         data_dir = os.path.join(root_dir, "evmosd", "node" + str(index))
         rpc_url = "http://127.0.0.1:%s" % blockchain_rpc_port(index)
 
@@ -77,6 +75,11 @@ class EvmosNode(BlockchainNode):
             # overwrite pprof port: 6060
             "--rpc.pprof_laddr", "127.0.0.1:%s" % arrange_port(EVMOS_PORT_CATEGORY_PPROF, index),
         ]
+
+        for k, v in updated_config.items():
+            if type(k) == str and k.startswith("--"):
+                self.args.append(k)
+                self.args.append(str(v))
 
     def setup_config(self):
         """ Already batch initialized by shell script in framework """
