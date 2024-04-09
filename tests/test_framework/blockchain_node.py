@@ -1,4 +1,3 @@
-import json
 import os
 import subprocess
 import tempfile
@@ -14,9 +13,6 @@ from config.node_config import (
     GENESIS_PRIV_KEY1,
     TX_PARAMS,
     MINER_ID,
-    NO_MERKLE_PROOF_FLAG,
-    NO_SEAL_FLAG,
-    TX_PARAMS1,
 )
 from utility.simple_rpc_proxy import SimpleRpcProxy
 from utility.utils import (
@@ -30,6 +26,7 @@ from test_framework.contracts import load_contract_metadata
 class BlockChainNodeType(Enum):
     Conflux = 0
     BSC = 1
+    Evmos = 2
 
 
 @unique
@@ -46,7 +43,7 @@ class TestNode:
     def __init__(
         self, node_type, index, data_dir, rpc_url, binary, config, log, rpc_timeout=10
     ):
-        assert os.path.exists(binary), ("blockchain binary not found: %s" % binary)
+        assert os.path.exists(binary), ("Binary not found: %s" % binary)
         self.node_type = node_type
         self.index = index
         self.data_dir = data_dir

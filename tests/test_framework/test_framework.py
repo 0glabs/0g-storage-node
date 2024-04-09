@@ -16,8 +16,8 @@ from test_framework.bsc_node import BSCNode
 from test_framework.contract_proxy import FlowContractProxy, MineContractProxy, IRewardContractProxy
 from test_framework.zgs_node import ZgsNode
 from test_framework.blockchain_node import BlockChainNodeType
-from test_framework.conflux_node import ConfluxNode, connect_sample_nodes, sync_blocks
-
+from test_framework.conflux_node import ConfluxNode, connect_sample_nodes
+from test_framework.evmos_node import EvmosNode, evmos_init_genesis
 from utility.utils import PortMin, is_windows_platform, wait_until
 
 __file_path__ = os.path.dirname(os.path.realpath(__file__))
@@ -33,7 +33,7 @@ TEST_EXIT_FAILED = 1
 
 
 class TestFramework:
-    def __init__(self, blockchain_node_type=BlockChainNodeType.Conflux):
+    def __init__(self, blockchain_node_type=BlockChainNodeType.Evmos):
         if "http_proxy" in os.environ:
             # Print a warning message in yellow color
             print("\n\033[93m ⚠️   Warning: You've set the environment variable 'http_proxy', which might lead to testing issues.\033[0m\n")
@@ -49,6 +49,7 @@ class TestFramework:
         self.enable_market = False
         self.mine_period = 100
 
+        # Set default binary path
         binary_ext = ".exe" if is_windows_platform() else ""
         tests_dir = os.path.dirname(__file_path__)
         root_dir = os.path.dirname(tests_dir)
@@ -58,6 +59,9 @@ class TestFramework:
         self.__default_geth_binary__ = os.path.join(
             tests_dir, "tmp", "geth" + binary_ext
         )
+        self.__default_evmos_binary__ = os.path.join(
+            tests_dir, "tmp", "evmosd" + binary_ext
+        )
         self.__default_zgs_node_binary__ = os.path.join(
             root_dir, "target", "release", "zgs_node" + binary_ext
         )
@@ -66,6 +70,10 @@ class TestFramework:
         )
 
     def __setup_blockchain_node(self):
+        if self.blockchain_node_type == BlockChainNodeType.Evmos:
+            evmos_init_genesis(self.root_dir, self.num_blockchain_nodes)
+            self.log.info("Evmos genesis initialized for %s nodes" % self.num_blockchain_nodes)
+
         for i in range(self.num_blockchain_nodes):
             if i in self.blockchain_node_configs:
                 updated_config = self.blockchain_node_configs[i]
@@ -85,6 +93,15 @@ class TestFramework:
                 )
             elif self.blockchain_node_type == BlockChainNodeType.Conflux:
                 node = ConfluxNode(
+                    i,
+                    self.root_dir,
+                    self.blockchain_binary,
+                    updated_config,
+                    self.contract_path,
+                    self.log,
+                )
+            elif self.blockchain_node_type == BlockChainNodeType.Evmos:
+                node = EvmosNode(
                     i,
                     self.root_dir,
                     self.blockchain_binary,
@@ -141,6 +158,14 @@ class TestFramework:
                 # The default is `dev` mode with auto mining, so it's not guaranteed that blocks
                 # can be synced in time for `sync_blocks` to pass.
                 # sync_blocks(self.blockchain_nodes)
+        elif self.blockchain_node_type == BlockChainNodeType.Evmos:
+            # wait for the first block
+            self.log.debug("Wait 3 seconds for evmos node to generate first block")
+            time.sleep(3)
+            for node in self.blockchain_nodes:
+                wait_until(lambda: node.net_peerCount() == self.num_blockchain_nodes - 1)
+                wait_until(lambda: node.eth_blockNumber() is not None)
+                wait_until(lambda: int(node.eth_blockNumber(), 16) > 0)
 
         contract, tx_hash, mine_contract, reward_contract = self.blockchain_nodes[0].setup_contract(self.enable_market, self.mine_period)
         self.contract = FlowContractProxy(contract, self.blockchain_nodes)
@@ -172,7 +197,7 @@ class TestFramework:
             )
             self.nodes.append(node)
             node.setup_config()
-            # wait firt node start for connection
+            # wait first node start for connection
             if i > 0:
                 time.sleep(1)
             node.start()
@@ -193,6 +218,13 @@ class TestFramework:
             "--bsc-binary",
             dest="bsc",
             default=self.__default_geth_binary__,
+            type=str,
+        )
+
+        parser.add_argument(
+            "--evmos-binary",
+            dest="evmos",
+            default=self.__default_evmos_binary__,
             type=str,
         )
 
@@ -353,7 +385,7 @@ class TestFramework:
         self.__setup_zgs_node()
 
     def stop_nodes(self):
-        # stop ionion nodes first
+        # stop storage nodes first
         for node in self.nodes:
             node.stop()
 
@@ -394,8 +426,12 @@ class TestFramework:
 
         if self.blockchain_node_type == BlockChainNodeType.Conflux:
             self.blockchain_binary = os.path.abspath(self.options.conflux)
-        else:
+        elif self.blockchain_node_type == BlockChainNodeType.BSC:
             self.blockchain_binary = os.path.abspath(self.options.bsc)
+        elif self.blockchain_node_type == BlockChainNodeType.Evmos:
+            self.blockchain_binary = os.path.abspath(self.options.evmos)
+        else:
+            raise NotImplementedError
 
         self.zgs_binary = os.path.abspath(self.options.zerog_storage)
         self.cli_binary = os.path.abspath(self.options.cli)
@@ -412,6 +448,7 @@ class TestFramework:
         try:
             self.setup_params()
             self.setup_nodes()
+            self.log.debug("========== start to run tests ==========")
             self.run_test()
             success = TestStatus.PASSED
         except AssertionError as e:

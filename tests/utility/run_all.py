@@ -15,6 +15,7 @@ DEFAULT_PORT_MAX = 65535
 DEFAULT_PORT_RANGE = 500
 
 CONFLUX_BINARY = "conflux.exe" if is_windows_platform() else "conflux"
+EVMOS_BINARY = "evmosd.exe" if is_windows_platform() else "evmosd"
 
 def print_testcase_result(color, glyph, script, start_time):
     print(color[1] + glyph + " Testcase " + script + "\telapsed: " + str(int(time.time() - start_time)) + " seconds" + color[0], flush=True)
@@ -65,7 +66,23 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
     if not os.path.exists(tmp_dir):
         os.makedirs(tmp_dir, exist_ok=True)
 
-    build_conflux_if_absent(tmp_dir)
+    # Build conflux binary if absent
+    build_from_github(
+        dir=tmp_dir,
+        binary_name=CONFLUX_BINARY,
+        github_url="https://github.com/Conflux-Chain/conflux-rust.git",
+        build_cmd="cargo build --release --bin conflux",
+        compiled_relative_path=["target", "release"],
+    )
+
+    # Build evmos binary if absent
+    build_from_github(
+        dir=tmp_dir,
+        binary_name=EVMOS_BINARY,
+        github_url="https://github.com/0glabs/0g-evmos.git",
+        build_cmd="make install",
+        compiled_relative_path=[],
+    )
 
     parser = argparse.ArgumentParser(usage="%(prog)s [options]")
     parser.add_argument(
@@ -139,29 +156,34 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
             print(c)
         sys.exit(1)
 
-
-def build_conflux_if_absent(tmp_dir):
-    conflux_path = os.path.join(tmp_dir, CONFLUX_BINARY)
-    if os.path.exists(conflux_path):
-        return
+def build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: str, compiled_relative_path: list[str]) -> bool:
+    binary_path = os.path.join(dir, binary_name)
+    if os.path.exists(binary_path):
+        return False
     
-    conflux_tmp_dir = os.path.join(tmp_dir, "conflux_tmp")
-    if os.path.exists(conflux_tmp_dir):
-        shutil.rmtree(conflux_tmp_dir)
+    # clone code from github to a temp folder
+    code_tmp_dir_name = (binary_name[:-4] if is_windows_platform() else binary_name) + "_tmp"
+    code_tmp_dir = os.path.join(dir, code_tmp_dir_name)
+    if os.path.exists(code_tmp_dir):
+        shutil.rmtree(code_tmp_dir)
+    clone_command = "git clone " + github_url + " " + code_tmp_dir
+    os.system(clone_command)
 
-    clone_command = "git clone https://github.com/Conflux-Chain/conflux-rust.git"
-    clone_with_path = clone_command + " " + conflux_tmp_dir
-    os.system(clone_with_path)
-
+    # build binary
     origin_path = os.getcwd()
-    os.chdir(conflux_tmp_dir)
-    os.system("cargo build --release --bin conflux")
+    os.chdir(code_tmp_dir)
+    os.system(build_cmd)
 
-    path = os.path.join(conflux_tmp_dir, "target", "release", CONFLUX_BINARY)
-    shutil.copyfile(path, conflux_path)
+    # copy compiled binary to right place
+    compiled_binary = os.path.join(code_tmp_dir, *compiled_relative_path, binary_name)
+    shutil.copyfile(compiled_binary, binary_path)
 
     if not is_windows_platform():
-        st = os.stat(conflux_path)
-        os.chmod(conflux_path, st.st_mode | stat.S_IEXEC)
+        st = os.stat(binary_path)
+        os.chmod(binary_path, st.st_mode | stat.S_IEXEC)
 
     os.chdir(origin_path)
+
+    shutil.rmtree(code_tmp_dir, ignore_errors=True)
+
+    return True
