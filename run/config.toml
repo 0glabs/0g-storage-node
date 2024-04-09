@@ -27,13 +27,12 @@ mine_contract_address = "0x8B9221eE2287aFBb34A7a1Ef72eB00fdD853FFC2"
 log_sync_start_block_number = 512567
 log_page_size = 999
 
+# miner_id = "<hex64_without_0x_prefix>"
+# miner_key = ""
+
 # [sync]
 # auto_sync_enabled = false
 # max_sync_files = 8
 # find_peer_timeout = "30s"
 # sync_file_by_rpc_enabled = true
 # sync_file_on_announcement_enabled = false
-
-# [miner]
-# miner_id
-# miner_key
