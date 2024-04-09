@@ -60,8 +60,6 @@ def run_single_test(py, script, test_dir, index, port_min, port_max):
     print_testcase_result(BLUE, TICK, script, start_time)
 
 def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, long_manual_tests: set[str]={}):
-    start_time = time.time()
-
     tmp_dir = os.path.join(test_dir, "tmp")
     if not os.path.exists(tmp_dir):
         os.makedirs(tmp_dir, exist_ok=True)
@@ -83,6 +81,8 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
         build_cmd="make install; cp $(go env GOPATH)/bin/evmosd .",
         compiled_relative_path=[],
     )
+
+    start_time = time.time()
 
     parser = argparse.ArgumentParser(usage="%(prog)s [options]")
     parser.add_argument(
@@ -161,6 +161,8 @@ def build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: st
     if os.path.exists(binary_path):
         return False
     
+    start_time = time.time()
+    
     # clone code from github to a temp folder
     code_tmp_dir_name = (binary_name[:-4] if is_windows_platform() else binary_name) + "_tmp"
     code_tmp_dir = os.path.join(dir, code_tmp_dir_name)
@@ -185,5 +187,7 @@ def build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: st
     os.chdir(origin_path)
 
     shutil.rmtree(code_tmp_dir, ignore_errors=True)
+
+    print("Completed to build binary " + binary_name + ", Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
 
     return True
