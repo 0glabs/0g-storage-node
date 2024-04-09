@@ -2,7 +2,6 @@
 
 import random
 
-from test_framework.blockchain_node import BlockChainNodeType
 from test_framework.test_framework import TestFramework
 from utility.submission import create_submission
 from utility.submission import submit_data
@@ -81,4 +80,4 @@ class RandomTest(TestFramework):
 
 
 if __name__ == "__main__":
-    RandomTest(blockchain_node_type=BlockChainNodeType.Conflux).main()
+    RandomTest().main()

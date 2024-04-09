@@ -66,7 +66,7 @@ class ZgsNode(TestNode):
         os.mkdir(self.data_dir)
         log_config_path = os.path.join(self.data_dir, self.config["log_config_file"])
         with open(log_config_path, "w") as f:
-            f.write("debug")
+            f.write("debug,hyper=info,h2=info")
 
         initialize_toml_config(self.config_file, self.config)
 
