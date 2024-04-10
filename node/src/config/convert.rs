@@ -1,7 +1,7 @@
 #![allow(clippy::field_reassign_with_default)]
 
 use crate::ZgsConfig;
-use ethereum_types::H256;
+use ethereum_types::{H256, U256};
 use log_entry_sync::{CacheConfig, ContractAddress, LogSyncConfig};
 use miner::MinerConfig;
 use network::NetworkConfig;
@@ -136,11 +136,7 @@ impl ZgsConfig {
         } else {
             None
         };
-        let submission_gas = if let Some(gas_limit) = self.miner_submission_gas {
-            Some(gas_limit.into())
-        } else {
-            None
-        };
+        let submission_gas = self.miner_submission_gas.map(U256::from);
         Ok(MinerConfig::new(
             miner_id,
             miner_key,
