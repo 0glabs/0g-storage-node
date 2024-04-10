@@ -106,7 +106,6 @@ impl Submitter {
         let mut submission_call: ContractCall<_, _> = self.mine_contract.submit(answer).legacy();
 
         if let Some(gas_limit) = self.default_gas_limit {
-            debug!("Set submission gas gas: {}", gas_limit);
             submission_call = submission_call.gas(gas_limit);
         }
 
@@ -129,7 +128,7 @@ impl Submitter {
             .map_err(|e| format!("Fail to send mine answer transaction: {:?}", e))?;
 
         debug!(
-            "Signed submission transaction hash: {}",
+            "Signed submission transaction hash: {:?}",
             pending_transaction.tx_hash()
         );
 
