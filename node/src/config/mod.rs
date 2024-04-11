@@ -63,6 +63,7 @@ build_config! {
     (mine_contract_address, (String), "".to_string())
     (miner_id, (Option<String>), None)
     (miner_key, (Option<String>), None)
+    (miner_submission_gas, (Option<u64>), None)
 }
 
 #[derive(Debug, Default, Deserialize)]

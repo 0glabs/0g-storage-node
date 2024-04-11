@@ -20,3 +20,4 @@ ethers = "^2"
 lazy_static = "1.4"
 async-trait = "0.1.56"
 shared_types = { path = "../shared_types" }
+hex = "0.4"

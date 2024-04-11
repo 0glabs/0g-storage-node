@@ -4425,6 +4425,7 @@ dependencies = [
  "contract-interface",
  "ethereum-types 0.14.1",
  "ethers",
+ "hex",
  "lazy_static",
  "network",
  "rand 0.8.5",

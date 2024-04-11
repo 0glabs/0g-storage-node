@@ -1,6 +1,9 @@
 use contract_interface::PoraAnswer;
 use contract_interface::{PoraMine, ZgsFlow};
+use ethereum_types::U256;
+use ethers::contract::ContractCall;
 use ethers::providers::PendingTransaction;
+use hex::ToHex;
 use shared_types::FlowRangeProof;
 use std::sync::Arc;
 use storage::log_store::Store;
@@ -18,6 +21,7 @@ pub struct Submitter {
     mine_answer_receiver: mpsc::UnboundedReceiver<AnswerWithoutProof>,
     mine_contract: PoraMine<MineServiceMiddleware>,
     flow_contract: ZgsFlow<MineServiceMiddleware>,
+    default_gas_limit: Option<U256>,
     store: Arc<RwLock<dyn Store>>,
 }
 
@@ -31,12 +35,14 @@ impl Submitter {
     ) {
         let mine_contract = PoraMine::new(config.mine_address, provider.clone());
         let flow_contract = ZgsFlow::new(config.flow_address, provider);
+        let default_gas_limit = config.submission_gas;
 
         let submitter = Submitter {
             mine_answer_receiver,
             mine_contract,
             flow_contract,
             store,
+            default_gas_limit,
         };
         executor.spawn(
             async move { Box::pin(submitter.start()).await },
@@ -97,11 +103,34 @@ impl Submitter {
         };
         trace!("submit_answer: answer={:?}", answer);
 
-        let submission_call = self.mine_contract.submit(answer).legacy();
+        let mut submission_call: ContractCall<_, _> = self.mine_contract.submit(answer).legacy();
+
+        if let Some(gas_limit) = self.default_gas_limit {
+            submission_call = submission_call.gas(gas_limit);
+        }
+
+        if let Some(calldata) = submission_call.calldata() {
+            debug!(
+                "Submission transaction calldata: {}",
+                calldata.encode_hex::<String>()
+            );
+        }
+
+        debug!("Local construct tx: {:?}", &submission_call.tx);
+        debug!(
+            "Estimate gas result: {:?}",
+            submission_call.estimate_gas().await
+        );
+
         let pending_transaction: PendingTransaction<'_, _> = submission_call
             .send()
             .await
             .map_err(|e| format!("Fail to send mine answer transaction: {:?}", e))?;
+
+        debug!(
+            "Signed submission transaction hash: {:?}",
+            pending_transaction.tx_hash()
+        );
 
         let receipt = pending_transaction
             .retries(SUBMISSION_RETIES)
