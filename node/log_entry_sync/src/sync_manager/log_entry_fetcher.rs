@@ -1,6 +1,6 @@
 use crate::rpc_proxy::ContractAddress;
 use crate::sync_manager::log_query::LogQuery;
-use crate::sync_manager::RETRY_WAIT_MS;
+use crate::sync_manager::{MAX_RETRIES, RETRY_WAIT_MS};
 use anyhow::{anyhow, bail, Result};
 use append_merkle::{Algorithm, Sha3Algorithm};
 use contract_interface::{SubmissionNode, SubmitFilter, ZgsFlow};
@@ -527,12 +527,23 @@ async fn revert_one_block(
     block_hash_cache: &Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
 ) -> Result<(u64, H256), anyhow::Error> {
     debug!("revert block {}, block hash {:?}", block_number, block_hash);
-    let block = block_hash_cache
-        .read()
-        .await
-        .get(&block_number)
-        .ok_or_else(|| anyhow!("None for block {}", block_number))?
-        .clone();
+    let mut retries = 0;
+    let block = loop {
+        if let Some(block) = block_hash_cache.read().await.get(&block_number) {
+            break block.clone();
+        } else {
+            if retries >= MAX_RETRIES {
+                return Err(anyhow!("None for block {}", block_number));
+            }
+
+            retries += 1;
+            debug!(
+                "block_hash_cache wait for SyncedBlock processed for {}",
+                block_number
+            );
+            tokio::time::sleep(Duration::from_secs(RETRY_WAIT_MS)).await;
+        }
+    };
 
     assert!(block_hash == block.block_hash);
     if let Some(reverted) = block.first_submission_index {

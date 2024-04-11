@@ -19,6 +19,7 @@ use tokio::sync::RwLock;
 
 const RETRY_WAIT_MS: u64 = 500;
 const BROADCAST_CHANNEL_CAPACITY: usize = 16;
+const MAX_RETRIES: u64 = 60;
 
 #[derive(Clone, Debug)]
 pub enum LogSyncEvent {
