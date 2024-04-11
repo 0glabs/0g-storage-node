@@ -93,6 +93,7 @@ impl LogEntryFetcher {
                                     block_number,
                                     &reorg_tx,
                                     &block_hash_cache,
+                                    provider.as_ref(),
                                 )
                                 .await
                                 {
@@ -167,7 +168,7 @@ impl LogEntryFetcher {
                             if processed_block_number >= finalized_block_number {
                                 let mut pending_keys = vec![];
                                 for (key, _) in block_hash_cache.read().await.iter() {
-                                    if *key <= finalized_block_number {
+                                    if *key < finalized_block_number {
                                         pending_keys.push(*key);
                                     } else {
                                         break;
@@ -371,6 +372,7 @@ impl LogEntryFetcher {
                 from_block_number.saturating_sub(1),
                 watch_tx,
                 block_hash_cache,
+                provider,
             )
             .await?;
             return Ok(Some((parent_block_number, block_hash, None)));
@@ -527,6 +529,7 @@ async fn revert_one_block(
     block_number: u64,
     watch_tx: &UnboundedSender<LogFetchProgress>,
     block_hash_cache: &Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
+    provider: &Provider<RetryClient<Http>>,
 ) -> Result<(u64, H256), anyhow::Error> {
     debug!("revert block {}, block hash {:?}", block_number, block_hash);
     let block = loop {
@@ -551,15 +554,18 @@ async fn revert_one_block(
     }
 
     let parent_block_number = block_number.saturating_sub(1);
-    let parent_block_hash = block_hash_cache
-        .read()
-        .await
-        .get(&parent_block_number)
-        .ok_or_else(|| anyhow!("None for block {}", parent_block_number))?
-        .clone()
-        .as_ref()
-        .unwrap()
-        .block_hash;
+    let parent_block_hash = match block_hash_cache.read().await.get(&parent_block_number) {
+        Some(v) => v.clone().as_ref().unwrap().block_hash,
+        _ => {
+            debug!("assume parent block {} is not reorged", parent_block_number);
+            provider
+                .get_block(parent_block_number)
+                .await?
+                .ok_or_else(|| anyhow!("None for block {}", parent_block_number))?
+                .hash
+                .ok_or_else(|| anyhow!("None block hash for block {}", parent_block_number))?
+        }
+    };
 
     let synced_block =
         LogFetchProgress::SyncedBlock((parent_block_number, parent_block_hash, None));
