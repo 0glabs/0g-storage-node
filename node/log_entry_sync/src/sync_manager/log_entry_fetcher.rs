@@ -1,6 +1,6 @@
 use crate::rpc_proxy::ContractAddress;
 use crate::sync_manager::log_query::LogQuery;
-use crate::sync_manager::{MAX_RETRIES, RETRY_WAIT_MS};
+use crate::sync_manager::RETRY_WAIT_MS;
 use anyhow::{anyhow, bail, Result};
 use append_merkle::{Algorithm, Sha3Algorithm};
 use contract_interface::{SubmissionNode, SubmitFilter, ZgsFlow};
@@ -61,7 +61,7 @@ impl LogEntryFetcher {
         block_number: u64,
         block_hash: H256,
         executor: &TaskExecutor,
-        block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (reorg_tx, reorg_rx) = tokio::sync::mpsc::unbounded_channel();
         let provider = self.provider.clone();
@@ -122,7 +122,7 @@ impl LogEntryFetcher {
         &self,
         executor: &TaskExecutor,
         store: Arc<RwLock<dyn Store>>,
-        block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
         default_finalized_block_count: u64,
         remove_finalized_block_interval_minutes: u64,
     ) {
@@ -284,7 +284,7 @@ impl LogEntryFetcher {
         start_block_number: u64,
         parent_block_hash: H256,
         executor: &TaskExecutor,
-        block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+        block_hash_cache: Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
         watch_loop_wait_time_ms: u64,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (watch_tx, watch_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -340,7 +340,7 @@ impl LogEntryFetcher {
         watch_tx: &UnboundedSender<LogFetchProgress>,
         confirmation_delay: u64,
         contract: &ZgsFlow<Provider<RetryClient<Http>>>,
-        block_hash_cache: &Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+        block_hash_cache: &Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
     ) -> Result<Option<(u64, H256, Option<Option<u64>>)>> {
         let latest_block_number = provider.get_block_number().await?.as_u64();
         debug!(
@@ -500,6 +500,8 @@ impl LogEntryFetcher {
                     if let Err(e) = watch_tx.send(LogFetchProgress::SyncedBlock(*p)) {
                         warn!("send LogFetchProgress failed: {:?}", e);
                         return Ok(progress);
+                    } else {
+                        block_hash_cache.write().await.insert(p.0, None);
                     }
                 }
                 for log in log_events.into_iter() {
@@ -524,24 +526,22 @@ async fn revert_one_block(
     block_hash: H256,
     block_number: u64,
     watch_tx: &UnboundedSender<LogFetchProgress>,
-    block_hash_cache: &Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+    block_hash_cache: &Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
 ) -> Result<(u64, H256), anyhow::Error> {
     debug!("revert block {}, block hash {:?}", block_number, block_hash);
-    let mut retries = 0;
     let block = loop {
         if let Some(block) = block_hash_cache.read().await.get(&block_number) {
-            break block.clone();
-        } else {
-            if retries >= MAX_RETRIES {
-                return Err(anyhow!("None for block {}", block_number));
+            if let Some(v) = block {
+                break v.clone();
+            } else {
+                debug!(
+                    "block_hash_cache wait for SyncedBlock processed for {}",
+                    block_number
+                );
+                tokio::time::sleep(Duration::from_secs(RETRY_WAIT_MS)).await;
             }
-
-            retries += 1;
-            debug!(
-                "block_hash_cache wait for SyncedBlock processed for {}",
-                block_number
-            );
-            tokio::time::sleep(Duration::from_secs(RETRY_WAIT_MS)).await;
+        } else {
+            return Err(anyhow!("None for block {}", block_number));
         }
     };
 
@@ -557,6 +557,8 @@ async fn revert_one_block(
         .get(&parent_block_number)
         .ok_or_else(|| anyhow!("None for block {}", parent_block_number))?
         .clone()
+        .as_ref()
+        .unwrap()
         .block_hash;
 
     let synced_block =
