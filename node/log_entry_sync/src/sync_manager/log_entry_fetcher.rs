@@ -318,7 +318,7 @@ impl LogEntryFetcher {
                             info!("log sync to block number {:?}", progress);
                         }
                         Ok(None) => {
-                            error!(
+                            debug!(
                                 "log sync gets entries without progress? old_progress={}",
                                 progress
                             )
