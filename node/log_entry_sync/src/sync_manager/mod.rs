@@ -41,7 +41,7 @@ pub struct LogSyncManager {
     /// To broadcast events to handle in advance.
     event_send: broadcast::Sender<LogSyncEvent>,
 
-    block_hash_cache: Arc<RwLock<BTreeMap<u64, BlockHashAndSubmissionIndex>>>,
+    block_hash_cache: Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
 }
 
 impl LogSyncManager {
@@ -85,6 +85,7 @@ impl LogSyncManager {
                             .await
                             .get_block_hashes()?
                             .into_iter()
+                            .map(|(x, y)| (x, Some(y)))
                             .collect::<BTreeMap<_, _>>(),
                     ));
                     let mut log_sync_manager = Self {
@@ -196,7 +197,7 @@ impl LogSyncManager {
                                 .get(&start_block_number)
                             {
                                 // special case avoid reorg
-                                submission_idx = b.first_submission_index;
+                                submission_idx = b.as_ref().unwrap().first_submission_index;
                             }
 
                             let parent_block_number = start_block_number.saturating_sub(1);
@@ -206,7 +207,7 @@ impl LogSyncManager {
                                 .await
                                 .get(&parent_block_number)
                             {
-                                Some(b) => b.block_hash,
+                                Some(b) => b.as_ref().unwrap().block_hash,
                                 _ => log_sync_manager
                                     .log_fetcher
                                     .provider()
@@ -345,10 +346,10 @@ impl LogSyncManager {
                     if first_submission_index.is_some() {
                         self.block_hash_cache.write().await.insert(
                             block_number,
-                            BlockHashAndSubmissionIndex {
+                            Some(BlockHashAndSubmissionIndex {
                                 block_hash,
                                 first_submission_index: first_submission_index.unwrap(),
-                            },
+                            }),
                         );
                     }
 

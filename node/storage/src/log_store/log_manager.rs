@@ -178,6 +178,10 @@ impl LogStoreWrite for LogManager {
         // TODO(zz): Should we validate received tx?
         self.append_subtree_list(tx.merkle_nodes.clone())?;
         self.commit_merkle(tx.seq)?;
+        debug!(
+            "commit flow root: root={:?}",
+            self.pora_chunks_merkle.root()
+        );
 
         if let Some(old_tx_seq) = maybe_same_data_tx_seq {
             if self.check_tx_completed(old_tx_seq)? {

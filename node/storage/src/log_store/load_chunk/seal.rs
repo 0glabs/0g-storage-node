@@ -1,13 +1,14 @@
 use ethereum_types::H256;
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 use static_assertions::const_assert;
+use tracing::info;
 
 use zgs_seal;
 use zgs_spec::{SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
 use super::bitmap::WrappedBitmap;
 
-#[derive(DeriveEncode, DeriveDecode)]
+#[derive(Debug, DeriveEncode, DeriveDecode)]
 pub struct SealContextInfo {
     /// The context digest for this seal group
     context_digest: H256,
@@ -91,7 +92,7 @@ impl SealInfo {
 
         // 2. Compute the local end_seal_index
         let end_seal_index = global_end_seal_index - self.load_index * SEALS_PER_LOAD as u64;
-        let end_seal_index = std::cmp::min(end_seal_index as u16, SEALS_PER_LOAD as u16);
+        let end_seal_index = std::cmp::min(end_seal_index, SEALS_PER_LOAD as u64) as u16;
         let new_context = SealContextInfo {
             context_digest,
             end_seal_index,
@@ -105,6 +106,7 @@ impl SealInfo {
                 // Case 1: the new context is consistent with existing contexts (nothing to do)
             } else {
                 // Case 2: the new context should be inserted in the middle (may not happen)
+                info!(target: "seal", "Unusual case of updating: load_index {}, new_context {:?}, existing_context {:?}", self.load_index, new_context, existing_context);
                 self.seal_contexts.insert(insert_position, new_context);
             }
         } else {

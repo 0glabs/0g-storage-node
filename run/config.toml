@@ -19,13 +19,16 @@ rpc_listen_address = "0.0.0.0:5678"
 
 log_config_file = "log_config"
 
-blockchain_rpc_endpoint = "https://evmtestnet.confluxrpc.com"
+blockchain_rpc_endpoint = "https://rpc-testnet.0g.ai"
 
-log_contract_address = "0xcb7afff6f048ec1fb033aa7b495ed0dd932c8656"
-mine_contract_address = "0x0d0d21020d04621479489f9ebde9a0373efbb838"
+log_contract_address = "0x22C1CaF8cbb671F220789184fda68BfD7eaA2eE1"
+mine_contract_address = "0x8B9221eE2287aFBb34A7a1Ef72eB00fdD853FFC2"
 
-log_sync_start_block_number = 134253180
+log_sync_start_block_number = 512567
 log_page_size = 999
+
+# miner_id = "<hex64_without_0x_prefix>"
+# miner_key = ""
 
 # [sync]
 # auto_sync_enabled = false

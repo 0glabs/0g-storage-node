@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = { version = "=1.0.58", features = ["backtrace"] }
+anyhow = { version = "1.0.58", features = ["backtrace"] }
 shared_types = { path = "../shared_types" }
 storage = { path = "../storage" }
 task_executor = { path = "../../common/task_executor" }
