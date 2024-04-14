@@ -188,7 +188,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             self.layers[0][index] = leaf;
             self.recompute_after_fill_leaves(index, index + 1);
         } else if self.layers[0][index] != leaf {
-            panic!("Fill with invalid leaf")
+            panic!(
+                "Fill with invalid leaf, index={} was={:?} get={:?}",
+                index, self.layers[0][index], leaf
+            );
         }
     }
 
