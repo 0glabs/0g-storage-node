@@ -16,6 +16,10 @@ DEFAULT_PORT_RANGE = 500
 
 CONFLUX_BINARY = "conflux.exe" if is_windows_platform() else "conflux"
 EVMOS_BINARY = "evmosd.exe" if is_windows_platform() else "evmosd"
+CLIENT_BINARY = "0g-storage-client.exe" if is_windows_platform() else "0g-storage-client"
+
+EVMOS_GIT_REV = "2ef76f6c9bdd73cd15dabd7397492dbebc311f98"
+CLI_GIT_REV = "1d09ec4f0b9c27428b2357de46b66e8c231b74df"
 
 def print_testcase_result(color, glyph, script, start_time):
     print(color[1] + glyph + " Testcase " + script + "\telapsed: " + str(int(time.time() - start_time)) + " seconds" + color[0], flush=True)
@@ -78,9 +82,22 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
         dir=tmp_dir,
         binary_name=EVMOS_BINARY,
         github_url="https://github.com/0glabs/0g-evmos.git",
+        git_rev=EVMOS_GIT_REV,
         build_cmd="make install; cp $(go env GOPATH)/bin/evmosd .",
         compiled_relative_path=[],
     )
+
+    # Build 0g-storage-client binary if absent
+    build_from_github(
+        dir=tmp_dir,
+        binary_name=CLIENT_BINARY,
+        github_url="https://github.com/0glabs/0g-storage-client.git",
+        git_rev=CLI_GIT_REV,
+        build_cmd="go build",
+        compiled_relative_path=[],
+    )
+
+    
 
     start_time = time.time()
 
@@ -156,9 +173,16 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
             print(c)
         sys.exit(1)
 
-def build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: str, compiled_relative_path: list[str]) -> bool:
+def build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: str, compiled_relative_path: list[str], git_rev = None) -> bool:
+    if git_rev is not None:
+        versioned_binary_name = f"{binary_name}_{git_rev}"
+    else:
+        versioned_binary_name = binary_name
+    
     binary_path = os.path.join(dir, binary_name)
-    if os.path.exists(binary_path):
+    versioned_binary_path = os.path.join(dir, versioned_binary_name)
+    if os.path.exists(versioned_binary_path):
+        create_sym_link(versioned_binary_name, binary_name, dir)
         return False
     
     start_time = time.time()
@@ -168,17 +192,19 @@ def build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: st
     code_tmp_dir = os.path.join(dir, code_tmp_dir_name)
     if os.path.exists(code_tmp_dir):
         shutil.rmtree(code_tmp_dir)
-    clone_command = "git clone " + github_url + " " + code_tmp_dir
-    os.system(clone_command)
+    os.system(f"git clone {github_url} {code_tmp_dir}")
 
     # build binary
     origin_path = os.getcwd()
     os.chdir(code_tmp_dir)
+    if git_rev is not None:
+        os.system(f"git checkout {git_rev}")
     os.system(build_cmd)
 
     # copy compiled binary to right place
     compiled_binary = os.path.join(code_tmp_dir, *compiled_relative_path, binary_name)
-    shutil.copyfile(compiled_binary, binary_path)
+    shutil.copyfile(compiled_binary, versioned_binary_path)
+    create_sym_link(versioned_binary_name, binary_name, dir)
 
     if not is_windows_platform():
         st = os.stat(binary_path)
@@ -191,3 +217,21 @@ def build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: st
     print("Completed to build binary " + binary_name + ", Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
 
     return True
+
+def create_sym_link(src, dst, path = None):
+    if src == dst:
+        return
+    
+    origin_path = os.getcwd()
+    if path is not None:
+        os.chdir(path)
+
+    if os.path.exists(dst):
+        if os.path.isdir(dst):
+            shutil.rmtree(dst)
+        else:
+            os.remove(dst)
+
+    os.symlink(src, dst)
+
+    os.chdir(origin_path)

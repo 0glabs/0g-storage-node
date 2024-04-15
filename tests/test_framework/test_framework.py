@@ -66,7 +66,7 @@ class TestFramework:
             root_dir, "target", "release", "zgs_node" + binary_ext
         )
         self.__default_zgs_cli_binary__ = os.path.join(
-            root_dir, "target", "0g-storage-client"  + binary_ext
+            tests_dir, "tmp", "0g-storage-client"  + binary_ext
         )
 
     def __setup_blockchain_node(self):
