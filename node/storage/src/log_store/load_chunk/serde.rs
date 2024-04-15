@@ -45,7 +45,7 @@ impl Decode for EntryBatchData {
                 IncompleteData::from_ssz_bytes(&bytes[1..])?,
             )),
             unknown => Err(DecodeError::BytesInvalid(format!(
-                "Unrecognized EntryBatchData indentifier {}",
+                "Unrecognized EntryBatchData identifier {}",
                 unknown
             ))),
         }

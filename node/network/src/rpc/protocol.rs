@@ -102,7 +102,7 @@ pub enum Version {
     V1,
 }
 
-/// RPC Encondings supported.
+/// RPC Encodings supported.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Encoding {
     SSZSnappy,

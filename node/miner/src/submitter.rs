@@ -141,7 +141,7 @@ impl Submitter {
                 SUBMISSION_RETIES
             ))?;
 
-        info!("Submit PoRA sucess");
+        info!("Submit PoRA success");
         debug!("Receipt: {:?}", receipt);
 
         Ok(())
