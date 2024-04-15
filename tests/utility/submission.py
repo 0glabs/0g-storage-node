@@ -100,7 +100,7 @@ def create_segment_node(data, offset, batch, size):
         end = min(offset + size, i + batch)
 
         if start >= n:
-            tree.add_leaf(Leaf(segment_root(b"\x01" * (end - start))))
+            tree.add_leaf(Leaf(segment_root(b"\x00" * (end - start))))
         elif end > n:
             tree.add_leaf(Leaf(segment_root(data[start:] + b"\x00" * (end - n))))
         else:
@@ -164,7 +164,7 @@ def generate_merkle_tree_by_batch(data):
             tree.add_leaf(
                 Leaf(
                     segment_root(
-                        b"\x01" * ENTRY_SIZE * min(PORA_CHUNK_SIZE, padded_chunks - i)
+                        b"\x00" * ENTRY_SIZE * min(PORA_CHUNK_SIZE, padded_chunks - i)
                     )
                 )
             )

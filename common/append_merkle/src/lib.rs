@@ -9,7 +9,9 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::warn;
 
-pub use crate::merkle_tree::{Algorithm, HashElement, MerkleTreeInitialData, MerkleTreeRead};
+pub use crate::merkle_tree::{
+    Algorithm, HashElement, MerkleTreeInitialData, MerkleTreeRead, ZERO_HASHES,
+};
 pub use proof::{Proof, RangeProof};
 pub use sha3::Sha3Algorithm;
 
