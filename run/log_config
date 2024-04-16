@@ -1,1 +1,1 @@
-debug
+debug,hyper=info,h2=info
