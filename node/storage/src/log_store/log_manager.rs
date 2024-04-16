@@ -535,12 +535,19 @@ impl LogManager {
                                 + previous_tx.num_entries() as u64)
                                 / PORA_CHUNK_SIZE as u64)
                                 as usize;
-                            assert!(current_len > expected_len);
-                            while let Some((subtree_depth, _)) = initial_data.subtree_list.pop() {
-                                current_len -= 1 << (subtree_depth - 1);
-                                if current_len == expected_len {
-                                    break;
+                            if current_len > expected_len {
+                                while let Some((subtree_depth, _)) = initial_data.subtree_list.pop()
+                                {
+                                    current_len -= 1 << (subtree_depth - 1);
+                                    if current_len == expected_len {
+                                        break;
+                                    }
                                 }
+                            } else {
+                                warn!(
+                                    "revert last tx with no-op: {} {}",
+                                    current_len, expected_len
+                                );
                             }
                             assert_eq!(current_len, expected_len);
                             while let Some((index, h)) = initial_data.known_leaves.pop() {

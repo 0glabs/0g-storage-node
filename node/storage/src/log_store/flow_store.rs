@@ -395,11 +395,11 @@ impl FlowDBStore {
         for r in self.kvdb.iter(COL_ENTRY_BATCH_ROOT) {
             let (index_bytes, root_bytes) = r?;
             let (batch_index, subtree_depth) = decode_batch_root_key(index_bytes.as_ref())?;
-            debug!(
-                "load root depth={}, index expected={} get={}",
-                subtree_depth, expected_index, batch_index
-            );
             let root = DataRoot::from_slice(root_bytes.as_ref());
+            debug!(
+                "load root depth={}, index expected={} get={} root={:?}",
+                subtree_depth, expected_index, batch_index, root,
+            );
             if subtree_depth == 1 {
                 if range_root.is_none() {
                     // This is expected to be the next leaf.

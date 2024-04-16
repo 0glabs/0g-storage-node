@@ -14,7 +14,7 @@ build_config! {
     (network_enr_udp_port, (Option<u16>), None)
     (network_libp2p_port, (u16), 1234)
     (network_discovery_port, (u16), 1234)
-    (network_target_peers, (usize), 3)
+    (network_target_peers, (usize), 50)
     (network_boot_nodes, (Vec<String>), vec![])
     (network_libp2p_nodes, (Vec<String>), vec![])
     (network_private, (bool), false)

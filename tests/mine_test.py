@@ -14,6 +14,7 @@ class MineTest(TestFramework):
             "miner_id": MINER_ID,
             "miner_key": GENESIS_PRIV_KEY,
         }
+        self.mine_period = 15
 
     def submit_data(self, item, size):
         submissions_before = self.contract.num_submissions()
@@ -40,20 +41,20 @@ class MineTest(TestFramework):
         self.submit_data(b"\x11", 2000)
 
         self.log.info("Wait for the first mine context release")
-        wait_until(lambda: int(blockchain.eth_blockNumber(), 16) > 100, timeout=180)
+        wait_until(lambda: int(blockchain.eth_blockNumber(), 16) > self.mine_period, timeout=180)
 
         self.log.info("Wait for the first mine answer")
         wait_until(lambda: self.mine_contract.last_mined_epoch() == 1)
 
         self.log.info("Wait for the second mine context release")
-        wait_until(lambda: int(blockchain.eth_blockNumber(), 16) > 200, timeout=180)
+        wait_until(lambda: int(blockchain.eth_blockNumber(), 16) > 2 * self.mine_period, timeout=180)
 
         self.log.info("Wait for the second mine answer")
         wait_until(lambda: self.mine_contract.last_mined_epoch() == 2)
 
         self.nodes[0].miner_stop()
         self.log.info("Wait for the third mine context release")
-        wait_until(lambda: int(blockchain.eth_blockNumber(), 16) > 307, timeout=180)
+        wait_until(lambda: int(blockchain.eth_blockNumber(), 16) > 3 * self.mine_period, timeout=180)
         self.log.info("Submit the second data chunk")
         self.submit_data(b"\x22", 2000)
         # Now the storage node should have the latest flow, but the mining context is using an old one.
@@ -64,4 +65,4 @@ class MineTest(TestFramework):
 
 
 if __name__ == "__main__":
-    MineTest(blockchain_node_type=BlockChainNodeType.BSC).main()
+    MineTest(blockchain_node_type=BlockChainNodeType.Evmos).main()
