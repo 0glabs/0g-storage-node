@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from test_framework.blockchain_node import BlockChainNodeType
 from test_framework.test_framework import TestFramework
 from config.node_config import MINER_ID, GENESIS_PRIV_KEY
 from utility.submission import create_submission, submit_data
@@ -86,4 +85,4 @@ class MineTest(TestFramework):
 
 
 if __name__ == "__main__":
-    MineTest(blockchain_node_type=BlockChainNodeType.Evmos).main()
+    MineTest().main()

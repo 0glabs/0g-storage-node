@@ -77,7 +77,7 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
     build_from_github(
         dir=tmp_dir,
         binary_name=EVMOS_BINARY,
-        github_url="https://github.com/0glabs/0g-evmos.git",
+        github_url="-b testnet https://github.com/0glabs/0g-evmos.git",
         build_cmd="make install; cp $(go env GOPATH)/bin/evmosd .",
         compiled_relative_path=[],
     )
