@@ -1,13 +1,15 @@
 use crate::error;
+use append_merkle::ZERO_HASHES;
 use jsonrpsee::core::RpcResult;
 use merkle_light::hash::Algorithm;
-use merkle_light::merkle::MerkleTree;
+use merkle_light::merkle::{log2_pow2, next_pow2, MerkleTree};
 use merkle_tree::RawLeafSha3Algorithm;
 use serde::{Deserialize, Serialize};
 use shared_types::{
     compute_padded_chunk_size, compute_segment_size, DataRoot, FileProof, Transaction, CHUNK_SIZE,
 };
 use std::hash::Hasher;
+use storage::log_store::log_manager::bytes_to_entries;
 use storage::H256;
 
 const ZERO_HASH: [u8; 32] = [
@@ -132,7 +134,12 @@ impl SegmentWithProof {
         MerkleTree::<_, RawLeafSha3Algorithm>::new(hash_data).root()
     }
 
-    fn validate_proof(&self, num_segments: usize, expected_data_length: usize) -> RpcResult<()> {
+    fn validate_proof(
+        &self,
+        num_segments: usize,
+        chunks_per_segment: usize,
+        expected_data_length: usize,
+    ) -> RpcResult<()> {
         // Validate proof data format at first.
         if self.proof.path.is_empty() {
             if self.proof.lemma.len() != 1 {
@@ -162,6 +169,19 @@ impl SegmentWithProof {
             return Err(error::invalid_params("proof", "validation failed"));
         }
 
+        let chunks_for_file = bytes_to_entries(self.file_size as u64) as usize;
+        let (segments_for_file, _) = compute_segment_size(chunks_for_file, chunks_per_segment);
+        if !self.validate_rear_padding(
+            num_segments,
+            segments_for_file,
+            log2_pow2(chunks_per_segment),
+        ) {
+            return Err(error::invalid_params(
+                "proof",
+                "invalid proof node value in the padding range",
+            ));
+        }
+
         Ok(())
     }
 
@@ -185,8 +205,45 @@ impl SegmentWithProof {
             expected_data_length
         );
 
-        self.validate_proof(segments_for_proof, expected_data_length)?;
+        self.validate_proof(segments_for_proof, chunks_per_segment, expected_data_length)?;
         Ok(())
+    }
+
+    fn validate_rear_padding(
+        &self,
+        num_segments: usize,
+        num_segments_for_file: usize,
+        segment_tree_depth: usize,
+    ) -> bool {
+        let mut left_chunk_count = num_segments;
+        let mut proof_position = 0;
+        for (i, is_left) in self.proof.path.iter().rev().enumerate() {
+            let subtree_size = next_pow2(left_chunk_count) >> 1;
+            if !is_left {
+                proof_position += subtree_size;
+                left_chunk_count -= subtree_size;
+            } else {
+                // The proof node is in the right, so it's possible to be in the rear padding range.
+                left_chunk_count = subtree_size;
+                // If all the data within the proof node range is padded, its value should match
+                // `ZERO_HASHES`.
+                if proof_position + subtree_size >= num_segments_for_file {
+                    let subtree_depth = log2_pow2(subtree_size) + segment_tree_depth;
+                    if self.proof.lemma[self.proof.lemma.len() - 2 - i]
+                        != ZERO_HASHES[subtree_depth]
+                    {
+                        warn!(
+                            "invalid proof in the padding range: index={} get={:?} expected={:?}",
+                            i,
+                            self.proof.lemma[self.proof.lemma.len() - 2 - i],
+                            ZERO_HASHES[subtree_depth]
+                        );
+                        return false;
+                    }
+                }
+            }
+        }
+        true
     }
 
     /// Returns the index of first chunk in the segment.
