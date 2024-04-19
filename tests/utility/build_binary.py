@@ -34,7 +34,7 @@ def build_bsc(dir: str) -> bool:
         asset_name=asset_name,
     )
 
-def build_emvos(dir: str) -> bool:
+def build_evmos(dir: str) -> bool:
     return __build_from_github(
         dir=dir,
         binary_name="evmosd.exe" if is_windows_platform() else "evmosd",

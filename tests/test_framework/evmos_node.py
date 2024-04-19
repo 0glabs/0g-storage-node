@@ -4,6 +4,7 @@ import tempfile
 
 from test_framework.blockchain_node import BlockChainNodeType, BlockchainNode
 from utility.utils import blockchain_rpc_port, arrange_port
+from utility.build_binary import build_evmos
 
 EVMOS_PORT_CATEGORY_WS = 0
 EVMOS_PORT_CATEGORY_P2P = 1
@@ -45,6 +46,9 @@ class EvmosNode(BlockchainNode):
         log,
         rpc_timeout=10,
     ):
+        if not os.path.exists(binary):
+            build_evmos(os.path.dirname(binary))
+
         data_dir = os.path.join(root_dir, "evmosd", "node" + str(index))
         rpc_url = "http://127.0.0.1:%s" % blockchain_rpc_port(index)
 
