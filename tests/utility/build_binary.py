@@ -49,6 +49,8 @@ def __build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: 
     if os.path.exists(binary_path):
         return False
     
+    print("Begin to build binary from github: %s" % binary_name, flush=True)
+    
     start_time = time.time()
     
     # clone code from github to a temp folder
@@ -76,15 +78,16 @@ def __build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: 
 
     shutil.rmtree(code_tmp_dir, ignore_errors=True)
 
-    print("Completed to build binary " + binary_name + ", Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
+    print("Completed to build binary, Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
 
     return True
 
 def __download_from_github(dir: str, binary_name: str, github_url: str, asset_name: str) -> bool:
     binary_path = os.path.join(dir, binary_name)
-    print("binary path:", binary_path)
     if os.path.exists(binary_path):
         return False
+    
+    print("Begin to download binary from github: %s" % binary_name, flush=True)
     
     start_time = time.time()
 
@@ -106,6 +109,6 @@ def __download_from_github(dir: str, binary_name: str, github_url: str, asset_na
     
     wait_until(lambda: os.access(binary_path, os.X_OK), timeout=120)
 
-    print("Completed to download binary " + binary_name + ", Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
+    print("Completed to download binary, Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
 
     return True
