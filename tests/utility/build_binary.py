@@ -45,6 +45,9 @@ def build_evmos(dir: str) -> bool:
 
 
 def __build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: str, compiled_relative_path: list[str]) -> bool:
+    if not os.path.exists(dir):
+        os.makedirs(dir, exist_ok=True)
+
     binary_path = os.path.join(dir, binary_name)
     if os.path.exists(binary_path):
         return False
@@ -83,6 +86,9 @@ def __build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: 
     return True
 
 def __download_from_github(dir: str, binary_name: str, github_url: str, asset_name: str) -> bool:
+    if not os.path.exists(dir):
+        os.makedirs(dir, exist_ok=True)
+
     binary_path = os.path.join(dir, binary_name)
     if os.path.exists(binary_path):
         return False
