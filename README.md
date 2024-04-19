@@ -65,12 +65,6 @@ or, run any single test, e.g.
 python sync_test.py
 ```
 
-### Troubleshooting
-
-1. Test failed due to blockchain full node rpc inaccessible.
-   * Traceback: `node.wait_for_rpc_connection()`
-   * Solution: unset the `http_proxy` and `https_proxy` environment variables if configured.
-
 ## Contributing
 
 To make contributions to the project, please follow the guidelines [here](contributing.md).

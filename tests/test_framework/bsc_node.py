@@ -1,8 +1,5 @@
 import os
-import platform
-import requests
 import shutil
-import stat
 
 from config.node_config import BSC_CONFIG
 from eth_utils import encode_hex
@@ -11,9 +8,9 @@ from test_framework.blockchain_node import BlockChainNodeType, BlockchainNode
 from utility.utils import (
     blockchain_p2p_port,
     blockchain_rpc_port,
-    is_windows_platform,
     wait_until,
 )
+from utility.build_binary import build_bsc
 
 __file_path__ = os.path.dirname(os.path.realpath(__file__))
 
@@ -29,6 +26,9 @@ class BSCNode(BlockchainNode):
         log,
         rpc_timeout=10,
     ):
+        if not os.path.exists(binary):
+            build_bsc(os.path.dirname(binary))
+
         local_conf = BSC_CONFIG.copy()
         indexed_config = {
             "HTTPPort": blockchain_rpc_port(index),
@@ -46,20 +46,6 @@ class BSCNode(BlockchainNode):
         )
         self.binary = binary
 
-        if not os.path.exists(self.binary):
-            log.info("binary does not exist")
-            dir_name = os.path.dirname(self.binary)
-            if not os.path.exists(dir_name):
-                os.makedirs(dir_name, exist_ok=True)
-
-            try:
-                with open(f"{self.binary}", "xb") as f:
-                    self.__try_download_node(f, log)
-            except FileExistsError:
-                log.info("Binary is alrady under downloading")
-
-        wait_until(lambda: os.access(f"{self.binary}", os.X_OK), timeout=120)
-
         self.node_id = encode_hex(priv_to_addr(ec_random_keys()[0]))
 
         super().__init__(
@@ -73,42 +59,6 @@ class BSCNode(BlockchainNode):
             BlockChainNodeType.BSC,
             rpc_timeout,
         )
-
-    def __try_download_node(self, f, log):
-        url = "https://api.github.com/repos/{}/{}/releases/79485895".format(
-            "bnb-chain", "bsc"
-        )
-        req = requests.get(url)
-        if req.ok:
-            asset_name = self.__get_asset_name()
-
-            url = ""
-            for asset in req.json()["assets"]:
-                if asset["name"].lower() == asset_name:
-                    url = asset["browser_download_url"]
-                    break
-
-            if url:
-                log.info("Try to download geth from %s", url)
-                f.write(requests.get(url).content)
-                f.close()
-
-                if not is_windows_platform():
-                    st = os.stat(self.binary)
-                    os.chmod(self.binary, st.st_mode | stat.S_IEXEC)
-        else:
-            log.info("Request failed with %s", req)
-
-    def __get_asset_name(self):
-        sys = platform.system().lower()
-        if sys == "linux":
-            return "geth_linux"
-        elif sys == "windows":
-            return "geth_windows.exe"
-        elif sys == "darwin":
-            return "geth_mac"
-        else:
-            raise RuntimeError("Unable to recognize platform")
 
     def start(self):
         self.args = [
