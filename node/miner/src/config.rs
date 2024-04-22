@@ -21,6 +21,7 @@ pub struct MinerConfig {
 pub type MineServiceMiddleware = SignerMiddleware<Provider<Http>, LocalWallet>;
 
 impl MinerConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         miner_id: Option<H256>,
         miner_key: Option<H256>,
