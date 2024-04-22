@@ -18,6 +18,7 @@ from utility.utils import (
     blockchain_rpc_port_core,
     wait_until,
 )
+from utility.build_binary import build_conflux
 from web3.exceptions import TransactionNotFound
 
 
@@ -32,6 +33,9 @@ class ConfluxNode(BlockchainNode):
         log,
         rpc_timeout=10,
     ):
+        if not os.path.exists(binary):
+            build_conflux(os.path.dirname(binary))
+
         local_conf = CONFLUX_CONFIG.copy()
         indexed_config = {
             "jsonrpc_http_eth_port": blockchain_rpc_port(index),

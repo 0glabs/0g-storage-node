@@ -35,8 +35,7 @@ TEST_EXIT_FAILED = 1
 class TestFramework:
     def __init__(self, blockchain_node_type=BlockChainNodeType.Evmos):
         if "http_proxy" in os.environ:
-            # Print a warning message in yellow color
-            print("\n\033[93m ⚠️   Warning: You've set the environment variable 'http_proxy', which might lead to testing issues.\033[0m\n")
+            del os.environ["http_proxy"]
 
         self.num_blockchain_nodes = None
         self.num_nodes = None

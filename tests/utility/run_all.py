@@ -3,23 +3,14 @@ import os
 import time
 import subprocess
 import sys
-import shutil
-import stat
 
 from concurrent.futures import ProcessPoolExecutor
 
-from utility.utils import is_windows_platform
+from utility.build_binary import build_conflux, build_bsc, build_evmos, build_cli
 
 DEFAULT_PORT_MIN = 11000
 DEFAULT_PORT_MAX = 65535
 DEFAULT_PORT_RANGE = 500
-
-CONFLUX_BINARY = "conflux.exe" if is_windows_platform() else "conflux"
-EVMOS_BINARY = "evmosd.exe" if is_windows_platform() else "evmosd"
-CLIENT_BINARY = "0g-storage-client.exe" if is_windows_platform() else "0g-storage-client"
-
-EVMOS_GIT_REV = "2ef76f6c9bdd73cd15dabd7397492dbebc311f98"
-CLI_GIT_REV = "1d09ec4f0b9c27428b2357de46b66e8c231b74df"
 
 def print_testcase_result(color, glyph, script, start_time):
     print(color[1] + glyph + " Testcase " + script + "\telapsed: " + str(int(time.time() - start_time)) + " seconds" + color[0], flush=True)
@@ -68,36 +59,12 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
     if not os.path.exists(tmp_dir):
         os.makedirs(tmp_dir, exist_ok=True)
 
-    # Build conflux binary if absent
-    build_from_github(
-        dir=tmp_dir,
-        binary_name=CONFLUX_BINARY,
-        github_url="https://github.com/Conflux-Chain/conflux-rust.git",
-        build_cmd="cargo build --release --bin conflux",
-        compiled_relative_path=["target", "release"],
-    )
 
-    # Build evmos binary if absent
-    build_from_github(
-        dir=tmp_dir,
-        binary_name=EVMOS_BINARY,
-        github_url="https://github.com/0glabs/0g-evmos.git",
-        git_rev=EVMOS_GIT_REV,
-        build_cmd="make install; cp $(go env GOPATH)/bin/evmosd .",
-        compiled_relative_path=[],
-    )
-
-    # Build 0g-storage-client binary if absent
-    build_from_github(
-        dir=tmp_dir,
-        binary_name=CLIENT_BINARY,
-        github_url="https://github.com/0glabs/0g-storage-client.git",
-        git_rev=CLI_GIT_REV,
-        build_cmd="go build",
-        compiled_relative_path=[],
-    )
-
-    
+    # Build blockchain binaries if absent
+    build_conflux(tmp_dir)
+    build_bsc(tmp_dir)
+    build_evmos(tmp_dir)
+    build_cli(tmp_dir)
 
     start_time = time.time()
 
@@ -173,65 +140,3 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
             print(c)
         sys.exit(1)
 
-def build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: str, compiled_relative_path: list[str], git_rev = None) -> bool:
-    if git_rev is not None:
-        versioned_binary_name = f"{binary_name}_{git_rev}"
-    else:
-        versioned_binary_name = binary_name
-    
-    binary_path = os.path.join(dir, binary_name)
-    versioned_binary_path = os.path.join(dir, versioned_binary_name)
-    if os.path.exists(versioned_binary_path):
-        create_sym_link(versioned_binary_name, binary_name, dir)
-        return False
-    
-    start_time = time.time()
-    
-    # clone code from github to a temp folder
-    code_tmp_dir_name = (binary_name[:-4] if is_windows_platform() else binary_name) + "_tmp"
-    code_tmp_dir = os.path.join(dir, code_tmp_dir_name)
-    if os.path.exists(code_tmp_dir):
-        shutil.rmtree(code_tmp_dir)
-    os.system(f"git clone {github_url} {code_tmp_dir}")
-
-    # build binary
-    origin_path = os.getcwd()
-    os.chdir(code_tmp_dir)
-    if git_rev is not None:
-        os.system(f"git checkout {git_rev}")
-    os.system(build_cmd)
-
-    # copy compiled binary to right place
-    compiled_binary = os.path.join(code_tmp_dir, *compiled_relative_path, binary_name)
-    shutil.copyfile(compiled_binary, versioned_binary_path)
-    create_sym_link(versioned_binary_name, binary_name, dir)
-
-    if not is_windows_platform():
-        st = os.stat(binary_path)
-        os.chmod(binary_path, st.st_mode | stat.S_IEXEC)
-
-    os.chdir(origin_path)
-
-    shutil.rmtree(code_tmp_dir, ignore_errors=True)
-
-    print("Completed to build binary " + binary_name + ", Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
-
-    return True
-
-def create_sym_link(src, dst, path = None):
-    if src == dst:
-        return
-    
-    origin_path = os.getcwd()
-    if path is not None:
-        os.chdir(path)
-
-    if os.path.exists(dst):
-        if os.path.isdir(dst):
-            shutil.rmtree(dst)
-        else:
-            os.remove(dst)
-
-    os.symlink(src, dst)
-
-    os.chdir(origin_path)
