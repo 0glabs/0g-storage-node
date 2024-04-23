@@ -40,6 +40,24 @@ pub struct AnswerWithoutProof {
 }
 
 impl<'a> Miner<'a> {
+    pub async fn batch_iteration(
+        &self,
+        nonce: H256,
+        batch_size: usize,
+    ) -> Option<AnswerWithoutProof> {
+        for i in 0..batch_size {
+            let bytes = i.to_ne_bytes();
+            let mut current_nonce = nonce;
+            for (pos, b) in bytes.into_iter().enumerate() {
+                current_nonce.0[pos] ^= b;
+            }
+            if let Some(answer) = self.iteration(current_nonce).await {
+                return Some(answer);
+            }
+        }
+        None
+    }
+
     pub async fn iteration(&self, nonce: H256) -> Option<AnswerWithoutProof> {
         let (scratch_pad, recall_seed) = self.make_scratch_pad(&nonce);
 

@@ -14,11 +14,14 @@ pub struct MinerConfig {
     pub(crate) mine_address: Address,
     pub(crate) flow_address: Address,
     pub(crate) submission_gas: Option<U256>,
+    pub(crate) cpu_percentage: u64,
+    pub(crate) iter_batch: usize,
 }
 
 pub type MineServiceMiddleware = SignerMiddleware<Provider<Http>, LocalWallet>;
 
 impl MinerConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         miner_id: Option<H256>,
         miner_key: Option<H256>,
@@ -26,6 +29,8 @@ impl MinerConfig {
         mine_address: Address,
         flow_address: Address,
         submission_gas: Option<U256>,
+        cpu_percentage: u64,
+        iter_batch: usize,
     ) -> Option<MinerConfig> {
         match (miner_id, miner_key) {
             (Some(miner_id), Some(miner_key)) => Some(MinerConfig {
@@ -35,6 +40,8 @@ impl MinerConfig {
                 mine_address,
                 flow_address,
                 submission_gas,
+                cpu_percentage,
+                iter_batch,
             }),
             _ => None,
         }

@@ -1,8 +1,10 @@
 use contract_interface::zgs_flow::MineContext;
 use ethereum_types::{H256, U256};
 use rand::{self, Rng};
+use std::time;
 use task_executor::TaskExecutor;
 use tokio::sync::{broadcast, mpsc};
+use tokio::time::{sleep, Duration, Instant};
 
 use zgs_spec::{SECTORS_PER_LOAD, SECTORS_PER_MAX_MINING_RANGE, SECTORS_PER_PRICING};
 
@@ -23,6 +25,9 @@ pub struct PoraService {
     puzzle: Option<PoraPuzzle>,
     mine_range: CustomMineRange,
     miner_id: H256,
+
+    cpu_percentage: u64,
+    iter_batch: usize,
 }
 
 struct PoraPuzzle {
@@ -92,6 +97,8 @@ impl PoraService {
             mine_range,
             miner_id: config.miner_id,
             loader,
+            cpu_percentage: config.cpu_percentage,
+            iter_batch: config.iter_batch,
         };
         executor.spawn(async move { Box::pin(pora.start()).await }, "pora_master");
         mine_answer_receiver
@@ -100,6 +107,12 @@ impl PoraService {
     async fn start(mut self) {
         let mut mining_enabled = true;
         let mut channel_opened = true;
+
+        let cpu_percent: u64 = self.cpu_percentage;
+        let diastole = sleep(Duration::from_secs(0));
+        tokio::pin!(diastole);
+        // info!("CPU percent {}", cpu_percent);
+
         loop {
             tokio::select! {
                 biased;
@@ -139,14 +152,25 @@ impl PoraService {
                     }
                 }
 
-                _ = async {}, if mining_enabled && self.as_miner().is_some() => {
+                () = &mut diastole, if !diastole.is_elapsed() => {
+                }
+
+                _ = async {}, if mining_enabled && cpu_percent > 0 && self.as_miner().is_some() && diastole.is_elapsed()  => {
                     let nonce = H256(rand::thread_rng().gen());
                     let miner = self.as_miner().unwrap();
-                    if let Some(answer) = miner.iteration(nonce).await{
+
+                    let timer = time::Instant::now();
+
+                    if let Some(answer) = miner.batch_iteration(nonce, self.iter_batch).await {
                         debug!("Hit Pora answer {:?}", answer);
                         if self.mine_answer_sender.send(answer).is_err() {
                             warn!("Mine submitter channel closed");
                         }
+                    } else if cpu_percent < 100 {
+                        // 2^64 ns = 500 years
+                        let elapsed = timer.elapsed().as_nanos() as u64;
+                        let diastole_time = elapsed / cpu_percent * (100 - cpu_percent);
+                        diastole.as_mut().reset(Instant::now() + Duration::from_nanos(diastole_time));
                     }
                 }
             }
