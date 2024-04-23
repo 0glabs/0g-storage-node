@@ -6,7 +6,7 @@ import sys
 
 from concurrent.futures import ProcessPoolExecutor
 
-from utility.build_binary import build_conflux, build_bsc, build_evmos
+from utility.build_binary import build_conflux, build_bsc, build_evmos, build_cli
 
 DEFAULT_PORT_MIN = 11000
 DEFAULT_PORT_MAX = 65535
@@ -59,10 +59,12 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
     if not os.path.exists(tmp_dir):
         os.makedirs(tmp_dir, exist_ok=True)
 
+
     # Build blockchain binaries if absent
     build_conflux(tmp_dir)
     build_bsc(tmp_dir)
     build_evmos(tmp_dir)
+    build_cli(tmp_dir)
 
     start_time = time.time()
 
@@ -137,3 +139,4 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
         for c in failed:
             print(c)
         sys.exit(1)
+

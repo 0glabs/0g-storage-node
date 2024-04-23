@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import traceback
+from pathlib import Path
 
 from eth_utils import encode_hex
 from test_framework.bsc_node import BSCNode
@@ -19,6 +20,7 @@ from test_framework.blockchain_node import BlockChainNodeType
 from test_framework.conflux_node import ConfluxNode, connect_sample_nodes
 from test_framework.evmos_node import EvmosNode, evmos_init_genesis
 from utility.utils import PortMin, is_windows_platform, wait_until
+from utility.build_binary import build_cli
 
 __file_path__ = os.path.dirname(os.path.realpath(__file__))
 
@@ -65,7 +67,7 @@ class TestFramework:
             root_dir, "target", "release", "zgs_node" + binary_ext
         )
         self.__default_zgs_cli_binary__ = os.path.join(
-            root_dir, "target", "0g-storage-client"  + binary_ext
+            tests_dir, "tmp", "0g-storage-client"  + binary_ext
         )
 
     def __setup_blockchain_node(self):
@@ -314,6 +316,15 @@ class TestFramework:
         self.log.addHandler(fh)
         self.log.addHandler(ch)
 
+    def _check_cli_binary(self):
+        if Path(self.cli_binary).absolute() == Path(self.__default_zgs_cli_binary__).absolute() and not os.path.exists(self.cli_binary):
+            dir = Path(self.cli_binary).parent.absolute()
+            build_cli(dir)
+        
+        assert os.path.exists(self.cli_binary), (
+            "zgs CLI binary not found: %s" % self.cli_binary
+        )
+
     def _upload_file_use_cli(
         self,
         blockchain_node_rpc_url,
@@ -322,9 +333,8 @@ class TestFramework:
         ionion_node_rpc_url,
         file_to_upload,
     ):
-        assert os.path.exists(self.cli_binary), (
-            "zgs CLI binary not found: %s" % self.cli_binary
-        )
+        self._check_cli_binary()
+        
         upload_args = [
             self.cli_binary,
             "upload",
