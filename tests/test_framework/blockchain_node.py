@@ -295,7 +295,7 @@ class BlockchainNode(TestNode):
             flow_contract, flow_contract_hash = deploy_contract("Flow", [book.address, mine_period, 0])
             self.log.debug("Flow deployed")
 
-            mine_contract, _ = deploy_contract("PoraMineTest", [book.address, 3])
+            mine_contract, _ = deploy_contract("PoraMineTest", [book.address, 0])
             self.log.debug("Mine deployed")
             self.log.info("All contracts deployed")
 
@@ -321,7 +321,7 @@ class BlockchainNode(TestNode):
             book, _ = deploy_contract("AddressBook", [flowAddress, marketAddress, rewardAddress, mineAddress]);
             self.log.debug("AddressBook deployed")
 
-            mine_contract, _ = deploy_contract("PoraMineTest", [book.address, 3])
+            mine_contract, _ = deploy_contract("PoraMineTest", [book.address, 0])
             deploy_contract("FixedPrice", [book.address, LIFETIME_MONTH])
             reward_contract, _ =deploy_contract("OnePoolReward", [book.address, LIFETIME_MONTH])
             flow_contract, flow_contract_hash = deploy_contract("FixedPriceFlow", [book.address, mine_period, 0])
