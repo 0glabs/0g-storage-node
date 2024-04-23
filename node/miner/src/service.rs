@@ -1,3 +1,4 @@
+use crate::miner_id::check_and_request_miner_id;
 use crate::sealer::Sealer;
 use crate::submitter::Submitter;
 use crate::{config::MinerConfig, mine::PoraService, watcher::MineContextWatcher};
@@ -30,6 +31,9 @@ impl MineService {
 
         let (msg_send, msg_recv) = broadcast::channel(1024);
 
+        let miner_id = check_and_request_miner_id(&config, &store, &provider).await?;
+        debug!("miner id setting complete.");
+
         let mine_context_receiver = MineContextWatcher::spawn(
             executor.clone(),
             msg_recv.resubscribe(),
@@ -43,6 +47,7 @@ impl MineService {
             mine_context_receiver,
             Arc::new(store.clone()),
             &config,
+            miner_id,
         );
 
         Submitter::spawn(
@@ -53,7 +58,7 @@ impl MineService {
             &config,
         );
 
-        Sealer::spawn(executor, provider, store, &config);
+        Sealer::spawn(executor, provider, store, &config, miner_id);
 
         debug!("Starting miner service");
 

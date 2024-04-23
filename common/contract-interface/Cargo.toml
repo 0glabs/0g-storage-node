@@ -11,4 +11,4 @@ ethers = "^2"
 serde_json = "1.0.82"
 
 [features]
-compile-contracts = []
+dev = []

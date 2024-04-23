@@ -82,6 +82,7 @@ impl PoraService {
         mine_context_receiver: mpsc::UnboundedReceiver<MineContextMessage>,
         loader: Arc<dyn PoraLoader>,
         config: &MinerConfig,
+        miner_id: H256,
     ) -> mpsc::UnboundedReceiver<AnswerWithoutProof> {
         let (mine_answer_sender, mine_answer_receiver) =
             mpsc::unbounded_channel::<AnswerWithoutProof>();
@@ -95,7 +96,7 @@ impl PoraService {
             msg_recv,
             puzzle: None,
             mine_range,
-            miner_id: config.miner_id,
+            miner_id,
             loader,
             cpu_percentage: config.cpu_percentage,
             iter_batch: config.iter_batch,

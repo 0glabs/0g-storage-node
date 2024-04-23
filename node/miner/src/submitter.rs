@@ -97,7 +97,7 @@ impl Submitter {
             mine_length: mine_answer.mining_length.into(),
             recall_position: mine_answer.recall_position.into(),
             seal_offset: mine_answer.seal_offset.into(),
-            sealed_context_digest: sealed_context_digest.digest, // TODO(kevin): wait for implementation of data sealing.
+            sealed_context_digest: sealed_context_digest.digest,
             sealed_data: unsafe { std::mem::transmute(mine_answer.sealed_data) },
             merkle_proof: flow_proof_to_pora_merkle_proof(flow_proof),
         };

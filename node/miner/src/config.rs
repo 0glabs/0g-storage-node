@@ -8,7 +8,7 @@ use ethers::signers::LocalWallet;
 use ethers::signers::Signer;
 
 pub struct MinerConfig {
-    pub(crate) miner_id: H256,
+    pub(crate) miner_id: Option<H256>,
     pub(crate) miner_key: H256,
     pub(crate) rpc_endpoint_url: String,
     pub(crate) mine_address: Address,
@@ -32,19 +32,16 @@ impl MinerConfig {
         cpu_percentage: u64,
         iter_batch: usize,
     ) -> Option<MinerConfig> {
-        match (miner_id, miner_key) {
-            (Some(miner_id), Some(miner_key)) => Some(MinerConfig {
-                miner_id,
-                miner_key,
-                rpc_endpoint_url,
-                mine_address,
-                flow_address,
-                submission_gas,
-                cpu_percentage,
-                iter_batch,
-            }),
-            _ => None,
-        }
+        miner_key.map(|miner_key| MinerConfig {
+            miner_id,
+            miner_key,
+            rpc_endpoint_url,
+            mine_address,
+            flow_address,
+            submission_gas,
+            cpu_percentage,
+            iter_batch,
+        })
     }
 
     pub(crate) async fn make_provider(&self) -> Result<MineServiceMiddleware, String> {

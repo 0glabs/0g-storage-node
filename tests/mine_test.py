@@ -10,10 +10,10 @@ class MineTest(TestFramework):
         self.num_blockchain_nodes = 1
         self.num_nodes = 1
         self.zgs_node_configs[0] = {
-            "miner_id": MINER_ID,
             "miner_key": GENESIS_PRIV_KEY,
         }
         self.mine_period = 15
+        self.launch_wait_seconds = 15
 
     def submit_data(self, item, size):
         submissions_before = self.contract.num_submissions()
