@@ -30,8 +30,8 @@ def evmos_init_genesis(binary: str, root_dir: str, num_nodes: int):
 
     ret = subprocess.run(
         args=["bash", shell_script, evmosd_dir, str(num_nodes), str(p2p_port_start)],
-        stdout=log_file,
-        stderr=log_file,
+        # stdout=log_file,
+        # stderr=log_file,
     )
 
     log_file.close()
