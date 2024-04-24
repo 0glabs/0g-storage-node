@@ -203,6 +203,7 @@ def __download_from_github(dir: str, binary_name: str, github_url: str, asset_na
     print("Completed to download binary, Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
 
     os.system(f"ls -lh {dir}")
-    os.system(f"{binary_name} version")
+    os.system(f"{binary_path} version")
+    os.system("uname -a")
 
     return True
