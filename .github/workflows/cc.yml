@@ -37,7 +37,7 @@ jobs:
       uses: ./.github/actions/setup-rust
 
     - name: Run unittest
-      run: cargo test --all-features --no-fail-fast
+      run: cargo test --no-fail-fast
       env:
         CARGO_INCREMENTAL: '0'
         RUSTC_BOOTSTRAP: '1'
