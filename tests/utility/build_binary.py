@@ -24,7 +24,7 @@ def build_conflux(dir: str) -> bool:
         dir=dir,
         binary_name=CONFLUX_BINARY,
         github_url=GITHUB_DOWNLOAD_URL, 
-        asset_name=__asset_name(CONFLUX_BINARY),
+        asset_name=__asset_name(CONFLUX_BINARY, zip=True),
     ):
         return True
 
