@@ -188,6 +188,7 @@ def __download_from_github(dir: str, binary_name: str, github_url: str, asset_na
         with open(asset_path, "xb") as f:
             f.write(content)
         shutil.unpack_archive(asset_path, dir)
+        assert os.path.exists(binary_path), f"Cannot find binary after unzip, binary = {binary_name}, asset = {asset_name}"
     else:
         with open(binary_path, "xb") as f:
             f.write(content)    
