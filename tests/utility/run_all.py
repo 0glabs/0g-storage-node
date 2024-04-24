@@ -59,6 +59,10 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
     if not os.path.exists(tmp_dir):
         os.makedirs(tmp_dir, exist_ok=True)
 
+    # Print out system information, e.g. processor, platform.
+    print("=========================================================", flush=True)
+    os.system("uname -a")
+    print("=========================================================", flush=True)
 
     # Build blockchain binaries if absent
     build_conflux(tmp_dir)
