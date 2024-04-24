@@ -196,6 +196,7 @@ def __download_from_github(dir: str, binary_name: str, github_url: str, asset_na
     if not is_windows_platform():
         st = os.stat(binary_path)
         os.chmod(binary_path, st.st_mode | stat.S_IEXEC)
+        print(f"Added x mod for binary {binary_path}")
     
     wait_until(lambda: os.access(binary_path, os.X_OK), timeout=120)
 
