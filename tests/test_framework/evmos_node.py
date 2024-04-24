@@ -11,8 +11,11 @@ EVMOS_PORT_CATEGORY_P2P = 1
 EVMOS_PORT_CATEGORY_RPC = 2
 EVMOS_PORT_CATEGORY_PPROF = 3
 
-def evmos_init_genesis(root_dir: str, num_nodes: int):
+def evmos_init_genesis(binary: str, root_dir: str, num_nodes: int):
     assert num_nodes > 0, "Invalid number of blockchain nodes: %s" % num_nodes
+
+    if not os.path.exists(binary):
+            build_evmos(os.path.dirname(binary))
 
     shell_script = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), # test_framework folder
