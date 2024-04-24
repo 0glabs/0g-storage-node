@@ -49,9 +49,6 @@ class EvmosNode(BlockchainNode):
         log,
         rpc_timeout=10,
     ):
-        if not os.path.exists(binary):
-            build_evmos(os.path.dirname(binary))
-
         data_dir = os.path.join(root_dir, "evmosd", "node" + str(index))
         rpc_url = "http://127.0.0.1:%s" % blockchain_rpc_port(index)
 
