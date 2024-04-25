@@ -54,4 +54,4 @@ jobs:
       run: |
         cd tests
         uname -a
-        python example_test.py
+        python test_all.py
