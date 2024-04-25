@@ -4,6 +4,7 @@ import shutil
 import stat
 import requests
 import platform
+from enum import Enum, unique
 
 from utility.utils import is_windows_platform, wait_until
 
@@ -18,15 +19,23 @@ CLIENT_BINARY = "0g-storage-client.exe" if is_windows_platform() else "0g-storag
 EVMOS_GIT_REV = "2ef76f6c9bdd73cd15dabd7397492dbebc311f98"
 CLI_GIT_REV = "1d09ec4f0b9c27428b2357de46b66e8c231b74df"
 
-def build_conflux(dir: str) -> bool:
+@unique
+class BuildBinaryResult(Enum):
+    AlreadyExists = 0
+    Installed = 1
+    NotInstalled = 2
+
+def build_conflux(dir: str) -> BuildBinaryResult:
     # Download or build conflux binary if absent
-    if __download_from_github(
+    result = __download_from_github(
         dir=dir,
         binary_name=CONFLUX_BINARY,
         github_url=GITHUB_DOWNLOAD_URL, 
         asset_name=__asset_name(CONFLUX_BINARY, zip=True),
-    ):
-        return True
+    )
+
+    if result == BuildBinaryResult.AlreadyExists or result == BuildBinaryResult.Installed:
+        return result
 
     return __build_from_github(
         dir=dir,
@@ -36,9 +45,9 @@ def build_conflux(dir: str) -> bool:
         compiled_relative_path=["target", "release"],
     )
 
-def build_bsc(dir: str) -> bool:
+def build_bsc(dir: str) -> BuildBinaryResult:
     # Download bsc binary if absent
-    downloaded = __download_from_github(
+    result = __download_from_github(
         dir=dir,
         binary_name=BSC_BINARY,
         github_url="https://api.github.com/repos/bnb-chain/bsc/releases/79485895",
@@ -47,19 +56,21 @@ def build_bsc(dir: str) -> bool:
 
     # Requires to download binary successfully, since it is not ready to build
     # binary from source code.
-    assert downloaded, "Cannot download download binary from github [%s]" % BSC_BINARY
+    assert result != BuildBinaryResult.NotInstalled, "Cannot download binary from github [%s]" % BSC_BINARY
 
-    return True
+    return result
 
-def build_evmos(dir: str) -> bool:
+def build_evmos(dir: str) -> BuildBinaryResult:
     # Download or build evmos binary if absent
-    if __download_from_github(
+    result = __download_from_github(
         dir=dir,
         binary_name=EVMOS_BINARY,
         github_url=GITHUB_DOWNLOAD_URL,
         asset_name=__asset_name(EVMOS_BINARY, zip=True),
-    ):
-        return True
+    )
+
+    if result == BuildBinaryResult.AlreadyExists or result == BuildBinaryResult.Installed:
+        return result
 
     return __build_from_github(
         dir=dir,
@@ -70,7 +81,7 @@ def build_evmos(dir: str) -> bool:
         compiled_relative_path=[],
     )
 
-def build_cli(dir: str) -> bool:
+def build_cli(dir: str) -> BuildBinaryResult:
     # Build 0g-storage-client binary if absent
     return __build_from_github(
         dir=dir,
@@ -93,17 +104,19 @@ def __asset_name(binary_name: str, zip: bool = False) -> str:
     else:
         raise RuntimeError("Unable to recognize platform")
 
-def __build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: str, compiled_relative_path: list[str], git_rev = None) -> bool:
-    if git_rev is not None:
-        versioned_binary_name = f"{binary_name}_{git_rev}"
-    else:
+def __build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: str, compiled_relative_path: list[str], git_rev = None) -> BuildBinaryResult:
+    if git_rev is None:
         versioned_binary_name = binary_name
+    elif binary_name.endswith(".exe"):
+        versioned_binary_name = binary_name.removesuffix(".exe") + f"_{git_rev}.exe"
+    else:
+        versioned_binary_name = f"{binary_name}_{git_rev}"
     
     binary_path = os.path.join(dir, binary_name)
     versioned_binary_path = os.path.join(dir, versioned_binary_name)
     if os.path.exists(versioned_binary_path):
         __create_sym_link(versioned_binary_name, binary_name, dir)
-        return False
+        return BuildBinaryResult.AlreadyExists
     
     start_time = time.time()
     
@@ -136,7 +149,7 @@ def __build_from_github(dir: str, binary_name: str, github_url: str, build_cmd: 
 
     print("Completed to build binary " + binary_name + ", Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
 
-    return True
+    return BuildBinaryResult.Installed
 
 def __create_sym_link(src, dst, path = None):
     if src == dst:
@@ -152,17 +165,21 @@ def __create_sym_link(src, dst, path = None):
         else:
             os.remove(dst)
 
-    os.symlink(src, dst)
+    # Windows requires admin priviledge, use copy instead.
+    if is_windows_platform():
+        shutil.copy(src, dst)
+    else:
+        os.symlink(src, dst)
 
     os.chdir(origin_path)
 
-def __download_from_github(dir: str, binary_name: str, github_url: str, asset_name: str) -> bool:
+def __download_from_github(dir: str, binary_name: str, github_url: str, asset_name: str) -> BuildBinaryResult:
     if not os.path.exists(dir):
         os.makedirs(dir, exist_ok=True)
 
     binary_path = os.path.join(dir, binary_name)
     if os.path.exists(binary_path):
-        return False
+        return BuildBinaryResult.AlreadyExists
     
     print("Begin to download binary from github: %s" % binary_name, flush=True)
     
@@ -178,7 +195,7 @@ def __download_from_github(dir: str, binary_name: str, github_url: str, asset_na
 
     if download_url is None:
         print(f"Cannot find asset by name {asset_name}", flush=True)
-        return False
+        return BuildBinaryResult.NotInstalled
     
     content = requests.get(download_url).content
 
@@ -201,4 +218,4 @@ def __download_from_github(dir: str, binary_name: str, github_url: str, asset_na
 
     print("Completed to download binary, Elapsed: " + str(int(time.time() - start_time)) + " seconds", flush=True)
 
-    return True
+    return BuildBinaryResult.Installed
