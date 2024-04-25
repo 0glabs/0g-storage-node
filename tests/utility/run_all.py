@@ -59,7 +59,6 @@ def run_all(test_dir: str, test_subdirs: list[str]=[], slow_tests: set[str]={}, 
     if not os.path.exists(tmp_dir):
         os.makedirs(tmp_dir, exist_ok=True)
 
-
     # Build blockchain binaries if absent
     build_conflux(tmp_dir)
     build_bsc(tmp_dir)

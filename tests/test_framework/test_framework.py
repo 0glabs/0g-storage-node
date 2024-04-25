@@ -72,7 +72,7 @@ class TestFramework:
 
     def __setup_blockchain_node(self):
         if self.blockchain_node_type == BlockChainNodeType.Evmos:
-            evmos_init_genesis(self.root_dir, self.num_blockchain_nodes)
+            evmos_init_genesis(self.blockchain_binary, self.root_dir, self.num_blockchain_nodes)
             self.log.info("Evmos genesis initialized for %s nodes" % self.num_blockchain_nodes)
 
         for i in range(self.num_blockchain_nodes):
