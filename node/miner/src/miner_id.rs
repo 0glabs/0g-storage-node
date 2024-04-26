@@ -85,7 +85,8 @@ async fn request_miner_id(
 ) -> Result<H256, String> {
     debug!("Requesting miner id on chain...");
 
-    let submission_call: ContractCall<_, _> = mine_contract.request_miner_id(beneficiary, 0);
+    let submission_call: ContractCall<_, _> =
+        mine_contract.request_miner_id(beneficiary, 0).legacy();
 
     let pending_tx = submission_call
         .send()

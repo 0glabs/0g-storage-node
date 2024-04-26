@@ -28,6 +28,13 @@ class BlockChainNodeType(Enum):
     BSC = 1
     Evmos = 2
 
+    def block_time(self):
+        if self == BlockChainNodeType.Conflux:
+            return 0.5
+        elif self == BlockChainNodeType.BSC:
+            return 0.25
+        else:
+            return 3.0
 
 @unique
 class NodeType(Enum):

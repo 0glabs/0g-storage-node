@@ -47,6 +47,7 @@ class TestFramework:
         self.blockchain_node_configs = {}
         self.zgs_node_configs = {}
         self.blockchain_node_type = blockchain_node_type
+        self.block_time = blockchain_node_type.block_time()
         self.enable_market = False
         self.mine_period = 100
         self.launch_wait_seconds = 1
