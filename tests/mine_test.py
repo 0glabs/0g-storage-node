@@ -13,7 +13,7 @@ class MineTest(TestFramework):
         self.zgs_node_configs[0] = {
             "miner_key": GENESIS_PRIV_KEY,
         }
-        self.mine_period = int(30 / self.block_time)
+        self.mine_period = int(45 / self.block_time)
         self.launch_wait_seconds = 15
 
     def submit_data(self, item, size):

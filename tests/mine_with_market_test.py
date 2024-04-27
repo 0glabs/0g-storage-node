@@ -18,7 +18,7 @@ class MineTest(TestFramework):
             "miner_key": GENESIS_PRIV_KEY,
         }
         self.enable_market = True
-        self.mine_period = int(40 / self.block_time)
+        self.mine_period = int(60 / self.block_time)
         self.launch_wait_seconds = 15
 
 
