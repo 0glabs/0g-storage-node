@@ -34,6 +34,7 @@ impl Sealer {
         provider: Arc<MineServiceMiddleware>,
         store: Arc<RwLock<dyn Store>>,
         config: &MinerConfig,
+        miner_id: H256,
     ) {
         let flow_contract = ZgsFlow::new(config.flow_address, provider);
         let sealer = Sealer {
@@ -41,7 +42,7 @@ impl Sealer {
             store,
             context_cache: Default::default(),
             last_context_flow_length: 0,
-            miner_id: config.miner_id,
+            miner_id,
         };
 
         executor.spawn(async move { Box::pin(sealer.start()).await }, "data_sealer");

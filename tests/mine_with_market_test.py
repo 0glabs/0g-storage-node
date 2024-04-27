@@ -3,6 +3,8 @@ from test_framework.test_framework import TestFramework
 from config.node_config import MINER_ID, GENESIS_PRIV_KEY
 from utility.submission import create_submission, submit_data
 from utility.utils import wait_until, assert_equal, assert_greater_than
+from test_framework.blockchain_node import BlockChainNodeType
+
 
 import math
 
@@ -13,11 +15,12 @@ class MineTest(TestFramework):
         self.num_blockchain_nodes = 1
         self.num_nodes = 1
         self.zgs_node_configs[0] = {
-            "miner_id": MINER_ID,
             "miner_key": GENESIS_PRIV_KEY,
         }
         self.enable_market = True
-        self.mine_period = 20
+        self.mine_period = int(60 / self.block_time)
+        self.launch_wait_seconds = 15
+
 
     def submit_data(self, item, size, no_submit = False):
         submissions_before = self.contract.num_submissions()

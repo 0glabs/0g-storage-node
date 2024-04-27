@@ -47,8 +47,10 @@ class TestFramework:
         self.blockchain_node_configs = {}
         self.zgs_node_configs = {}
         self.blockchain_node_type = blockchain_node_type
+        self.block_time = blockchain_node_type.block_time()
         self.enable_market = False
         self.mine_period = 100
+        self.launch_wait_seconds = 1
 
         # Set default binary path
         binary_ext = ".exe" if is_windows_platform() else ""
@@ -203,7 +205,9 @@ class TestFramework:
                 time.sleep(1)
             node.start()
 
-        time.sleep(1)
+        self.log.info("Wait the zgs_node launch for %d seconds", self.launch_wait_seconds)
+        time.sleep(self.launch_wait_seconds)
+        
         for node in self.nodes:
             node.wait_for_rpc_connection()
 
@@ -266,6 +270,10 @@ class TestFramework:
 
         parser.add_argument(
             "--tmpdir", dest="tmpdir", help="Root directory for datadirs"
+        )
+
+        parser.add_argument(
+            "--devdir", dest="devdir", help="A softlink point to the last run"
         )
 
         parser.add_argument(
@@ -432,6 +440,19 @@ class TestFramework:
 
         self.__start_logging()
         self.log.info("Root dir: %s", self.root_dir)
+
+        if self.options.devdir:
+            dst = self.options.devdir
+
+            if os.path.islink(dst):
+                os.remove(dst)
+            elif os.path.isdir(dst): 
+                shutil.rmtree(dst)
+            elif os.path.exists(dst):
+                os.remove(dst)
+
+            os.symlink(self.options.tmpdir, dst)
+            self.log.info("Symlink: %s", Path(dst).absolute())
 
         if self.blockchain_node_type == BlockChainNodeType.Conflux:
             self.blockchain_binary = os.path.abspath(self.options.conflux)

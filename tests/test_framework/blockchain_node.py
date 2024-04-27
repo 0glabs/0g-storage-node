@@ -28,6 +28,13 @@ class BlockChainNodeType(Enum):
     BSC = 1
     Evmos = 2
 
+    def block_time(self):
+        if self == BlockChainNodeType.Conflux:
+            return 0.5
+        elif self == BlockChainNodeType.BSC:
+            return 0.25
+        else:
+            return 3.0
 
 @unique
 class NodeType(Enum):
@@ -299,8 +306,8 @@ class BlockchainNode(TestNode):
             self.log.debug("Mine deployed")
             self.log.info("All contracts deployed")
 
-            tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
-            self.wait_for_transaction_receipt(w3, tx_hash)
+            # tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
+            # self.wait_for_transaction_receipt(w3, tx_hash)
             
             dummy_reward_contract = w3.eth.contract(
                 address = book.functions.reward().call(),
@@ -328,8 +335,8 @@ class BlockchainNode(TestNode):
 
             self.log.info("All contracts deployed")
 
-            tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
-            self.wait_for_transaction_receipt(w3, tx_hash)
+            # tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
+            # self.wait_for_transaction_receipt(w3, tx_hash)
 
             return flow_contract, flow_contract_hash, mine_contract, reward_contract
         
