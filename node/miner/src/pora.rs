@@ -59,7 +59,7 @@ impl<'a> Miner<'a> {
     }
 
     pub async fn iteration(&self, nonce: H256) -> Option<AnswerWithoutProof> {
-        let (scratch_pad, recall_seed) = self.make_scratch_pad(&nonce);
+        let (scratch_pad, recall_seed, pad_seed) = self.make_scratch_pad(&nonce);
 
         if self.mining_length == 0 {
             return None;
@@ -104,7 +104,7 @@ impl<'a> Miner<'a> {
                 *x ^= y;
             }
 
-            let quality = self.pora(idx, &nonce, &sealed_data);
+            let quality = self.pora(idx, &nonce, &sealed_data, pad_seed);
             if &quality <= self.target_quality {
                 debug!("Find a PoRA valid answer, quality: {}", quality);
                 // Undo mix data when find a valid solition
@@ -132,7 +132,7 @@ impl<'a> Miner<'a> {
     fn make_scratch_pad(
         &self,
         nonce: &H256,
-    ) -> ([u8; BYTES_PER_SCRATCHPAD], [u8; KECCAK256_OUTPUT_BYTES]) {
+    ) -> ([u8; BYTES_PER_SCRATCHPAD], [u8; KECCAK256_OUTPUT_BYTES], [u8; BLAKE2B_OUTPUT_BYTES]) {
         let mut digest: [u8; BLAKE2B_OUTPUT_BYTES] = {
             let mut hasher = Blake2b512::new();
             hasher.update(self.miner_id);
@@ -148,6 +148,8 @@ impl<'a> Miner<'a> {
             hasher.finalize().into()
         };
 
+        let pad_seed = digest.clone();
+
         let mut scratch_pad =
             [[0u8; BLAKE2B_OUTPUT_BYTES]; BYTES_PER_SCRATCHPAD / BLAKE2B_OUTPUT_BYTES];
         for scratch_pad_cell in scratch_pad.iter_mut() {
@@ -158,26 +160,18 @@ impl<'a> Miner<'a> {
         let scratch_pad: [u8; BYTES_PER_SCRATCHPAD] = unsafe { std::mem::transmute(scratch_pad) };
         let recall_seed: [u8; KECCAK256_OUTPUT_BYTES] = keccak(digest);
 
-        (scratch_pad, recall_seed)
+        (scratch_pad, recall_seed, pad_seed)
     }
 
     #[inline]
-    fn pora(&self, seal_index: usize, nonce: &H256, mixed_data: &[u8; BYTES_PER_SEAL]) -> U256 {
+    fn pora(&self, seal_index: usize, nonce: &H256, mixed_data: &[u8; BYTES_PER_SEAL], pad_seed: [u8; BLAKE2B_OUTPUT_BYTES]) -> U256 {
         let mut hasher = Blake2b512::new();
         hasher.update([0u8; 24]);
         hasher.update(seal_index.to_be_bytes());
 
-        hasher.update(self.miner_id);
-        hasher.update(nonce);
-        hasher.update(self.context.digest);
+        hasher.update(pad_seed);
+        hasher.update([0u8; 32]);
 
-        hasher.update([0u8; 24]);
-        hasher.update(self.start_position.to_be_bytes());
-
-        hasher.update([0u8; 24]);
-        hasher.update(self.mining_length.to_be_bytes());
-
-        hasher.update([0u8; 64]);
         hasher.update(mixed_data);
 
         let digest = hasher.finalize();

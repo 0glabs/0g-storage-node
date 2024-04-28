@@ -1,4 +1,4 @@
-use contract_interface::PoraAnswer;
+use contract_interface::{PoraAnswer, RecallRange};
 use contract_interface::{PoraMine, ZgsFlow};
 use ethereum_types::U256;
 use ethers::contract::ContractCall;
@@ -93,8 +93,10 @@ impl Submitter {
             context_digest: mine_answer.context_digest.0,
             nonce: mine_answer.nonce.0,
             miner_id: mine_answer.miner_id.0,
-            start_position: mine_answer.start_position.into(),
-            mine_length: mine_answer.mining_length.into(),
+            range: RecallRange {
+                start_position: mine_answer.start_position.into(),
+                mine_length: mine_answer.mining_length.into(),
+            },
             recall_position: mine_answer.recall_position.into(),
             seal_offset: mine_answer.seal_offset.into(),
             sealed_context_digest: sealed_context_digest.digest,
