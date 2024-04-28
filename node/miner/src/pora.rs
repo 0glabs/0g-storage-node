@@ -138,13 +138,7 @@ impl<'a> Miner<'a> {
             hasher.update(self.miner_id);
             hasher.update(nonce);
             hasher.update(self.context.digest);
-
-            hasher.update([0u8; 24]);
-            hasher.update(self.start_position.to_be_bytes());
-
-            hasher.update([0u8; 24]);
-            hasher.update(self.mining_length.to_be_bytes());
-
+            hasher.update(self.recall_range_digest());
             hasher.finalize().into()
         };
 
@@ -163,6 +157,19 @@ impl<'a> Miner<'a> {
         (scratch_pad, recall_seed, pad_seed)
     }
 
+    fn recall_range_digest(&self) -> [u8; KECCAK256_OUTPUT_BYTES]{
+        let mut hasher = Keccak::v256();
+        hasher.update(&[0u8; 24]);
+        hasher.update(&self.start_position.to_be_bytes());
+
+        hasher.update(&[0u8; 24]);
+        hasher.update(&self.mining_length.to_be_bytes());
+
+        let mut output = [0u8; 32];
+        hasher.finalize(&mut output);
+        output
+    }
+
     #[inline]
     fn pora(&self, seal_index: usize, nonce: &H256, mixed_data: &[u8; BYTES_PER_SEAL], pad_seed: [u8; BLAKE2B_OUTPUT_BYTES]) -> U256 {
         let mut hasher = Blake2b512::new();
@@ -179,3 +186,4 @@ impl<'a> Miner<'a> {
         U256::from_big_endian(&digest[0..32])
     }
 }
+
