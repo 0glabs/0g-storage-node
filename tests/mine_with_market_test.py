@@ -16,6 +16,8 @@ class MineTest(TestFramework):
         self.num_nodes = 1
         self.zgs_node_configs[0] = {
             "miner_key": GENESIS_PRIV_KEY,
+            "shard_group_bytes": 4 * 1024 * 1024,
+            "shard_position": "3 / 8",
         }
         self.enable_market = True
         self.mine_period = int(60 / self.block_time)
@@ -42,7 +44,7 @@ class MineTest(TestFramework):
         self.log.info("flow address: %s", self.contract.address())
         self.log.info("mine address: %s", self.mine_contract.address())
 
-        quality = int(2**256 / 4096)
+        quality = int(2**256 / 512)
         self.mine_contract.set_quality(quality)
 
         SECTORS_PER_PRICING = int(8 * ( 2 ** 30 ) / 256)
@@ -88,4 +90,4 @@ class MineTest(TestFramework):
 
 
 if __name__ == "__main__":
-    MineTest().main()
+    MineTest(blockchain_node_type=BlockChainNodeType.BSC).main()

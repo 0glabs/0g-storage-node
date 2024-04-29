@@ -66,6 +66,8 @@ build_config! {
     (miner_submission_gas, (Option<u64>), None)
     (miner_cpu_percentage, (u64), 100)
     (mine_iter_batch_size, (usize), 100)
+    (shard_group_bytes, (Option<usize>), None)
+    (shard_position, (Option<String>), None)
 }
 
 #[derive(Debug, Default, Deserialize)]

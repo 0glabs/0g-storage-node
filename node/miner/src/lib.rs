@@ -15,7 +15,7 @@ mod service;
 mod submitter;
 mod watcher;
 
-pub use config::MinerConfig;
+pub use config::{MinerConfig, ShardConfig};
 pub use loader::PoraLoader;
 pub use mine::MineRangeConfig;
 pub use miner_id::load_miner_id;

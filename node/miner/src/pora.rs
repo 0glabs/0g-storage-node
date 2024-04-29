@@ -5,7 +5,7 @@ use contract_interface::zgs_flow::MineContext;
 use ethereum_types::{H256, U256};
 use storage::log_store::MineLoadChunk;
 use tiny_keccak::{Hasher, Keccak};
-use zgs_spec::{BYTES_PER_SCRATCHPAD, BYTES_PER_SEAL, SECTORS_PER_SEAL};
+use zgs_spec::{BYTES_PER_SCRATCHPAD, BYTES_PER_SEAL, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
 pub const BLAKE2B_OUTPUT_BYTES: usize = 64;
 pub const KECCAK256_OUTPUT_BYTES: usize = 32;
@@ -68,12 +68,11 @@ impl<'a> Miner<'a> {
             return None;
         }
 
-        let recall_position = self.range.load_position(recall_seed);
+        let recall_position = self.range.load_position(recall_seed)?;
         if !self.mine_range_config.is_covered(recall_position).unwrap() {
             trace!(
-                "recall offset not in range: recall_offset={}, range={:?}",
+                "recall offset not in range: recall_offset={}",
                 recall_position,
-                self.mine_range_config
             );
             return None;
         }
@@ -81,7 +80,10 @@ impl<'a> Miner<'a> {
         let MineLoadChunk {
             loaded_chunk,
             avalibilities,
-        } = self.loader.load_sealed_data(recall_position).await?;
+        } = self
+            .loader
+            .load_sealed_data(recall_position / SECTORS_PER_LOAD as u64)
+            .await?;
 
         let scratch_pad: [[u8; BYTES_PER_SEAL]; BYTES_PER_SCRATCHPAD / BYTES_PER_SEAL] =
             unsafe { std::mem::transmute(scratch_pad) };
@@ -99,7 +101,8 @@ impl<'a> Miner<'a> {
             }
 
             let quality = self.pora(idx, &sealed_data, pad_seed);
-            if &quality <= self.target_quality {
+            let quality_scale = self.range.shard_mask.count_zeros();
+            if quality << quality_scale <= *self.target_quality {
                 debug!("Find a PoRA valid answer, quality: {}", quality);
                 // Undo mix data when find a valid solition
                 for (x, y) in sealed_data.iter_mut().zip(scratch_pad.iter()) {

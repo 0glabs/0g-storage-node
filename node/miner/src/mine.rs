@@ -9,6 +9,7 @@ use tokio::time::{sleep, Duration, Instant};
 use zgs_spec::{SECTORS_PER_LOAD, SECTORS_PER_MAX_MINING_RANGE, SECTORS_PER_PRICING};
 
 use crate::recall_range::RecallRange;
+use crate::ShardConfig;
 use crate::{
     pora::{AnswerWithoutProof, Miner},
     watcher::MineContextMessage,
@@ -39,6 +40,7 @@ struct PoraPuzzle {
 pub struct MineRangeConfig {
     start_position: Option<u64>,
     end_position: Option<u64>,
+    shard_config: Option<ShardConfig>,
 }
 
 impl MineRangeConfig {
@@ -58,9 +60,14 @@ impl MineRangeConfig {
         let start_position = std::cmp::min(self_start_position, minable_length - mining_length);
         let start_position =
             (start_position / SECTORS_PER_PRICING as u64) * SECTORS_PER_PRICING as u64;
+
         Some(RecallRange {
             start_position,
             mining_length,
+            shard_mask: self.shard_config.map_or(u64::MAX, |c| c.shard_mask()),
+            shard_id: self
+                .shard_config
+                .map_or(0, |c| c.shard_id as u64 * c.shard_chunks()),
         })
     }
 
@@ -93,6 +100,7 @@ impl PoraService {
         let mine_range = MineRangeConfig {
             start_position: Some(0),
             end_position: Some(u64::MAX),
+            shard_config: config.shard_config,
         };
         let pora = PoraService {
             mine_context_receiver,

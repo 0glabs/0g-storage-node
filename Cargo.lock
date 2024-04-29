@@ -8374,6 +8374,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "zgs_spec",
  "zgs_version",
 ]
 
