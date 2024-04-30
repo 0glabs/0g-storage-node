@@ -2,7 +2,7 @@
 from test_framework.test_framework import TestFramework
 from config.node_config import MINER_ID, GENESIS_PRIV_KEY
 from utility.submission import create_submission, submit_data
-from utility.utils import wait_until, assert_equal, assert_greater_than
+from utility.utils import wait_until, assert_equal, assert_greater_than, estimate_st_performance
 from test_framework.blockchain_node import BlockChainNodeType
 
 
@@ -20,8 +20,9 @@ class MineTest(TestFramework):
             "shard_position": "3 / 8",
         }
         self.enable_market = True
-        self.mine_period = int(60 / self.block_time)
+        self.mine_period = int(30 / self.block_time)
         self.launch_wait_seconds = 15
+        self.log.info("Contract Info: Est. block time %.2f, Mine period %d", self.block_time, self.mine_period)
 
 
     def submit_data(self, item, size, no_submit = False):
@@ -44,7 +45,7 @@ class MineTest(TestFramework):
         self.log.info("flow address: %s", self.contract.address())
         self.log.info("mine address: %s", self.mine_contract.address())
 
-        quality = int(2**256 / 512)
+        quality = int(2**256 / 5 / estimate_st_performance())
         self.mine_contract.set_quality(quality)
 
         SECTORS_PER_PRICING = int(8 * ( 2 ** 30 ) / 256)
@@ -55,9 +56,12 @@ class MineTest(TestFramework):
         self.log.info("Submit the data hash only (8 GB)")
         self.submit_data(b"\x11", int(SECTORS_PER_PRICING), no_submit=True)
 
+        start_epoch = self.contract.epoch()
+        self.log.info("Submission done, start epoch is %d", start_epoch)
+
         self.log.info("Sumission Done, Current block number %d", int(blockchain.eth_blockNumber(), 16))
         self.log.info("Wait for mine context release")
-        wait_until(lambda: self.contract.get_mine_context()[0] > 0, timeout=180)
+        wait_until(lambda: self.contract.epoch() >= start_epoch + 1, timeout=180)
         self.log.info("Current flow length: %d", self.contract.get_mine_context()[3])
 
         self.log.info("Wait for mine answer")
@@ -76,7 +80,7 @@ class MineTest(TestFramework):
 
         
         self.log.info("Wait for mine context release")
-        wait_until(lambda: self.contract.get_mine_context()[0] > 1, timeout=180)
+        wait_until(lambda: self.contract.epoch() >= start_epoch + 2, timeout=180)
 
         self.log.info("Wait for mine answer")
         wait_until(lambda: self.mine_contract.last_mined_epoch() == 2)

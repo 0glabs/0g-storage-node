@@ -77,7 +77,7 @@ class FlowContractProxy(ContractProxy):
         return self._call("firstBlock", node_idx)
 
     def epoch(self, node_idx=0):
-        return self._call("epoch", node_idx)
+        return self.get_mine_context(node_idx)[0]
 
     def get_mine_context(self, node_idx=0):
         return self._call("makeContextWithResult", node_idx)
