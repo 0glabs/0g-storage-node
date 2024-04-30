@@ -34,7 +34,7 @@ impl ShardConfig {
             (None, None) => {
                 return Ok(None);
             }
-            (Some(bytes), Some(position)) => (bytes, Self::parse_position(&position)?),
+            (Some(bytes), Some(position)) => (bytes, Self::parse_position(position)?),
             _ => {
                 return Err(
                     "`shard_group_bytes` and `shard_position` should be set simultaneously".into(),

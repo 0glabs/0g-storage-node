@@ -133,7 +133,7 @@ impl<'a> Miner<'a> {
             hasher.finalize().into()
         };
 
-        let pad_seed = digest.clone();
+        let pad_seed = digest;
 
         let mut scratch_pad =
             [[0u8; BLAKE2B_OUTPUT_BYTES]; BYTES_PER_SCRATCHPAD / BLAKE2B_OUTPUT_BYTES];
