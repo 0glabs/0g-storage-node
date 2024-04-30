@@ -27,7 +27,7 @@ class ContractProxy:
         assert node_idx < len(self.blockchain_nodes)
 
         contract = self._get_contract(node_idx)
-        return getattr(contract.functions, fn_name)(**args).transact(TX_PARAMS)
+        return getattr(contract.functions, fn_name)(**args).transact(copy(TX_PARAMS))
     
     def _logs(self, event_name, node_idx, **args):
         assert node_idx < len(self.blockchain_nodes)
@@ -37,7 +37,7 @@ class ContractProxy:
         return getattr(contract.events, event_name).create_filter(fromBlock =0, toBlock="latest").get_all_entries()
 
     def transfer(self, value, node_idx = 0):
-        tx_params = TX_PARAMS
+        tx_params = copy(TX_PARAMS)
         tx_params["value"] = value
 
         contract = self._get_contract(node_idx)
@@ -53,7 +53,7 @@ class FlowContractProxy(ContractProxy):
     ):
         assert node_idx < len(self.blockchain_nodes)
 
-        combined_tx_prarams = TX_PARAMS
+        combined_tx_prarams = copy(TX_PARAMS)
 
         if tx_prarams is not None:
             combined_tx_prarams.update(tx_prarams)
@@ -78,6 +78,9 @@ class FlowContractProxy(ContractProxy):
 
     def epoch(self, node_idx=0):
         return self.get_mine_context(node_idx)[0]
+    
+    def update_context(self, node_idx=0):
+        return self._send("makeContext", node_idx)
 
     def get_mine_context(self, node_idx=0):
         return self._call("makeContextWithResult", node_idx)

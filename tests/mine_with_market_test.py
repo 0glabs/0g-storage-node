@@ -4,7 +4,7 @@ from config.node_config import MINER_ID, GENESIS_PRIV_KEY
 from utility.submission import create_submission, submit_data
 from utility.utils import wait_until, assert_equal, assert_greater_than, estimate_st_performance
 from test_framework.blockchain_node import BlockChainNodeType
-
+import time
 
 import math
 
@@ -20,7 +20,7 @@ class MineTest(TestFramework):
             "shard_position": "3 / 8",
         }
         self.enable_market = True
-        self.mine_period = int(30 / self.block_time)
+        self.mine_period = int(45 / self.block_time)
         self.launch_wait_seconds = 15
         self.log.info("Contract Info: Est. block time %.2f, Mine period %d", self.block_time, self.mine_period)
 
@@ -55,20 +55,22 @@ class MineTest(TestFramework):
 
         self.log.info("Submit the data hash only (8 GB)")
         self.submit_data(b"\x11", int(SECTORS_PER_PRICING), no_submit=True)
+        # wait_until(lambda: self.contract.epoch() >= 1, timeout=180)
 
         start_epoch = self.contract.epoch()
-        self.log.info("Submission done, start epoch is %d", start_epoch)
+        
+        self.log.info("Submission Done, epoch is %d, current block number %d", start_epoch, int(blockchain.eth_blockNumber(), 16))  
 
-        self.log.info("Sumission Done, Current block number %d", int(blockchain.eth_blockNumber(), 16))
         self.log.info("Wait for mine context release")
         wait_until(lambda: self.contract.epoch() >= start_epoch + 1, timeout=180)
         self.log.info("Current flow length: %d", self.contract.get_mine_context()[3])
+        self.contract.update_context()
 
         self.log.info("Wait for mine answer")
-        wait_until(lambda: self.mine_contract.last_mined_epoch() == 1)
+        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 1)
 
         rewards = self.reward_contract.reward_distributes()
-        assert_equal(len(self.reward_contract.reward_distributes()), 1)
+        assert_equal(len(self.reward_contract.reward_distributes()), start_epoch + 1)
         firstReward = rewards[0].args.amount
         self.log.info("Received reward %d Gwei", firstReward / (10**9))
 
@@ -76,20 +78,23 @@ class MineTest(TestFramework):
         self.log.info("Donation Done")
         self.log.info("Submit the data hash only (8 GB)")
         self.submit_data(b"\x11", int(SECTORS_PER_PRICING), no_submit=True)
-        self.log.info("Sumission Done, Current block number %d", int(blockchain.eth_blockNumber(), 16))
+        current_epoch = self.contract.epoch()
+        assert_equal(current_epoch, start_epoch + 1);
+        self.log.info("Sumission Done, epoch is %d, current block number %d", self.contract.epoch(), int(blockchain.eth_blockNumber(), 16))
 
         
         self.log.info("Wait for mine context release")
         wait_until(lambda: self.contract.epoch() >= start_epoch + 2, timeout=180)
+        self.contract.update_context()
 
         self.log.info("Wait for mine answer")
-        wait_until(lambda: self.mine_contract.last_mined_epoch() == 2)
+        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 2)
         rewards = self.reward_contract.reward_distributes()
-        assert_equal(len(self.reward_contract.reward_distributes()), 2)
+        assert_equal(len(self.reward_contract.reward_distributes()), start_epoch + 2)
         secondReward = rewards[1].args.amount
         self.log.info("Received reward %d Gwei", secondReward / (10**9))
 
-        assert_greater_than(secondReward, 100 * firstReward)
+        assert_greater_than(secondReward, 100 * firstReward / (start_epoch + 1))
 
 
 
