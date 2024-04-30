@@ -105,13 +105,6 @@ impl MineContextWatcher {
     }
 
     async fn query_recent_context(&mut self) -> Result<(), String> {
-        // let mut watcher = self
-        //     .provider
-        //     .watch_blocks()
-        //     .await
-        //     .expect("should success")
-        //     .stream();
-        // watcher.next().await
         let context_call = self.flow_contract.make_context_with_result();
         let epoch_call = self.mine_contract.last_mined_epoch();
         let quality_call = self.mine_contract.target_quality();
@@ -120,21 +113,18 @@ impl MineContextWatcher {
             try_join!(context_call.call(), epoch_call.call(), quality_call.call())
                 .map_err(|e| format!("Failed to query mining context: {:?}", e))?;
         let report = if context.epoch > epoch && context.digest != EMPTY_HASH.0 {
-            if context.block_digest == [0; 32] {
-                warn!("Mine Context is not updated on time.");
-                None
-            } else {
-                Some((context, quality))
-            }
+            Some((context, quality))
         } else {
             None
         };
 
-        if report != self.last_report {
-            self.mine_context_sender
-                .send(report.clone())
-                .map_err(|e| format!("Failed to send out the most recent mine context: {:?}", e))?;
+        if report == self.last_report {
+            return Ok(());
         }
+
+        self.mine_context_sender
+            .send(report.clone())
+            .map_err(|e| format!("Failed to send out the most recent mine context: {:?}", e))?;
         self.last_report = report;
 
         Ok(())

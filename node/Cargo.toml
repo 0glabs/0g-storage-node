@@ -13,6 +13,7 @@ exit-future = "0.2.0"
 futures = "0.3.21"
 file_location_cache = { path = "file_location_cache" }
 zgs_version = { path = "../common/zgs_version" }
+zgs_spec = { path = "../common/spec" }
 log_entry_sync = { path = "./log_entry_sync" }
 miner = { path = "./miner" }
 network = { path = "./network" }

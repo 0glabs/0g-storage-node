@@ -8,6 +8,8 @@ use tokio::time::{sleep, Duration, Instant};
 
 use zgs_spec::{SECTORS_PER_LOAD, SECTORS_PER_MAX_MINING_RANGE, SECTORS_PER_PRICING};
 
+use crate::recall_range::RecallRange;
+use crate::ShardConfig;
 use crate::{
     pora::{AnswerWithoutProof, Miner},
     watcher::MineContextMessage,
@@ -23,7 +25,7 @@ pub struct PoraService {
     loader: Arc<dyn PoraLoader>,
 
     puzzle: Option<PoraPuzzle>,
-    mine_range: CustomMineRange,
+    mine_range: MineRangeConfig,
     miner_id: H256,
 
     cpu_percentage: u64,
@@ -35,14 +37,15 @@ struct PoraPuzzle {
     target_quality: U256,
 }
 #[derive(Clone, Copy, Debug, Default)]
-pub struct CustomMineRange {
+pub struct MineRangeConfig {
     start_position: Option<u64>,
     end_position: Option<u64>,
+    shard_config: Option<ShardConfig>,
 }
 
-impl CustomMineRange {
+impl MineRangeConfig {
     #[inline]
-    fn to_valid_range(self, context: &MineContext) -> Option<(u64, u64)> {
+    fn to_valid_range(self, context: &MineContext) -> Option<RecallRange> {
         let self_start_position = self.start_position?;
         let self_end_position = self.end_position?;
 
@@ -57,7 +60,15 @@ impl CustomMineRange {
         let start_position = std::cmp::min(self_start_position, minable_length - mining_length);
         let start_position =
             (start_position / SECTORS_PER_PRICING as u64) * SECTORS_PER_PRICING as u64;
-        Some((start_position, mining_length))
+
+        Some(RecallRange {
+            start_position,
+            mining_length,
+            shard_mask: self.shard_config.map_or(u64::MAX, |c| c.shard_mask()),
+            shard_id: self
+                .shard_config
+                .map_or(0, |c| c.shard_id as u64 * c.shard_chunks()),
+        })
     }
 
     #[inline]
@@ -86,9 +97,10 @@ impl PoraService {
     ) -> mpsc::UnboundedReceiver<AnswerWithoutProof> {
         let (mine_answer_sender, mine_answer_receiver) =
             mpsc::unbounded_channel::<AnswerWithoutProof>();
-        let mine_range = CustomMineRange {
+        let mine_range = MineRangeConfig {
             start_position: Some(0),
             end_position: Some(u64::MAX),
+            shard_config: config.shard_config,
         };
         let pora = PoraService {
             mine_context_receiver,
@@ -180,19 +192,18 @@ impl PoraService {
 
     #[inline]
     fn as_miner(&self) -> Option<Miner> {
-        match self.puzzle.as_ref() {
-            Some(puzzle) => self.mine_range.to_valid_range(&puzzle.context).map(
-                |(start_position, mining_length)| Miner {
-                    start_position,
-                    mining_length,
-                    miner_id: &self.miner_id,
-                    custom_mine_range: &self.mine_range,
-                    context: &puzzle.context,
-                    target_quality: &puzzle.target_quality,
-                    loader: &*self.loader,
-                },
-            ),
-            _ => None,
-        }
+        let puzzle = self.puzzle.as_ref()?;
+
+        let range = self.mine_range.to_valid_range(&puzzle.context)?;
+        (range.mining_length > 0).then_some(())?;
+
+        Some(Miner {
+            range,
+            miner_id: &self.miner_id,
+            mine_range_config: &self.mine_range,
+            context: &puzzle.context,
+            target_quality: &puzzle.target_quality,
+            loader: &*self.loader,
+        })
     }
 }

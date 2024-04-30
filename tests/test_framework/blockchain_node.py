@@ -18,6 +18,7 @@ from utility.simple_rpc_proxy import SimpleRpcProxy
 from utility.utils import (
     initialize_config,
     wait_until,
+    estimate_st_performance
 )
 from test_framework.contracts import load_contract_metadata
 
@@ -32,7 +33,7 @@ class BlockChainNodeType(Enum):
         if self == BlockChainNodeType.Conflux:
             return 0.5
         elif self == BlockChainNodeType.BSC:
-            return 0.25
+            return 25 / estimate_st_performance()
         else:
             return 3.0
 

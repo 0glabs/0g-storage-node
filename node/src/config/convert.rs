@@ -3,7 +3,7 @@
 use crate::ZgsConfig;
 use ethereum_types::{H256, U256};
 use log_entry_sync::{CacheConfig, ContractAddress, LogSyncConfig};
-use miner::MinerConfig;
+use miner::{MinerConfig, ShardConfig};
 use network::NetworkConfig;
 use rpc::RPCConfig;
 use storage::StorageConfig;
@@ -142,6 +142,9 @@ impl ZgsConfig {
         let submission_gas = self.miner_submission_gas.map(U256::from);
         let cpu_percentage = self.miner_cpu_percentage;
         let iter_batch = self.mine_iter_batch_size;
+
+        let shard_config = ShardConfig::new(self.shard_group_bytes, &self.shard_position)?;
+
         Ok(MinerConfig::new(
             miner_id,
             miner_key,
@@ -151,6 +154,7 @@ impl ZgsConfig {
             submission_gas,
             cpu_percentage,
             iter_batch,
+            shard_config,
         ))
     }
 
