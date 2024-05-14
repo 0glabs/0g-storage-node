@@ -51,11 +51,11 @@ network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79
 blockchain_rpc_endpoint = "https://rpc-testnet.0g.ai"
 
 # Flow contract address to sync event logs.
-log_contract_address = "0x22C1CaF8cbb671F220789184fda68BfD7eaA2eE1"
+log_contract_address = "0x2b8bC93071A6f8740867A7544Ad6653AdEB7D919"
 
 # Block number to sync event logs from blockchain. Generally, this is
 # the block number when flow contract deployed.
-log_sync_start_block_number = 512567
+log_sync_start_block_number = 80981
 
 # Number of blocks to confirm a transaction.
 # confirmation_block_count = 12
@@ -151,11 +151,7 @@ rpc_listen_address = "0.0.0.0:5678"
 #######################################################################
 
 # Mine contract address for incentive.
-mine_contract_address = "0x8B9221eE2287aFBb34A7a1Ef72eB00fdD853FFC2"
-
-# Miner ID registered in contract, which is mandatory for incentive.
-# The value should be a hex string of length 64 without 0x prefix. 
-miner_id = ""
+mine_contract_address = "0x228aCfB30B839b269557214216eA4162db24445d"
 
 # Miner key is used to sign blockchain transaction for incentive.
 # The value should be a hex string of length 64 without 0x prefix.
@@ -163,6 +159,15 @@ miner_id = ""
 # Note, the corresponding address should have enough tokens to pay
 # transaction gas fee.
 miner_key = ""
+
+#######################################################################
+###                   Sharding Config Options                       ###
+#######################################################################
+# The format is <shard_id>/<shard_number>, where the shard number is 2^n
+# shard_position = "0/2"
+
+# The number needs to be 256 * 1024 * <shard_number> * 2^m
+# shard_group_bytes = 0
 
 #######################################################################
 ###                   File Sync Config Options                      ###
@@ -185,3 +190,4 @@ miner_key = ""
 
 # Enable to start a file sync automatically when a file announcement P2P message received.
 # sync_file_on_announcement_enabled = false
+
