@@ -274,6 +274,8 @@ impl LogEntryFetcher {
                         }
                     }
                 }
+
+                debug!("recover finished");
             },
             "log recover",
         );

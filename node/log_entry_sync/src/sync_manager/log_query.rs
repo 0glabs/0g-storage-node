@@ -1,6 +1,6 @@
 use ethers::prelude::{Filter, JsonRpcClient, Log, Middleware, Provider, ProviderError, U64};
 use futures_core::stream::Stream;
-use jsonrpsee::tracing::trace;
+use jsonrpsee::tracing::{debug, trace};
 use std::future::Future;
 use std::time::Duration;
 use std::{
@@ -128,6 +128,10 @@ where
                             .from_block(from_block)
                             .to_block(to_block);
                         let provider = self.provider;
+                        debug!(
+                            "log_query: from_block={} last_block={}",
+                            from_block, to_block
+                        );
                         // load first page of logs
                         #[allow(clippy::redundant_async_block)]
                         let fut = Box::pin(async move {
@@ -177,6 +181,10 @@ where
                             .from_block(from_block)
                             .to_block(to_block);
                         let provider = self.provider;
+                        debug!(
+                            "log_query: from_block={} last_block={}",
+                            from_block, to_block
+                        );
                         #[allow(clippy::redundant_async_block)]
                         let fut = Box::pin(async move {
                             tokio::time::sleep(delay).await;
