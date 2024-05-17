@@ -19,6 +19,7 @@ use tracing::{error, instrument};
 
 const LOG_SYNC_PROGRESS_KEY: &str = "log_sync_progress";
 const NEXT_TX_KEY: &str = "next_tx_seq";
+const SHARD_CONFIG_KEY: &str = "shard_config";
 
 #[derive(Clone, Debug)]
 pub struct BlockHashAndSubmissionIndex {
@@ -324,6 +325,23 @@ impl TransactionStore {
             merkle.commit(Some(tx_seq));
         }
         Ok(merkle)
+    }
+
+    pub fn put_shard_config(&self, num_shard: usize, shard_id: usize) -> Result<()> {
+        Ok(self.kvdb.put(
+            COL_MISC,
+            SHARD_CONFIG_KEY.as_bytes(),
+            &(num_shard, shard_id).as_ssz_bytes(),
+        )?)
+    }
+
+    pub fn get_shard_config(&self) -> Result<Option<(usize, usize)>> {
+        Ok(Some(
+            <(usize, usize)>::from_ssz_bytes(&try_option!(self
+                .kvdb
+                .get(COL_MISC, SHARD_CONFIG_KEY.as_bytes())?))
+            .map_err(Error::from)?,
+        ))
     }
 }
 

@@ -66,6 +66,8 @@ pub trait LogStoreRead: LogStoreChunkRead {
 
     /// Return flow root and length.
     fn get_context(&self) -> Result<(DataRoot, u64)>;
+
+    fn get_shard_config(&self) -> Result<Option<(usize, usize)>>;
 }
 
 pub trait LogStoreChunkRead {
@@ -130,6 +132,8 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
     ) -> Result<bool>;
 
     fn delete_block_hash_by_number(&self, block_number: u64) -> Result<()>;
+
+    fn put_shard_config(&self, num_shard: usize, shard_id: usize) -> Result<()>;
 }
 
 pub trait LogStoreChunkWrite {
@@ -144,8 +148,9 @@ pub trait LogStoreChunkWrite {
         maybe_file_proof: Option<FlowProof>,
     ) -> Result<bool>;
 
-    /// Delete all chunks of a tx.
-    fn remove_all_chunks(&self, tx_seq: u64) -> Result<()>;
+    /// Delete a list of chunk batches from the db.
+    /// `batch_list` is a `Vec` of entry batch index.
+    fn remove_chunks_batch(&self, batch_list: Vec<u64>) -> Result<()>;
 }
 
 pub trait LogChunkStore: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static {}

@@ -135,8 +135,8 @@ impl LogStoreChunkWrite for LogManager {
         Ok(true)
     }
 
-    fn remove_all_chunks(&self, _tx_seq: u64) -> crate::error::Result<()> {
-        todo!()
+    fn remove_chunks_batch(&self, batch_list: Vec<u64>) -> crate::error::Result<()> {
+        self.flow_store.delete_batch_list(batch_list)
     }
 }
 
@@ -294,6 +294,10 @@ impl LogStoreWrite for LogManager {
 
     fn delete_block_hash_by_number(&self, block_number: u64) -> Result<()> {
         self.tx_store.delete_block_hash_by_number(block_number)
+    }
+
+    fn put_shard_config(&self, num_shard: usize, shard_id: usize) -> Result<()> {
+        self.tx_store.put_shard_config(num_shard, shard_id)
     }
 }
 
@@ -467,6 +471,10 @@ impl LogStoreRead for LogManager {
             *self.pora_chunks_merkle.root(),
             self.last_chunk_start_index() + self.last_chunk_merkle.leaves() as u64,
         ))
+    }
+
+    fn get_shard_config(&self) -> Result<Option<(usize, usize)>> {
+        self.tx_store.get_shard_config()
     }
 }
 

@@ -9,6 +9,7 @@ mod loader;
 mod mine;
 mod miner_id;
 pub mod pora;
+pub mod pruner;
 mod recall_range;
 mod sealer;
 mod service;

@@ -76,6 +76,10 @@ impl FlowStore {
     pub fn put_mpt_node_list(&self, node_list: Vec<(usize, usize, DataRoot)>) -> Result<()> {
         self.db.put_mpt_node_list(node_list)
     }
+
+    pub fn delete_batch_list(&self, batch_list: Vec<u64>) -> Result<()> {
+        self.db.delete_batch_list(batch_list)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -525,6 +529,14 @@ impl FlowDBStore {
             ));
         }
         Ok(node_list)
+    }
+
+    fn delete_batch_list(&self, batch_list: Vec<u64>) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+        for i in batch_list {
+            tx.delete(COL_ENTRY_BATCH, &i.to_be_bytes());
+        }
+        Ok(self.kvdb.write(tx)?)
     }
 }
 

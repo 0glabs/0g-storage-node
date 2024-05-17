@@ -143,7 +143,7 @@ impl ZgsConfig {
         let cpu_percentage = self.miner_cpu_percentage;
         let iter_batch = self.mine_iter_batch_size;
 
-        let shard_config = ShardConfig::new(self.shard_group_bytes, &self.shard_position)?;
+        let shard_config = ShardConfig::new(&self.shard_position)?;
 
         Ok(MinerConfig::new(
             miner_id,
