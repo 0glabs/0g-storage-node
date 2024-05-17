@@ -13,10 +13,10 @@ GITHUB_DOWNLOAD_URL="https://api.github.com/repos/0glabs/0g-storage-node/release
 
 CONFLUX_BINARY = "conflux.exe" if is_windows_platform() else "conflux"
 BSC_BINARY = "geth.exe" if is_windows_platform() else "geth"
-EVMOS_BINARY = "evmosd.exe" if is_windows_platform() else "evmosd"
+ZG_BINARY = "0gchaind.exe" if is_windows_platform() else "0gchaind"
 CLIENT_BINARY = "0g-storage-client.exe" if is_windows_platform() else "0g-storage-client"
 
-EVMOS_GIT_REV = "2ef76f6c9bdd73cd15dabd7397492dbebc311f98"
+ZG_GIT_REV = "7bc25a060fab9c17bc9942b6747cd07a668d3042" # v0.1.0
 CLI_GIT_REV = "1d09ec4f0b9c27428b2357de46b66e8c231b74df"
 
 @unique
@@ -60,13 +60,13 @@ def build_bsc(dir: str) -> BuildBinaryResult:
 
     return result
 
-def build_evmos(dir: str) -> BuildBinaryResult:
-    # Download or build evmos binary if absent
+def build_zg(dir: str) -> BuildBinaryResult:
+    # Download or build 0gchain binary if absent
     result = __download_from_github(
         dir=dir,
-        binary_name=EVMOS_BINARY,
+        binary_name=ZG_BINARY,
         github_url=GITHUB_DOWNLOAD_URL,
-        asset_name=__asset_name(EVMOS_BINARY, zip=True),
+        asset_name=__asset_name(ZG_BINARY, zip=True),
     )
 
     if result == BuildBinaryResult.AlreadyExists or result == BuildBinaryResult.Installed:
@@ -74,10 +74,10 @@ def build_evmos(dir: str) -> BuildBinaryResult:
 
     return __build_from_github(
         dir=dir,
-        binary_name=EVMOS_BINARY,
-        github_url="https://github.com/0glabs/0g-evmos.git",
-        git_rev=EVMOS_GIT_REV,
-        build_cmd="make install; cp $(go env GOPATH)/bin/evmosd .",
+        binary_name=ZG_BINARY,
+        github_url="https://github.com/0glabs/0g-chain.git",
+        git_rev=ZG_GIT_REV,
+        build_cmd="make install; cp $(go env GOPATH)/bin/0gchaind .",
         compiled_relative_path=[],
     )
 
