@@ -27,7 +27,7 @@ from test_framework.contracts import load_contract_metadata
 class BlockChainNodeType(Enum):
     Conflux = 0
     BSC = 1
-    Evmos = 2
+    ZG = 2
 
     def block_time(self):
         if self == BlockChainNodeType.Conflux:
@@ -363,4 +363,4 @@ class BlockchainNode(TestNode):
         w3.eth.wait_for_transaction_receipt(tx_hash)
 
     def start(self):
-        super().start(self.blockchain_node_type == BlockChainNodeType.BSC)
+        super().start(self.blockchain_node_type == BlockChainNodeType.BSC or self.blockchain_node_type == BlockChainNodeType.ZG)

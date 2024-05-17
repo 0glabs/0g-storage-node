@@ -18,7 +18,7 @@ from test_framework.contract_proxy import FlowContractProxy, MineContractProxy, 
 from test_framework.zgs_node import ZgsNode
 from test_framework.blockchain_node import BlockChainNodeType
 from test_framework.conflux_node import ConfluxNode, connect_sample_nodes
-from test_framework.evmos_node import EvmosNode, evmos_init_genesis
+from test_framework.zg_node import ZGNode, zg_node_init_genesis
 from utility.utils import PortMin, is_windows_platform, wait_until
 from utility.build_binary import build_cli
 
@@ -35,7 +35,7 @@ TEST_EXIT_FAILED = 1
 
 
 class TestFramework:
-    def __init__(self, blockchain_node_type=BlockChainNodeType.Evmos):
+    def __init__(self, blockchain_node_type=BlockChainNodeType.ZG):
         if "http_proxy" in os.environ:
             del os.environ["http_proxy"]
 
@@ -62,8 +62,8 @@ class TestFramework:
         self.__default_geth_binary__ = os.path.join(
             tests_dir, "tmp", "geth" + binary_ext
         )
-        self.__default_evmos_binary__ = os.path.join(
-            tests_dir, "tmp", "evmosd" + binary_ext
+        self.__default_zg_binary__ = os.path.join(
+            tests_dir, "tmp", "0gchaind" + binary_ext
         )
         self.__default_zgs_node_binary__ = os.path.join(
             root_dir, "target", "release", "zgs_node" + binary_ext
@@ -73,9 +73,9 @@ class TestFramework:
         )
 
     def __setup_blockchain_node(self):
-        if self.blockchain_node_type == BlockChainNodeType.Evmos:
-            evmos_init_genesis(self.blockchain_binary, self.root_dir, self.num_blockchain_nodes)
-            self.log.info("Evmos genesis initialized for %s nodes" % self.num_blockchain_nodes)
+        if self.blockchain_node_type == BlockChainNodeType.ZG:
+            zg_node_init_genesis(self.blockchain_binary, self.root_dir, self.num_blockchain_nodes)
+            self.log.info("0gchain genesis initialized for %s nodes" % self.num_blockchain_nodes)
 
         for i in range(self.num_blockchain_nodes):
             if i in self.blockchain_node_configs:
@@ -103,8 +103,8 @@ class TestFramework:
                     self.contract_path,
                     self.log,
                 )
-            elif self.blockchain_node_type == BlockChainNodeType.Evmos:
-                node = EvmosNode(
+            elif self.blockchain_node_type == BlockChainNodeType.ZG:
+                node = ZGNode(
                     i,
                     self.root_dir,
                     self.blockchain_binary,
@@ -161,9 +161,9 @@ class TestFramework:
                 # The default is `dev` mode with auto mining, so it's not guaranteed that blocks
                 # can be synced in time for `sync_blocks` to pass.
                 # sync_blocks(self.blockchain_nodes)
-        elif self.blockchain_node_type == BlockChainNodeType.Evmos:
+        elif self.blockchain_node_type == BlockChainNodeType.ZG:
             # wait for the first block
-            self.log.debug("Wait 3 seconds for evmos node to generate first block")
+            self.log.debug("Wait 3 seconds for 0gchain node to generate first block")
             time.sleep(3)
             for node in self.blockchain_nodes:
                 wait_until(lambda: node.net_peerCount() == self.num_blockchain_nodes - 1)
@@ -227,9 +227,9 @@ class TestFramework:
         )
 
         parser.add_argument(
-            "--evmos-binary",
-            dest="evmos",
-            default=self.__default_evmos_binary__,
+            "--zg-binary",
+            dest="zg",
+            default=self.__default_zg_binary__,
             type=str,
         )
 
@@ -458,8 +458,8 @@ class TestFramework:
             self.blockchain_binary = os.path.abspath(self.options.conflux)
         elif self.blockchain_node_type == BlockChainNodeType.BSC:
             self.blockchain_binary = os.path.abspath(self.options.bsc)
-        elif self.blockchain_node_type == BlockChainNodeType.Evmos:
-            self.blockchain_binary = os.path.abspath(self.options.evmos)
+        elif self.blockchain_node_type == BlockChainNodeType.ZG:
+            self.blockchain_binary = os.path.abspath(self.options.zg)
         else:
             raise NotImplementedError
 
