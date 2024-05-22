@@ -18,7 +18,7 @@ use crate::config::{MineServiceMiddleware, MinerConfig};
 
 const DB_QUERY_PERIOD_ON_NO_TASK: u64 = 1;
 const DB_QUERY_PERIOD_ON_ERROR: u64 = 5;
-const CHAIN_STATUS_QUERY_PERIOD: u64 = 5;
+const CHAIN_STATUS_QUERY_PERIOD: u64 = 15;
 
 pub struct Sealer {
     flow_contract: ZgsFlow<MineServiceMiddleware>,
