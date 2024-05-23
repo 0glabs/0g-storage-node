@@ -74,7 +74,7 @@ impl Pruner {
 
     async fn maybe_update(&mut self) -> Result<Option<Box<dyn Send + Iterator<Item = u64>>>> {
         let current_size = get_size(&self.config.db_path)
-            .expect(&format!("db size error: db_path={:?}", self.config.db_path));
+            .unwrap_or_else(|_| panic!("db size error: db_path={:?}", self.config.db_path));
         if current_size >= self.config.start_prune_size() {
             // Update config and generate delete list should be done in a single lock to ensure
             // the list is complete.
@@ -89,7 +89,7 @@ impl Pruner {
             };
             config.shard_id = old_shard_id + rand_bit as usize * old_num_shard;
             config.num_shard *= 2;
-            
+
             // Generate delete list
             let flow_len = self.store.read().await.get_context()?.1;
             let start_index = old_shard_id + (!rand_bit) as usize * old_num_shard;

@@ -184,7 +184,7 @@ impl ZgsConfig {
                 shard_config,
                 db_path: self.db_dir.clone().into(),
                 size_limit: size_limit_mb * MB,
-                check_time: Duration::from_millis(self.prune_check_time_ms),
+                check_time: Duration::from_secs(self.prune_check_time_s),
                 batch_size: self.prune_batch_size,
                 batch_wait_time: Duration::from_millis(self.prune_batch_wait_time_ms),
             }))
