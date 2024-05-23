@@ -9,12 +9,12 @@ use tokio::time::{sleep, Duration, Instant};
 use zgs_spec::{SECTORS_PER_LOAD, SECTORS_PER_MAX_MINING_RANGE, SECTORS_PER_PRICING};
 
 use crate::recall_range::RecallRange;
-use crate::ShardConfig;
 use crate::{
     pora::{AnswerWithoutProof, Miner},
     watcher::MineContextMessage,
     MinerConfig, MinerMessage, PoraLoader,
 };
+use storage::config::ShardConfig;
 
 use std::sync::Arc;
 
@@ -64,8 +64,8 @@ impl MineRangeConfig {
         Some(RecallRange {
             start_position,
             mining_length,
-            shard_mask: self.shard_config.shard_mask(),
-            shard_id: self.shard_config.shard_id as u64,
+            shard_mask: self.shard_config.miner_shard_mask(),
+            shard_id: self.shard_config.miner_shard_id(),
         })
     }
 

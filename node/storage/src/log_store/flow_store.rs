@@ -1,5 +1,6 @@
 use super::load_chunk::EntryBatch;
 use super::{MineLoadChunk, SealAnswer, SealTask};
+use crate::config::ShardConfig;
 use crate::error::Error;
 use crate::log_store::log_manager::{
     bytes_to_entries, COL_ENTRY_BATCH, COL_ENTRY_BATCH_ROOT, COL_FLOW_MPT_NODES,
@@ -77,7 +78,7 @@ impl FlowStore {
         self.db.put_mpt_node_list(node_list)
     }
 
-    pub fn delete_batch_list(&self, batch_list: Vec<u64>) -> Result<()> {
+    pub fn delete_batch_list(&self, batch_list: &Vec<u64>) -> Result<()> {
         self.db.delete_batch_list(batch_list)
     }
 }
@@ -85,12 +86,14 @@ impl FlowStore {
 #[derive(Clone, Debug)]
 pub struct FlowConfig {
     pub batch_size: usize,
+    pub shard_config: ShardConfig,
 }
 
 impl Default for FlowConfig {
     fn default() -> Self {
         Self {
             batch_size: SECTORS_PER_LOAD,
+            shard_config: Default::default(),
         }
     }
 }
@@ -215,6 +218,10 @@ impl FlowWrite for FlowStore {
                 .expect("in range");
 
             let chunk_index = chunk.start_index / self.config.batch_size as u64;
+            if !self.config.shard_config.in_range(chunk_index) {
+                // The data are in a shard range that we are not storing.
+                continue;
+            }
 
             // TODO: Try to avoid loading from db if possible.
             let mut batch = self
@@ -248,6 +255,10 @@ impl FlowWrite for FlowStore {
             self.to_seal_set.insert(x, self.to_seal_version);
         });
         Ok(())
+    }
+
+    fn update_shard_config(&mut self, shard_config: ShardConfig) {
+        self.config.shard_config = shard_config;
     }
 }
 
@@ -297,7 +308,7 @@ impl FlowSeal for FlowStore {
         for (load_index, answers_in_chunk) in &answers
             .into_iter()
             .filter(is_consistent)
-            .group_by(|answer| answer.seal_index / SEALS_PER_LOAD as u64)
+            .chunk_by(|answer| answer.seal_index / SEALS_PER_LOAD as u64)
         {
             let mut batch_chunk = self
                 .db
@@ -531,7 +542,7 @@ impl FlowDBStore {
         Ok(node_list)
     }
 
-    fn delete_batch_list(&self, batch_list: Vec<u64>) -> Result<()> {
+    fn delete_batch_list(&self, batch_list: &Vec<u64>) -> Result<()> {
         let mut tx = self.kvdb.transaction();
         for i in batch_list {
             tx.delete(COL_ENTRY_BATCH, &i.to_be_bytes());

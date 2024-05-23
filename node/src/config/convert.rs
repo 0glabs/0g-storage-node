@@ -3,10 +3,14 @@
 use crate::ZgsConfig;
 use ethereum_types::{H256, U256};
 use log_entry_sync::{CacheConfig, ContractAddress, LogSyncConfig};
-use miner::{MinerConfig, ShardConfig};
+use miner::MinerConfig;
 use network::NetworkConfig;
+use pruner::PrunerConfig;
 use rpc::RPCConfig;
+use std::time::Duration;
+use storage::config::ShardConfig;
 use storage::StorageConfig;
+use zgs_spec::MB;
 
 impl ZgsConfig {
     pub fn network_config(&self) -> Result<NetworkConfig, String> {
@@ -171,5 +175,21 @@ impl ZgsConfig {
         let mut router_config = router::Config::default();
         router_config.libp2p_nodes = network_config.libp2p_nodes.to_vec();
         Ok(router_config)
+    }
+
+    pub fn pruner_config(&self) -> Result<Option<PrunerConfig>, String> {
+        if let Some(size_limit_mb) = self.size_limit_mb {
+            let shard_config = ShardConfig::new(&self.shard_position)?;
+            Ok(Some(PrunerConfig {
+                shard_config,
+                db_path: self.db_dir.clone().into(),
+                size_limit: size_limit_mb * MB,
+                check_time: Duration::from_millis(self.prune_check_time_ms),
+                batch_size: self.prune_batch_size,
+                batch_wait_time: Duration::from_millis(self.prune_batch_wait_time_ms),
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }

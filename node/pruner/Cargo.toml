@@ -1,0 +1,12 @@
+[package]
+name = "pruner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+storage = { path = "../storage" }
+miner = { path = "../miner" }
+anyhow = "1.0.86"
+fs_extra = "1.3.0"
+tokio = "1.37.0"
+rand = "0.8.5"

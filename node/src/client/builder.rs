@@ -2,12 +2,12 @@ use super::{Client, RuntimeContext};
 use chunk_pool::{Config as ChunkPoolConfig, MemoryChunkPool};
 use file_location_cache::FileLocationCache;
 use log_entry_sync::{LogSyncConfig, LogSyncEvent, LogSyncManager};
-use miner::pruner::{Pruner, PrunerConfig};
 use miner::{MineService, MinerConfig, MinerMessage};
 use network::{
     self, Keypair, NetworkConfig, NetworkGlobals, NetworkMessage, RequestId,
     Service as LibP2PService,
 };
+use pruner::{Pruner, PrunerConfig};
 use router::RouterService;
 use rpc::RPCConfig;
 use std::sync::Arc;

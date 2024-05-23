@@ -4435,15 +4435,12 @@ checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 name = "miner"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "blake2",
  "contract-interface",
  "ethereum-types 0.14.1",
  "ethers",
- "fs_extra",
  "hex",
- "itertools 0.13.0",
  "lazy_static",
  "network",
  "rand 0.8.5",
@@ -5742,6 +5739,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
+name = "pruner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "fs_extra",
+ "miner",
+ "rand 0.8.5",
+ "storage",
+ "tokio",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6871,7 +6880,7 @@ dependencies = [
  "ethereum-types 0.14.1",
  "hex",
  "hex-literal",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "kvdb",
  "kvdb-memorydb",
  "kvdb-rocksdb",
@@ -6879,6 +6888,7 @@ dependencies = [
  "merkle_tree",
  "rand 0.8.5",
  "rayon",
+ "serde",
  "shared_types",
  "static_assertions",
  "tempdir",
@@ -8378,6 +8388,7 @@ dependencies = [
  "log_entry_sync",
  "miner",
  "network",
+ "pruner",
  "router",
  "rpc",
  "serde",

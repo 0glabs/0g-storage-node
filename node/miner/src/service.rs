@@ -1,9 +1,10 @@
 use crate::miner_id::check_and_request_miner_id;
 use crate::sealer::Sealer;
 use crate::submitter::Submitter;
-use crate::{config::MinerConfig, mine::PoraService, watcher::MineContextWatcher, ShardConfig};
+use crate::{config::MinerConfig, mine::PoraService, watcher::MineContextWatcher};
 use network::NetworkMessage;
 use std::sync::Arc;
+use storage::config::ShardConfig;
 use storage::log_store::Store;
 use tokio::sync::mpsc;
 use tokio::sync::{broadcast, RwLock};

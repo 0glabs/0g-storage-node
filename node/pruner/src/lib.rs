@@ -1,11 +1,12 @@
-use crate::{MinerMessage, ShardConfig};
 use anyhow::Result;
 use fs_extra::dir::get_size;
-use itertools::Itertools;
+use miner::MinerMessage;
 use rand::Rng;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
+use storage::log_store::config::ConfigurableExt;
 use storage::log_store::Store;
 use tokio::sync::{broadcast, RwLock};
 
@@ -13,12 +14,12 @@ use tokio::sync::{broadcast, RwLock};
 const PRUNE_THRESHOLD: f32 = 0.9;
 
 pub struct PrunerConfig {
-    shard_config: ShardConfig,
-    db_path: PathBuf,
-    size_limit: usize,
-    check_time: Duration,
-    delete_batch_size: usize,
-    delete_sleep_time: Duration,
+    pub shard_config: ShardConfig,
+    pub db_path: PathBuf,
+    pub size_limit: usize,
+    pub check_time: Duration,
+    pub batch_size: usize,
+    pub batch_wait_time: Duration,
 }
 
 impl PrunerConfig {
@@ -40,49 +41,38 @@ impl Pruner {
         store: Arc<RwLock<dyn Store>>,
         miner_sender: Option<broadcast::Sender<MinerMessage>>,
     ) -> Result<()> {
-        if let Some((num_shard, shard_id)) = store.read().await.get_shard_config()? {
-            let shard_config = ShardConfig {
-                shard_id,
-                num_shard,
-            };
+        if let Some(shard_config) = get_shard_config(&store).await? {
             config.shard_config = shard_config;
-            if let Some(sender) = &miner_sender {
-                sender.send(MinerMessage::SetShardConfig(shard_config))?;
-            }
-        } else {
-            let shard_config = config.shard_config;
-            store
-                .write()
-                .await
-                .put_shard_config(shard_config.num_shard, shard_config.shard_id)?;
         }
         let pruner = Pruner {
             config,
             store,
             miner_sender,
         };
+        pruner.put_shard_config().await?;
         pruner.start().await
     }
 
     pub async fn start(mut self) -> Result<()> {
         loop {
             if let Some(delete_list) = self.maybe_update().await? {
-                let shard_config = self.config.shard_config;
-                self.store
-                    .write()
-                    .await
-                    .put_shard_config(shard_config.num_shard, shard_config.shard_id)?;
-                for batch_iter in &delete_list.chunks(self.config.delete_batch_size) {
-                    let batch: Vec<u64> = batch_iter.collect();
-                    self.store.write().await.remove_chunks_batch(batch)?;
-                    tokio::time::sleep(self.config.delete_sleep_time).await;
+                self.put_shard_config().await?;
+                let mut batch = Vec::with_capacity(self.config.batch_size);
+                let mut iter = delete_list.peekable();
+                while let Some(index) = iter.next() {
+                    batch.push(index);
+                    if batch.len() == self.config.batch_size || iter.peek().is_some() {
+                        self.store.write().await.remove_chunks_batch(&batch)?;
+                        batch = Vec::with_capacity(self.config.batch_size);
+                        tokio::time::sleep(self.config.batch_wait_time).await;
+                    }
                 }
             }
             tokio::time::sleep(self.config.check_time).await;
         }
     }
 
-    async fn maybe_update(&mut self) -> Result<Option<Box<dyn Iterator<Item = u64>>>> {
+    async fn maybe_update(&mut self) -> Result<Option<Box<dyn Send + Iterator<Item = u64>>>> {
         let current_size = get_size(&self.config.db_path)
             .expect(&format!("db size error: db_path={:?}", self.config.db_path));
         if current_size >= self.config.start_prune_size() {
@@ -93,14 +83,13 @@ impl Pruner {
             let old_num_shard = config.num_shard;
 
             // Update new config
-            let mut rng = rand::thread_rng();
-            let rand_bit = rng.gen::<bool>();
+            let rand_bit = {
+                let mut rng = rand::thread_rng();
+                rng.gen::<bool>()
+            };
             config.shard_id = old_shard_id + rand_bit as usize * old_num_shard;
             config.num_shard *= 2;
-            if let Some(sender) = &self.miner_sender {
-                sender.send(MinerMessage::SetShardConfig(*config))?;
-            }
-
+            
             // Generate delete list
             let flow_len = self.store.read().await.get_context()?.1;
             let start_index = old_shard_id + (!rand_bit) as usize * old_num_shard;
@@ -110,4 +99,19 @@ impl Pruner {
         }
         Ok(None)
     }
+
+    async fn put_shard_config(&self) -> Result<()> {
+        if let Some(sender) = &self.miner_sender {
+            sender.send(MinerMessage::SetShardConfig(self.config.shard_config))?;
+        }
+        let mut store = self.store.write().await;
+        store
+            .flow_mut()
+            .update_shard_config(self.config.shard_config);
+        store.set_config_encoded(&SHARD_CONFIG_KEY, &self.config.shard_config)
+    }
+}
+
+async fn get_shard_config(store: &RwLock<dyn Store>) -> Result<Option<ShardConfig>> {
+    store.read().await.get_config_decoded(&SHARD_CONFIG_KEY)
 }

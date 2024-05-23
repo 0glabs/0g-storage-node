@@ -54,6 +54,10 @@ build_config! {
 
     // db
     (db_dir, (String), "db".to_string())
+    (size_limit_mb, (Option<usize>), None)
+    (prune_check_time_ms, (u64), 1000)
+    (prune_batch_size, (usize), 1024)
+    (prune_batch_wait_time_ms, (u64), 1000)
 
     // misc
     (log_config_file, (String), "log_config".to_string())

@@ -21,6 +21,3 @@ lazy_static = "1.4"
 async-trait = "0.1.56"
 shared_types = { path = "../shared_types" }
 hex = "0.4"
-itertools = "0.13.0"
-anyhow = "1.0.86"
-fs_extra = "1.3.0"
