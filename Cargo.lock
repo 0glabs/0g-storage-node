@@ -5747,7 +5747,9 @@ dependencies = [
  "miner",
  "rand 0.8.5",
  "storage",
+ "task_executor",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

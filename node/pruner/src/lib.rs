@@ -8,11 +8,14 @@ use std::time::Duration;
 use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
 use storage::log_store::config::ConfigurableExt;
 use storage::log_store::Store;
+use task_executor::TaskExecutor;
 use tokio::sync::{broadcast, RwLock};
+use tracing::debug;
 
 // Start pruning when the db directory size exceeds 0.9 * limit.
 const PRUNE_THRESHOLD: f32 = 0.9;
 
+#[derive(Debug)]
 pub struct PrunerConfig {
     pub shard_config: ShardConfig,
     pub db_path: PathBuf,
@@ -37,6 +40,7 @@ pub struct Pruner {
 
 impl Pruner {
     pub async fn spawn(
+        executor: TaskExecutor,
         mut config: PrunerConfig,
         store: Arc<RwLock<dyn Store>>,
         miner_sender: Option<broadcast::Sender<MinerMessage>>,
@@ -50,18 +54,26 @@ impl Pruner {
             miner_sender,
         };
         pruner.put_shard_config().await?;
-        pruner.start().await
+        executor.spawn(
+            async move {
+                pruner.start().await.expect("pruner error");
+            },
+            "pruner",
+        );
+        Ok(())
     }
 
     pub async fn start(mut self) -> Result<()> {
         loop {
             if let Some(delete_list) = self.maybe_update().await? {
+                debug!(new_config = ?self.config.shard_config, "new shard config");
                 self.put_shard_config().await?;
                 let mut batch = Vec::with_capacity(self.config.batch_size);
                 let mut iter = delete_list.peekable();
                 while let Some(index) = iter.next() {
                     batch.push(index);
-                    if batch.len() == self.config.batch_size || iter.peek().is_some() {
+                    if batch.len() == self.config.batch_size || iter.peek().is_none() {
+                        debug!(start = batch.first(), end = batch.last(), "prune batch");
                         self.store.write().await.remove_chunks_batch(&batch)?;
                         batch = Vec::with_capacity(self.config.batch_size);
                         tokio::time::sleep(self.config.batch_wait_time).await;
@@ -75,6 +87,11 @@ impl Pruner {
     async fn maybe_update(&mut self) -> Result<Option<Box<dyn Send + Iterator<Item = u64>>>> {
         let current_size = get_size(&self.config.db_path)
             .unwrap_or_else(|_| panic!("db size error: db_path={:?}", self.config.db_path));
+        debug!(
+            current_size = current_size,
+            config = ?self.config.shard_config,
+            "maybe_update"
+        );
         if current_size >= self.config.start_prune_size() {
             // Update config and generate delete list should be done in a single lock to ensure
             // the list is complete.

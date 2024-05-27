@@ -182,7 +182,8 @@ impl ClientBuilder {
         if let Some(config) = config {
             let miner_send = self.miner.as_ref().map(|miner| miner.send.clone());
             let store = require!("pruner", self, store).clone();
-            Pruner::spawn(config, store, miner_send)
+            let executor = require!("pruner", self, runtime_context).clone().executor;
+            Pruner::spawn(executor, config, store, miner_send)
                 .await
                 .map_err(|e| e.to_string())?;
             self.pruner = Some(PrunerComponents {});
