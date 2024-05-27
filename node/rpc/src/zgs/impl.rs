@@ -6,6 +6,8 @@ use chunk_pool::{FileID, SegmentInfo};
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
 use shared_types::{DataRoot, Transaction, CHUNK_SIZE};
+use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
+use storage::log_store::config::ConfigurableExt;
 use storage::try_option;
 
 pub struct RpcServerImpl {
@@ -143,6 +145,22 @@ impl RpcServer for RpcServerImpl {
         let tx = try_option!(self.ctx.log_store.get_tx_by_seq_number(tx_seq).await?);
 
         Ok(Some(self.get_file_info_by_tx(tx).await?))
+    }
+
+    async fn get_shard_config(&self) -> RpcResult<ShardConfig> {
+        debug!("zgs_getShardConfig");
+        let shard_config = self
+            .ctx
+            .log_store
+            .get_store()
+            .read()
+            .await
+            .get_config_decoded(&SHARD_CONFIG_KEY)?
+            .ok_or(error::invalid_params(
+                "shard_config",
+                "shard_config is unavailable",
+            ))?;
+        Ok(shard_config)
     }
 }
 

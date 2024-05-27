@@ -2,6 +2,7 @@ use crate::types::{FileInfo, Segment, SegmentWithProof, Status};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use shared_types::DataRoot;
+use storage::config::ShardConfig;
 
 #[rpc(server, client, namespace = "zgs")]
 pub trait Rpc {
@@ -34,4 +35,7 @@ pub trait Rpc {
 
     #[method(name = "getFileInfoByTxSeq")]
     async fn get_file_info_by_tx_seq(&self, tx_seq: u64) -> RpcResult<Option<FileInfo>>;
+
+    #[method(name = "getShardConfig")]
+    async fn get_shard_config(&self) -> RpcResult<ShardConfig>;
 }

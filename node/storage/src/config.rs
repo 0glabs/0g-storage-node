@@ -1,4 +1,5 @@
 use crate::log_store::log_manager::PORA_CHUNK_SIZE;
+use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 use std::path::PathBuf;
 
@@ -9,7 +10,7 @@ pub struct Config {
     pub db_dir: PathBuf,
 }
 
-#[derive(Clone, Copy, Debug, Decode, Encode)]
+#[derive(Clone, Copy, Debug, Decode, Encode, Serialize, Deserialize)]
 pub struct ShardConfig {
     pub shard_id: usize,
     pub num_shard: usize,

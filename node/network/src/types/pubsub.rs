@@ -147,6 +147,15 @@ pub struct AnnounceChunks {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
+pub struct AnnounceShardConfig {
+    pub num_shard: usize,
+    pub shard_id: usize,
+    pub peer_id: WrappedPeerId,
+    pub at: WrappedMultiaddr,
+    pub timestamp: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub struct SignedMessage<T: Encode + Decode> {
     pub inner: T,
     pub signature: Vec<u8>,
