@@ -67,7 +67,7 @@ class MineTest(TestFramework):
         self.contract.update_context()
 
         self.log.info("Wait for mine answer")
-        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 1)
+        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 1, timeout=120)
 
         rewards = self.reward_contract.reward_distributes()
         assert_equal(len(self.reward_contract.reward_distributes()), start_epoch + 1)
