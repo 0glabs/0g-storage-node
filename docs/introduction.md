@@ -4,7 +4,7 @@
 
 0G Storage is the storage layer for the ZeroGravity data availability (DA) system. The 0G Storage layer holds three important features:
 
-* Buit-in - It is natively built into the ZeroGravity DA system for data storage and retrieval.
+* Built-in - It is natively built into the ZeroGravity DA system for data storage and retrieval.
 * General purpose - It is designed to support atomic transactions, mutable kv stores as well as archive log systems to enable wide range of applications with various data types.
 * Incentive - Instead of being just a decentralized database, 0G Storage introduces PoRA mining algorithm to incentivize storage network participants.
 
@@ -40,7 +40,7 @@ Python test framework will launch blockchain fullnodes at local for storage node
 
 For Conflux eSpace node, the test framework will automatically compile the binary at runtime, and copy the binary to `tests/tmp` folder. For BSC node, the test framework will automatically download the latest version binary from [github](https://github.com/bnb-chain/bsc/releases) to `tests/tmp` folder.
 
-Alternatively, you could also manually copy specific versoin binaries (conflux or geth) to the `tests/tmp` folder. Note, do **NOT** copy released conflux binary on github, since block height of some CIPs are hardcoded.
+Alternatively, you could also manually copy specific version binaries (conflux or geth) to the `tests/tmp` folder. Note, do **NOT** copy released conflux binary on github, since block height of some CIPs are hardcoded.
 
 For testing, it's also dependent on the following repos:
 
