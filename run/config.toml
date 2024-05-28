@@ -51,11 +51,11 @@ network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79
 blockchain_rpc_endpoint = "https://rpc-testnet.0g.ai"
 
 # Flow contract address to sync event logs.
-log_contract_address = "0x2b8bC93071A6f8740867A7544Ad6653AdEB7D919"
+log_contract_address = "0xb8F03061969da6Ad38f0a4a9f8a86bE71dA3c8E7"
 
 # Block number to sync event logs from blockchain. Generally, this is
 # the block number when flow contract deployed.
-log_sync_start_block_number = 80981
+log_sync_start_block_number = 334797
 
 # Number of blocks to confirm a transaction.
 # confirmation_block_count = 12
@@ -151,7 +151,7 @@ rpc_listen_address = "0.0.0.0:5678"
 #######################################################################
 
 # Mine contract address for incentive.
-mine_contract_address = "0x228aCfB30B839b269557214216eA4162db24445d"
+mine_contract_address = "0x96D90AAcb2D5Ab5C69c1c351B0a0F105aae490bE"
 
 # Miner key is used to sign blockchain transaction for incentive.
 # The value should be a hex string of length 64 without 0x prefix.
