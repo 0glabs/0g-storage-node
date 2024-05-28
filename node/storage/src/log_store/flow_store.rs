@@ -3,7 +3,7 @@ use super::{MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
 use crate::error::Error;
 use crate::log_store::log_manager::{
-    bytes_to_entries, COL_ENTRY_BATCH, COL_ENTRY_BATCH_ROOT, COL_FLOW_MPT_NODES,
+    bytes_to_entries, COL_ENTRY_BATCH, COL_ENTRY_BATCH_ROOT, COL_FLOW_MPT_NODES, PORA_CHUNK_SIZE,
 };
 use crate::log_store::{FlowRead, FlowSeal, FlowWrite};
 use crate::{try_option, ZgsKeyValueDB};
@@ -195,6 +195,15 @@ impl FlowRead for FlowStore {
             }
         }
         Ok(Some(mine_chunk))
+    }
+
+    fn get_num_entries(&self) -> Result<u64> {
+        // This is an over-estimation as it assumes each batch is full.
+        self.db
+            .kvdb
+            .num_keys(COL_ENTRY_BATCH)
+            .map(|num_batches| num_batches * PORA_CHUNK_SIZE as u64)
+            .map_err(Into::into)
     }
 }
 

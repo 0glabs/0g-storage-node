@@ -1,5 +1,4 @@
 use anyhow::Result;
-use fs_extra::dir::get_size;
 use miner::MinerMessage;
 use rand::Rng;
 use std::path::PathBuf;
@@ -19,7 +18,7 @@ const PRUNE_THRESHOLD: f32 = 0.9;
 pub struct PrunerConfig {
     pub shard_config: ShardConfig,
     pub db_path: PathBuf,
-    pub size_limit: usize,
+    pub max_num_chunks: usize,
     pub check_time: Duration,
     pub batch_size: usize,
     pub batch_wait_time: Duration,
@@ -27,7 +26,7 @@ pub struct PrunerConfig {
 
 impl PrunerConfig {
     fn start_prune_size(&self) -> u64 {
-        (self.size_limit as f32 * PRUNE_THRESHOLD) as u64
+        (self.max_num_chunks as f32 * PRUNE_THRESHOLD) as u64
     }
 }
 
@@ -85,8 +84,7 @@ impl Pruner {
     }
 
     async fn maybe_update(&mut self) -> Result<Option<Box<dyn Send + Iterator<Item = u64>>>> {
-        let current_size = get_size(&self.config.db_path)
-            .unwrap_or_else(|_| panic!("db size error: db_path={:?}", self.config.db_path));
+        let current_size = self.store.read().await.flow().get_num_entries()?;
         debug!(
             current_size = current_size,
             config = ?self.config.shard_config,

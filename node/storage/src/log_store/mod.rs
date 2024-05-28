@@ -195,6 +195,9 @@ pub trait FlowRead {
     fn get_chunk_root_list(&self) -> Result<MerkleTreeInitialData<DataRoot>>;
 
     fn load_sealed_data(&self, chunk_index: u64) -> Result<Option<MineLoadChunk>>;
+
+    // An estimation of the number of entries in the flow db.
+    fn get_num_entries(&self) -> Result<u64>;
 }
 
 pub trait FlowWrite {

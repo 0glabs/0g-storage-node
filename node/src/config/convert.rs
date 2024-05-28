@@ -10,7 +10,6 @@ use rpc::RPCConfig;
 use std::time::Duration;
 use storage::config::ShardConfig;
 use storage::StorageConfig;
-use zgs_spec::MB;
 
 impl ZgsConfig {
     pub fn network_config(&self) -> Result<NetworkConfig, String> {
@@ -178,12 +177,12 @@ impl ZgsConfig {
     }
 
     pub fn pruner_config(&self) -> Result<Option<PrunerConfig>, String> {
-        if let Some(size_limit_mb) = self.size_limit_mb {
+        if let Some(max_num_chunks) = self.db_max_num_chunks {
             let shard_config = ShardConfig::new(&self.shard_position)?;
             Ok(Some(PrunerConfig {
                 shard_config,
                 db_path: self.db_dir.clone().into(),
-                size_limit: size_limit_mb * MB,
+                max_num_chunks,
                 check_time: Duration::from_secs(self.prune_check_time_s),
                 batch_size: self.prune_batch_size,
                 batch_wait_time: Duration::from_millis(self.prune_batch_wait_time_ms),
