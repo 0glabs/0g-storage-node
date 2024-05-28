@@ -3,7 +3,7 @@ use crate::mem_pool::FileID;
 use anyhow::Result;
 use network::NetworkMessage;
 use shared_types::{ChunkArray, FileProof};
-use std::sync::Arc;
+use std::{sync::Arc, time::SystemTime};
 use storage_async::Store;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -62,6 +62,7 @@ impl ChunkPoolHandler {
             }
         }
 
+        let start = SystemTime::now();
         if !self
             .log_store
             .finalize_tx_with_hash(id.tx_id.seq, id.tx_id.hash)
@@ -70,7 +71,8 @@ impl ChunkPoolHandler {
             return Ok(false);
         }
 
-        debug!(?id, "Transaction finalized");
+        let elapsed = start.elapsed()?;
+        debug!(?id, ?elapsed, "Transaction finalized");
 
         // always remove file from pool after transaction finalized
         self.mem_pool.remove_file(&id.root).await;
