@@ -6,6 +6,7 @@ use chunk_pool::{FileID, SegmentInfo};
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
 use shared_types::{DataRoot, Transaction, CHUNK_SIZE};
+use std::fmt::{Debug, Formatter, Result};
 use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
 use storage::log_store::config::ConfigurableExt;
 use storage::try_option;
@@ -36,15 +37,22 @@ impl RpcServer for RpcServerImpl {
     }
 
     async fn upload_segment(&self, segment: SegmentWithProof) -> RpcResult<()> {
-        debug!(root = %segment.root, index = %segment.index, "zgs_uploadSegment");
+        info!(root = %segment.root, index = %segment.index, "zgs_uploadSegment");
         self.put_segment(segment).await
     }
 
     async fn upload_segments(&self, segments: Vec<SegmentWithProof>) -> RpcResult<()> {
-        debug!("zgs_uploadSegments()");
+        let root = match segments.first() {
+            None => return Ok(()),
+            Some(seg) => seg.root,
+        };
+        let indices = SegmentIndexArray::new(&segments);
+        info!(%root, ?indices, "zgs_uploadSegments");
+
         for segment in segments.into_iter() {
             self.put_segment(segment).await?;
         }
+
         Ok(())
     }
 
@@ -54,7 +62,7 @@ impl RpcServer for RpcServerImpl {
         start_index: usize,
         end_index: usize,
     ) -> RpcResult<Option<Segment>> {
-        debug!(%data_root, %start_index, %end_index, "zgs_downloadSegment");
+        info!(%data_root, %start_index, %end_index, "zgs_downloadSegment");
 
         if start_index >= end_index {
             return Err(error::invalid_params("end_index", "invalid chunk index"));
@@ -91,7 +99,7 @@ impl RpcServer for RpcServerImpl {
         data_root: DataRoot,
         index: usize,
     ) -> RpcResult<Option<SegmentWithProof>> {
-        debug!(%data_root, %index, "zgs_downloadSegmentWithProof");
+        info!(%data_root, %index, "zgs_downloadSegmentWithProof");
 
         let tx = try_option!(self.ctx.log_store.get_tx_by_data_root(&data_root).await?);
 
@@ -280,5 +288,63 @@ impl RpcServerImpl {
                 .await?;
         }
         Ok(())
+    }
+}
+
+enum SegmentIndex {
+    Single(usize),
+    Range(usize, usize), // [start, end]
+}
+
+impl Debug for SegmentIndex {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Self::Single(val) => write!(f, "{}", val),
+            Self::Range(start, end) => write!(f, "[{},{}]", start, end),
+        }
+    }
+}
+
+struct SegmentIndexArray {
+    items: Vec<SegmentIndex>,
+}
+
+impl Debug for SegmentIndexArray {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self.items.first() {
+            None => write!(f, "NULL"),
+            Some(first) if self.items.len() == 1 => write!(f, "{:?}", first),
+            _ => write!(f, "{:?}", self.items),
+        }
+    }
+}
+
+impl SegmentIndexArray {
+    fn new(segments: &[SegmentWithProof]) -> Self {
+        let mut items = Vec::new();
+
+        let mut current = match segments.first() {
+            None => return SegmentIndexArray { items },
+            Some(seg) => SegmentIndex::Single(seg.index),
+        };
+
+        for index in segments.iter().skip(1).map(|seg| seg.index) {
+            match current {
+                SegmentIndex::Single(val) if val + 1 == index => {
+                    current = SegmentIndex::Range(val, index)
+                }
+                SegmentIndex::Range(start, end) if end + 1 == index => {
+                    current = SegmentIndex::Range(start, index)
+                }
+                _ => {
+                    items.push(current);
+                    current = SegmentIndex::Single(index);
+                }
+            }
+        }
+
+        items.push(current);
+
+        SegmentIndexArray { items }
     }
 }
