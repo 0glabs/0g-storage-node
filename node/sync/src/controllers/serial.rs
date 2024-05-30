@@ -188,12 +188,17 @@ impl SerialSyncController {
             let peer_id: PeerId = announcement.peer_id.clone().into();
             let mut addr: Multiaddr = announcement.at.clone().into();
             addr.push(Protocol::P2p(peer_id.into()));
-
             found_new_peer = self.on_peer_found(peer_id, addr) || found_new_peer;
         }
 
         if found_new_peer {
-            return;
+            if self.peers.all_shards_available(vec![
+                PeerState::Found,
+                PeerState::Connecting,
+                PeerState::Connected,
+            ]) {
+                return;
+            }
         }
 
         self.ctx.publish(PubsubMessage::FindFile(FindFile {
@@ -213,23 +218,27 @@ impl SerialSyncController {
 
     fn try_connect(&mut self) {
         // select a random peer
-        let (peer_id, address) = match self.peers.random_peer(PeerState::Found) {
-            Some((peer_id, address)) => (peer_id, address),
-            None => {
-                // peer may be disconnected by remote node and need to find peers again
-                warn!(%self.tx_seq, "No peers available to connect");
-                self.state = SyncState::Idle;
-                return;
-            }
-        };
+        while !self
+            .peers
+            .all_shards_available(vec![PeerState::Connecting, PeerState::Connected])
+        {
+            let (peer_id, address) = match self.peers.random_peer(PeerState::Found) {
+                Some((peer_id, address)) => (peer_id, address),
+                None => {
+                    // peer may be disconnected by remote node and need to find peers again
+                    warn!(%self.tx_seq, "No peers available to connect");
+                    self.state = SyncState::Idle;
+                    return;
+                }
+            };
 
-        // connect to peer
-        info!(%peer_id, %address, "Attempting to connect to peer");
-        self.ctx.send(NetworkMessage::DialPeer { address, peer_id });
+            // connect to peer
+            info!(%peer_id, %address, "Attempting to connect to peer");
+            self.ctx.send(NetworkMessage::DialPeer { address, peer_id });
 
-        self.peers
-            .update_state(&peer_id, PeerState::Found, PeerState::Connecting);
-
+            self.peers
+                .update_state(&peer_id, PeerState::Found, PeerState::Connecting);
+        }
         self.state = SyncState::ConnectingPeers;
     }
 
@@ -284,12 +293,17 @@ impl SerialSyncController {
     }
 
     pub fn on_peer_found(&mut self, peer_id: PeerId, addr: Multiaddr) -> bool {
-        if self.peers.add_new_peer(peer_id, addr.clone()) {
-            info!(%self.tx_seq, %peer_id, %addr, "Found new peer");
-            true
+        if let Some(shard_config) = self.file_location_cache.get_peer_config(&peer_id) {
+            if self.peers.add_new_peer(peer_id, addr.clone(), shard_config) {
+                info!(%self.tx_seq, %peer_id, %addr, "Found new peer");
+                true
+            } else {
+                // e.g. multiple `AnnounceFile` messages propagated
+                debug!(%self.tx_seq, %peer_id, %addr, "Found an existing peer");
+                false
+            }
         } else {
-            // e.g. multiple `AnnounceFile` messages propagated
-            debug!(%self.tx_seq, %peer_id, %addr, "Found an existing peer");
+            debug!(%self.tx_seq, %peer_id, %addr, "No shard config found");
             false
         }
     }
@@ -529,9 +543,16 @@ impl SerialSyncController {
     fn select_peer_for_request(&self, request: &GetChunksRequest) -> Option<PeerId> {
         let segment_index =
             (request.index_start + self.tx_start_chunk_in_flow) / PORA_CHUNK_SIZE as u64;
-        let peers = self.peers.filter_peers(PeerState::Connected);
-        self.file_location_cache
-            .get_peer_for_shard(&peers, segment_index)
+        let peers = self.peers.filter_peers(vec![PeerState::Connected]);
+        // TODO: Add randomness
+        for peer in peers {
+            if let Some(shard_config) = self.peers.shard_config(&peer) {
+                if shard_config.in_range(segment_index) {
+                    return Some(peer);
+                }
+            }
+        }
+        None
     }
 
     pub fn transition(&mut self) {
@@ -575,7 +596,7 @@ impl SerialSyncController {
                 }
 
                 SyncState::ConnectingPeers => {
-                    if self.peers.count(&[Connected]) > 0 {
+                    if self.peers.all_shards_available(vec![Connected]) {
                         self.state = SyncState::AwaitingDownload {
                             since: Instant::now(),
                         };

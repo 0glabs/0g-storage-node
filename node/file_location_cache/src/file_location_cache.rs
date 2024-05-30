@@ -249,17 +249,8 @@ impl PeerShardConfigCache {
         self.peers.insert(peer, config)
     }
 
-    /// Return a peer id whose shard config contains `segment_index`.
-    pub fn get_peer_for_shard(&self, peers: &[PeerId], segment_index: u64) -> Option<PeerId> {
-        // TODO: Add randomness
-        for peer in peers {
-            if let Some(shard_config) = self.peers.get(peer) {
-                if shard_config.in_range(segment_index) {
-                    return Some(*peer);
-                }
-            }
-        }
-        None
+    pub fn get(&self, peer: &PeerId) -> Option<ShardConfig> {
+        self.peers.get(peer).cloned()
     }
 }
 
@@ -280,6 +271,7 @@ impl Default for FileLocationCache {
 impl FileLocationCache {
     pub fn insert(&self, announcement: SignedAnnounceFile) {
         let peer_id = *announcement.peer_id;
+        // FIXME: Check validity.
         let shard_config = ShardConfig {
             shard_id: announcement.shard_id,
             num_shard: announcement.num_shard,
@@ -303,10 +295,9 @@ impl FileLocationCache {
     ) -> Option<ShardConfig> {
         self.peer_cache.lock().insert(peer, shard_config)
     }
-    pub fn get_peer_for_shard(&self, peers: &[PeerId], segment_index: u64) -> Option<PeerId> {
-        self.peer_cache
-            .lock()
-            .get_peer_for_shard(peers, segment_index)
+
+    pub fn get_peer_config(&self, peer: &PeerId) -> Option<ShardConfig> {
+        self.peer_cache.lock().get(peer)
     }
 }
 

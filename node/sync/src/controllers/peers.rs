@@ -1,7 +1,10 @@
 use network::{Multiaddr, PeerId};
 use rand::seq::IteratorRandom;
-use std::collections::HashMap;
+use std::cmp::Ordering;
+use std::collections::{BTreeSet, HashMap};
 use std::time::{Duration, Instant};
+use std::vec;
+use storage::config::ShardConfig;
 
 const PEER_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const PEER_DISCONNECT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -22,6 +25,8 @@ struct PeerInfo {
     /// The current state of the peer.
     pub state: PeerState,
 
+    pub shard_config: ShardConfig,
+
     /// Timestamp of the last state change.
     pub since: Instant,
 }
@@ -39,9 +44,16 @@ pub struct SyncPeers {
 }
 
 impl SyncPeers {
-    pub fn add_new_peer(&mut self, peer_id: PeerId, addr: Multiaddr) -> bool {
-        if self.peers.contains_key(&peer_id) {
-            return false;
+    pub fn add_new_peer(
+        &mut self,
+        peer_id: PeerId,
+        addr: Multiaddr,
+        shard_config: ShardConfig,
+    ) -> bool {
+        if let Some(info) = self.peers.get(&peer_id) {
+            if info.shard_config == shard_config && info.addr == addr {
+                return false;
+            }
         }
 
         self.peers.insert(
@@ -49,6 +61,7 @@ impl SyncPeers {
             PeerInfo {
                 addr,
                 state: PeerState::Found,
+                shard_config,
                 since: Instant::now(),
             },
         );
@@ -83,6 +96,10 @@ impl SyncPeers {
         self.peers.get(peer_id).map(|info| info.state)
     }
 
+    pub fn shard_config(&self, peer_id: &PeerId) -> Option<ShardConfig> {
+        self.peers.get(peer_id).map(|info| info.shard_config)
+    }
+
     pub fn random_peer(&self, state: PeerState) -> Option<(PeerId, Multiaddr)> {
         self.peers
             .iter()
@@ -91,11 +108,11 @@ impl SyncPeers {
             .choose(&mut rand::thread_rng())
     }
 
-    pub fn filter_peers(&self, state: PeerState) -> Vec<PeerId> {
+    pub fn filter_peers(&self, state: Vec<PeerState>) -> Vec<PeerId> {
         self.peers
             .iter()
             .filter_map(|(peer_id, info)| {
-                if info.state == state {
+                if state.contains(&info.state) {
                     Some(*peer_id)
                 } else {
                     None
@@ -109,6 +126,42 @@ impl SyncPeers {
             .values()
             .filter(|info| states.contains(&info.state))
             .count()
+    }
+
+    pub fn all_shards_available(&self, state: Vec<PeerState>) -> bool {
+        let mut missing_shards = BTreeSet::new();
+        missing_shards.insert(0);
+        let mut num_shards = 1usize;
+        for peer_id in &self.filter_peers(state) {
+            let shard_config = self.peers.get(peer_id).unwrap().shard_config;
+            match shard_config.num_shard.cmp(&num_shards) {
+                Ordering::Equal => {
+                    missing_shards.remove(&shard_config.shard_id);
+                }
+                Ordering::Less => {
+                    let multi = num_shards / shard_config.num_shard;
+                    for i in 0..multi {
+                        let shard_id = shard_config.shard_id + i * shard_config.num_shard;
+                        missing_shards.remove(&shard_id);
+                    }
+                }
+                Ordering::Greater => {
+                    let multi = shard_config.num_shard / num_shards;
+                    let mut new_missing_shards = BTreeSet::new();
+                    for shard_id in &missing_shards {
+                        for i in 0..multi {
+                            new_missing_shards.insert(*shard_id + i * num_shards);
+                        }
+                    }
+                    new_missing_shards.remove(&shard_config.shard_id);
+
+                    missing_shards = new_missing_shards;
+                    num_shards = shard_config.num_shard;
+                }
+            }
+        }
+        trace!("all_shards_available: {} {:?}", num_shards, missing_shards);
+        missing_shards.is_empty()
     }
 
     pub fn transition(&mut self) {

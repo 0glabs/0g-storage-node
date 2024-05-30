@@ -10,7 +10,7 @@ pub struct Config {
     pub db_dir: PathBuf,
 }
 
-#[derive(Clone, Copy, Debug, Decode, Encode, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Decode, Encode, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ShardConfig {
     pub shard_id: usize,
     pub num_shard: usize,

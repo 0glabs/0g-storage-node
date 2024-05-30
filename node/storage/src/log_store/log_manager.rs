@@ -239,26 +239,18 @@ impl LogStoreWrite for LogManager {
 
         self.padding_rear_data(&tx)?;
 
-        let tx_end_index = tx.start_entry_index + bytes_to_entries(tx.size);
         // TODO: Check completeness without loading all data in memory.
         // TODO: Should we double check the tx merkle root?
-        if self
-            .flow_store
-            .get_entries(tx.start_entry_index, tx_end_index)?
-            .is_some()
-        {
-            self.tx_store.finalize_tx(tx_seq)?;
-            let same_root_seq_list = self
-                .tx_store
-                .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
-            // Check if there are other same-root transaction not finalized.
-            if same_root_seq_list.first() == Some(&tx_seq) {
-                self.copy_tx_data(tx_seq, same_root_seq_list[1..].to_vec())?;
-            }
-            Ok(true)
-        } else {
-            bail!("finalize tx with data missing: tx_seq={}", tx_seq)
+        // FIXME: Process shard prune.
+        self.tx_store.finalize_tx(tx_seq)?;
+        let same_root_seq_list = self
+            .tx_store
+            .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
+        // Check if there are other same-root transaction not finalized.
+        if same_root_seq_list.first() == Some(&tx_seq) {
+            self.copy_tx_data(tx_seq, same_root_seq_list[1..].to_vec())?;
         }
+        Ok(true)
     }
 
     fn put_sync_progress(&self, progress: (u64, H256, Option<Option<u64>>)) -> Result<()> {
