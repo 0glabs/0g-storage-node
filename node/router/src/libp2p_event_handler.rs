@@ -238,7 +238,7 @@ impl Libp2pEventHandler {
         }
     }
 
-    pub fn construct_announce_file_message(&self, tx_id: TxID) -> Option<PubsubMessage> {
+    pub async fn construct_announce_file_message(&self, tx_id: TxID) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
 
         let addr = match self.network_globals.listen_multiaddrs.read().first() {
@@ -250,9 +250,18 @@ impl Libp2pEventHandler {
         };
 
         let timestamp = timestamp_now();
+        let shard_config = self
+            .store
+            .get_store()
+            .read()
+            .await
+            .flow()
+            .get_shard_config();
 
         let msg = AnnounceFile {
             tx_id,
+            num_shard: shard_config.num_shard,
+            shard_id: shard_config.shard_id,
             peer_id: peer_id.into(),
             at: addr.into(),
             timestamp,
@@ -287,7 +296,7 @@ impl Libp2pEventHandler {
                 if tx.id() == tx_id {
                     debug!(?tx_id, "Found file locally, responding to FindFile query");
 
-                    return match self.construct_announce_file_message(tx_id) {
+                    return match self.construct_announce_file_message(tx_id).await {
                         Some(msg) => {
                             self.publish(msg);
                             MessageAcceptance::Ignore
@@ -855,7 +864,11 @@ mod tests {
         let tx_id = TxID::random_hash(412);
 
         // change signed message
-        let message = match handler.construct_announce_file_message(tx_id).unwrap() {
+        let message = match handler
+            .construct_announce_file_message(tx_id)
+            .await
+            .unwrap()
+        {
             PubsubMessage::AnnounceFile(mut file) => {
                 let malicious_addr: Multiaddr = "/ip4/127.0.0.38/tcp/30000".parse().unwrap();
                 file.inner.at = malicious_addr.into();
@@ -878,7 +891,7 @@ mod tests {
         let (alice, bob) = (PeerId::random(), PeerId::random());
         let id = MessageId::new(b"dummy message");
         let tx = TxID::random_hash(412);
-        let message = handler.construct_announce_file_message(tx).unwrap();
+        let message = handler.construct_announce_file_message(tx).await.unwrap();
 
         // succeeded to handle
         let result = handler.on_pubsub_message(alice, bob, &id, message).await;

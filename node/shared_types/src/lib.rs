@@ -132,6 +132,10 @@ impl Transaction {
             hash: self.hash(),
         }
     }
+
+    pub fn start_entry_index(&self) -> u64 {
+        self.start_entry_index
+    }
 }
 
 pub struct ChunkWithProof {

@@ -566,6 +566,7 @@ impl SyncService {
 
                 entry.insert(SerialSyncController::new(
                     tx.id(),
+                    tx.start_entry_index(),
                     FileSyncGoal::new(num_chunks, index_start, index_end),
                     self.ctx.clone(),
                     self.store.clone(),

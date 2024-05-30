@@ -286,6 +286,7 @@ impl RouterService {
                 if let Some(msg) = self
                     .libp2p_event_handler
                     .construct_announce_file_message(tx_id)
+                    .await
                 {
                     self.libp2p_event_handler.publish(msg);
                 }

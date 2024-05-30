@@ -205,6 +205,10 @@ impl FlowRead for FlowStore {
             .map(|num_batches| num_batches * PORA_CHUNK_SIZE as u64)
             .map_err(Into::into)
     }
+
+    fn get_shard_config(&self) -> ShardConfig {
+        self.config.shard_config
+    }
 }
 
 impl FlowWrite for FlowStore {

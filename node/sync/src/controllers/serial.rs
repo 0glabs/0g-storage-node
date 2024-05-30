@@ -13,6 +13,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use storage::log_store::log_manager::PORA_CHUNK_SIZE;
 use storage_async::Store;
 
 pub const MAX_CHUNKS_TO_REQUEST: u64 = 2 * 1024;
@@ -62,6 +63,8 @@ pub struct SerialSyncController {
     /// The unique transaction ID.
     tx_id: TxID,
 
+    tx_start_chunk_in_flow: u64,
+
     since: Instant,
 
     /// File sync goal.
@@ -92,6 +95,7 @@ pub struct SerialSyncController {
 impl SerialSyncController {
     pub fn new(
         tx_id: TxID,
+        tx_start_chunk_in_flow: u64,
         goal: FileSyncGoal,
         ctx: Arc<SyncNetworkContext>,
         store: Store,
@@ -100,6 +104,7 @@ impl SerialSyncController {
         SerialSyncController {
             tx_seq: tx_id.seq,
             tx_id,
+            tx_start_chunk_in_flow,
             since: Instant::now(),
             goal,
             next_chunk: goal.index_start,
@@ -229,9 +234,28 @@ impl SerialSyncController {
     }
 
     fn try_request_next(&mut self) {
+        // request next chunk array
+        let from_chunk = self.next_chunk;
+        // let to_chunk = std::cmp::min(from_chunk + MAX_CHUNKS_TO_REQUEST, self.goal.index_end);
+        let to_chunk =
+            if from_chunk == 0 && self.tx_start_chunk_in_flow % PORA_CHUNK_SIZE as u64 != 0 {
+                // Align the first request with segments.
+                PORA_CHUNK_SIZE as u64 - self.tx_start_chunk_in_flow % PORA_CHUNK_SIZE as u64
+            } else {
+                from_chunk + PORA_CHUNK_SIZE as u64
+            };
+        let to_chunk = std::cmp::min(to_chunk, self.goal.index_end);
+
+        let request_id = network::RequestId::Sync(RequestId::SerialSync { tx_id: self.tx_id });
+        let request = GetChunksRequest {
+            tx_id: self.tx_id,
+            index_start: from_chunk,
+            index_end: to_chunk,
+        };
+
         // select a random peer
-        let peer_id = match self.peers.random_peer(PeerState::Connected) {
-            Some((peer_id, _)) => peer_id,
+        let peer_id = match self.select_peer_for_request(&request) {
+            Some(peer_id) => peer_id,
             None => {
                 warn!(%self.tx_seq, "No peers available to request chunks");
                 self.state = SyncState::Idle;
@@ -239,24 +263,11 @@ impl SerialSyncController {
             }
         };
 
-        // request next chunk array
-        let from_chunk = self.next_chunk;
-        let to_chunk = std::cmp::min(from_chunk + MAX_CHUNKS_TO_REQUEST, self.goal.index_end);
-
-        let request_id = network::RequestId::Sync(RequestId::SerialSync { tx_id: self.tx_id });
-
-        let request = network::Request::GetChunks(GetChunksRequest {
-            tx_id: self.tx_id,
-            index_start: from_chunk,
-            index_end: to_chunk,
-        });
-
         self.ctx.send(NetworkMessage::SendRequest {
             peer_id,
             request_id,
-            request,
+            request: network::Request::GetChunks(request),
         });
-
         self.state = SyncState::Downloading {
             peer_id,
             from_chunk,
@@ -513,6 +524,14 @@ impl SerialSyncController {
             self.ban_peer(peer_id, reason);
             self.state = SyncState::Idle;
         }
+    }
+
+    fn select_peer_for_request(&self, request: &GetChunksRequest) -> Option<PeerId> {
+        let segment_index =
+            (request.index_start + self.tx_start_chunk_in_flow) / PORA_CHUNK_SIZE as u64;
+        let peers = self.peers.filter_peers(PeerState::Connected);
+        self.file_location_cache
+            .get_peer_for_shard(&peers, segment_index)
     }
 
     pub fn transition(&mut self) {
@@ -1546,6 +1565,7 @@ mod tests {
 
         let controller = SerialSyncController::new(
             tx_id,
+            0,
             FileSyncGoal::new_file(num_chunks as u64),
             ctx,
             Store::new(store, task_executor),

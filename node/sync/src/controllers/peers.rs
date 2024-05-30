@@ -91,6 +91,19 @@ impl SyncPeers {
             .choose(&mut rand::thread_rng())
     }
 
+    pub fn filter_peers(&self, state: PeerState) -> Vec<PeerId> {
+        self.peers
+            .iter()
+            .filter_map(|(peer_id, info)| {
+                if info.state == state {
+                    Some(*peer_id)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     pub fn count(&self, states: &[PeerState]) -> usize {
         self.peers
             .values()

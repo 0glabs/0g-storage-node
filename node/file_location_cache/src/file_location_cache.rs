@@ -7,6 +7,7 @@ use rand::seq::IteratorRandom;
 use shared_types::{timestamp_now, TxID};
 use std::cmp::Reverse;
 use std::collections::HashMap;
+use storage::config::ShardConfig;
 
 /// Caches limited announcements of specified file from different peers.
 struct AnnouncementCache {
@@ -231,21 +232,60 @@ impl FileCache {
     }
 }
 
+pub struct PeerShardConfigCache {
+    peers: HashMap<PeerId, ShardConfig>,
+}
+
+impl Default for PeerShardConfigCache {
+    fn default() -> Self {
+        Self {
+            peers: HashMap::new(),
+        }
+    }
+}
+
+impl PeerShardConfigCache {
+    pub fn insert(&mut self, peer: PeerId, config: ShardConfig) -> Option<ShardConfig> {
+        self.peers.insert(peer, config)
+    }
+
+    /// Return a peer id whose shard config contains `segment_index`.
+    pub fn get_peer_for_shard(&self, peers: &[PeerId], segment_index: u64) -> Option<PeerId> {
+        // TODO: Add randomness
+        for peer in peers {
+            if let Some(shard_config) = self.peers.get(peer) {
+                if shard_config.in_range(segment_index) {
+                    return Some(*peer);
+                }
+            }
+        }
+        None
+    }
+}
+
 pub struct FileLocationCache {
     cache: Mutex<FileCache>,
+    peer_cache: Mutex<PeerShardConfigCache>,
 }
 
 impl Default for FileLocationCache {
     fn default() -> Self {
         FileLocationCache {
             cache: Mutex::new(FileCache::new(Default::default())),
+            peer_cache: Mutex::new(Default::default()),
         }
     }
 }
 
 impl FileLocationCache {
     pub fn insert(&self, announcement: SignedAnnounceFile) {
+        let peer_id = *announcement.peer_id;
+        let shard_config = ShardConfig {
+            shard_id: announcement.shard_id,
+            num_shard: announcement.num_shard,
+        };
         self.cache.lock().insert(announcement);
+        self.insert_peer_config(peer_id, shard_config);
     }
 
     pub fn get_one(&self, tx_id: TxID) -> Option<SignedAnnounceFile> {
@@ -254,6 +294,19 @@ impl FileLocationCache {
 
     pub fn get_all(&self, tx_id: TxID) -> Vec<SignedAnnounceFile> {
         self.cache.lock().all(tx_id).unwrap_or_default()
+    }
+
+    pub fn insert_peer_config(
+        &self,
+        peer: PeerId,
+        shard_config: ShardConfig,
+    ) -> Option<ShardConfig> {
+        self.peer_cache.lock().insert(peer, shard_config)
+    }
+    pub fn get_peer_for_shard(&self, peers: &[PeerId], segment_index: u64) -> Option<PeerId> {
+        self.peer_cache
+            .lock()
+            .get_peer_for_shard(peers, segment_index)
     }
 }
 

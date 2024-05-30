@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 hashlink = "0.8.0"
 network = { path = "../network" }
+storage = { path = "../storage" }
 parking_lot = "0.12.1"
 rand = "0.8.5"
 tracing = "0.1.35"

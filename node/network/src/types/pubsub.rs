@@ -131,6 +131,8 @@ pub struct FindChunks {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub struct AnnounceFile {
     pub tx_id: TxID,
+    pub num_shard: usize,
+    pub shard_id: usize,
     pub peer_id: WrappedPeerId,
     pub at: WrappedMultiaddr,
     pub timestamp: u32,

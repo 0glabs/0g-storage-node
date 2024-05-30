@@ -2290,6 +2290,7 @@ dependencies = [
  "priority-queue",
  "rand 0.8.5",
  "shared_types",
+ "storage",
  "tracing",
 ]
 
