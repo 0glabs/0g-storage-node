@@ -11,6 +11,7 @@ pub struct Config {
 }
 
 #[derive(Clone, Copy, Debug, Decode, Encode, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ShardConfig {
     pub shard_id: usize,
     pub num_shard: usize,
