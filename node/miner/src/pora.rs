@@ -102,8 +102,15 @@ impl<'a> Miner<'a> {
 
             let quality = self.pora(idx, &sealed_data, pad_seed);
             let quality_scale = self.range.shard_mask.count_zeros();
-            if quality << quality_scale <= *self.target_quality {
-                debug!("Find a PoRA valid answer, quality: {}", quality);
+            if quality <= U256::MAX >> quality_scale
+                && quality << quality_scale <= *self.target_quality
+            {
+                debug!(
+                    "Find a PoRA valid answer, quality: {}, target_quality {}, scale {}",
+                    U256::MAX / quality,
+                    U256::MAX / self.target_quality,
+                    quality_scale
+                );
                 // Undo mix data when find a valid solition
                 for (x, y) in sealed_data.iter_mut().zip(scratch_pad.iter()) {
                     *x ^= y;
