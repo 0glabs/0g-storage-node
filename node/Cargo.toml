@@ -17,6 +17,7 @@ zgs_spec = { path = "../common/spec" }
 log_entry_sync = { path = "./log_entry_sync" }
 miner = { path = "./miner" }
 network = { path = "./network" }
+pruner = { path = "./pruner" }
 router = { path = "./router" }
 rpc = { path = "./rpc" }
 shared_types = { path = "./shared_types" }

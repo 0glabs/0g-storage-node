@@ -54,6 +54,10 @@ build_config! {
 
     // db
     (db_dir, (String), "db".to_string())
+    (db_max_num_chunks, (Option<usize>), None)
+    (prune_check_time_s, (u64), 60)
+    (prune_batch_size, (usize), 1024)
+    (prune_batch_wait_time_ms, (u64), 1000)
 
     // misc
     (log_config_file, (String), "log_config".to_string())
@@ -66,7 +70,6 @@ build_config! {
     (miner_submission_gas, (Option<u64>), None)
     (miner_cpu_percentage, (u64), 100)
     (mine_iter_batch_size, (usize), 100)
-    (shard_group_bytes, (Option<usize>), None)
     (shard_position, (Option<String>), None)
 }
 

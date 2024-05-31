@@ -9,12 +9,12 @@ use tokio::time::{sleep, Duration, Instant};
 use zgs_spec::{SECTORS_PER_LOAD, SECTORS_PER_MAX_MINING_RANGE, SECTORS_PER_PRICING};
 
 use crate::recall_range::RecallRange;
-use crate::ShardConfig;
 use crate::{
     pora::{AnswerWithoutProof, Miner},
     watcher::MineContextMessage,
     MinerConfig, MinerMessage, PoraLoader,
 };
+use storage::config::ShardConfig;
 
 use std::sync::Arc;
 
@@ -36,16 +36,16 @@ struct PoraPuzzle {
     context: MineContext,
     target_quality: U256,
 }
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct MineRangeConfig {
     start_position: Option<u64>,
     end_position: Option<u64>,
-    shard_config: Option<ShardConfig>,
+    shard_config: ShardConfig,
 }
 
 impl MineRangeConfig {
     #[inline]
-    fn to_valid_range(self, context: &MineContext) -> Option<RecallRange> {
+    fn to_valid_range(&self, context: &MineContext) -> Option<RecallRange> {
         let self_start_position = self.start_position?;
         let self_end_position = self.end_position?;
 
@@ -64,10 +64,8 @@ impl MineRangeConfig {
         Some(RecallRange {
             start_position,
             mining_length,
-            shard_mask: self.shard_config.map_or(u64::MAX, |c| c.shard_mask()),
-            shard_id: self
-                .shard_config
-                .map_or(0, |c| c.shard_id as u64 * c.shard_chunks()),
+            shard_mask: self.shard_config.miner_shard_mask(),
+            shard_id: self.shard_config.miner_shard_id(),
         })
     }
 
@@ -144,6 +142,9 @@ impl PoraService {
                         Ok(MinerMessage::SetEndPosition(pos)) => {
                             info!("Change end position to: {:?}", pos);
                             self.mine_range.end_position = pos;
+                        }
+                        Ok(MinerMessage::SetShardConfig(shard_config)) => {
+                            self.mine_range.shard_config = shard_config;
                         }
                         Err(broadcast::error::RecvError::Closed)=>{
                             warn!("Unexpected: Mine service config channel closed.");

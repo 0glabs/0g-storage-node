@@ -159,9 +159,9 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
 name = "anyhow"
-version = "1.0.81"
+version = "1.0.86"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0952808a6c2afd1aa8947271f3a60f1a6763c7b912d210184c5149b5cf147247"
+checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
 dependencies = [
  "backtrace",
 ]
@@ -3237,6 +3237,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5724,6 +5733,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
+name = "pruner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "miner",
+ "rand 0.8.5",
+ "storage",
+ "task_executor",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6853,7 +6875,7 @@ dependencies = [
  "ethereum-types 0.14.1",
  "hex",
  "hex-literal",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "kvdb",
  "kvdb-memorydb",
  "kvdb-rocksdb",
@@ -6861,6 +6883,7 @@ dependencies = [
  "merkle_tree",
  "rand 0.8.5",
  "rayon",
+ "serde",
  "shared_types",
  "static_assertions",
  "tempdir",
@@ -8360,6 +8383,7 @@ dependencies = [
  "log_entry_sync",
  "miner",
  "network",
+ "pruner",
  "router",
  "rpc",
  "serde",

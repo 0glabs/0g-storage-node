@@ -8,6 +8,8 @@ pub use config::Config as StorageConfig;
 pub use log_store::log_manager::LogManager;
 
 pub use ethereum_types::H256;
+use kvdb_memorydb::InMemory;
+use kvdb_rocksdb::Database;
 
 pub trait ZgsKeyValueDB: KeyValueDB {
     fn put(&self, col: u32, key: &[u8], value: &[u8]) -> std::io::Result<()> {
@@ -35,6 +37,18 @@ pub trait ZgsKeyValueDB: KeyValueDB {
         tx.delete_prefix(col, key_prefix);
         self.write(tx)
     }
+
+    fn num_keys(&self, col: u32) -> std::io::Result<u64>;
 }
 
-impl<T: KeyValueDB> ZgsKeyValueDB for T {}
+impl ZgsKeyValueDB for Database {
+    fn num_keys(&self, col: u32) -> std::io::Result<u64> {
+        self.num_keys(col)
+    }
+}
+
+impl ZgsKeyValueDB for InMemory {
+    fn num_keys(&self, _col: u32) -> std::io::Result<u64> {
+        todo!("not used")
+    }
+}

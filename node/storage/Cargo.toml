@@ -25,7 +25,8 @@ typenum = "1.15.0"
 bitmaps = "^3.2"
 static_assertions = "1.1"
 tiny-keccak = "*"
-itertools = "0.10.5"
+itertools = "0.13.0"
+serde = { version = "1.0.197", features = ["derive"] }
 
 [dev-dependencies]
 tempdir = "0.3.7"

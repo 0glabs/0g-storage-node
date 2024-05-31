@@ -17,6 +17,7 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
     let log_sync_config = config.log_sync_config()?;
     let miner_config = config.mine_config()?;
     let router_config = config.router_config(&network_config)?;
+    let pruner_config = config.pruner_config()?;
 
     ClientBuilder::default()
         .with_runtime_context(context)
@@ -31,6 +32,8 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
         .with_miner(miner_config)
         .await?
         .with_router(router_config)?
+        .with_pruner(pruner_config)
+        .await?
         .with_rpc(rpc_config, config.chunk_pool_config())
         .await?
         .build()

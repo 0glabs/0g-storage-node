@@ -17,6 +17,7 @@ members = [
     "node/log_entry_sync",
     "node/miner",
     "node/network",
+    "node/pruner",
     "node/router",
     "node/rpc",
     "node/shared_types",
