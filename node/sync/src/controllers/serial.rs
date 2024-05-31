@@ -191,14 +191,14 @@ impl SerialSyncController {
             found_new_peer = self.on_peer_found(peer_id, addr) || found_new_peer;
         }
 
-        if found_new_peer {
-            if self.peers.all_shards_available(vec![
+        if found_new_peer
+            && self.peers.all_shards_available(vec![
                 PeerState::Found,
                 PeerState::Connecting,
                 PeerState::Connected,
-            ]) {
-                return;
-            }
+            ])
+        {
+            return;
         }
 
         self.ctx.publish(PubsubMessage::FindFile(FindFile {
@@ -294,7 +294,10 @@ impl SerialSyncController {
 
     pub fn on_peer_found(&mut self, peer_id: PeerId, addr: Multiaddr) -> bool {
         if let Some(shard_config) = self.file_location_cache.get_peer_config(&peer_id) {
-            if self.peers.add_new_peer(peer_id, addr.clone(), shard_config) {
+            if self
+                .peers
+                .add_new_peer_with_config(peer_id, addr.clone(), shard_config)
+            {
                 info!(%self.tx_seq, %peer_id, %addr, "Found new peer");
                 true
             } else {

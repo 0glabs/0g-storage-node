@@ -44,7 +44,7 @@ pub struct SyncPeers {
 }
 
 impl SyncPeers {
-    pub fn add_new_peer(
+    pub fn add_new_peer_with_config(
         &mut self,
         peer_id: PeerId,
         addr: Multiaddr,
@@ -67,6 +67,11 @@ impl SyncPeers {
         );
 
         true
+    }
+
+    #[cfg(test)]
+    pub fn add_new_peer(&mut self, peer_id: PeerId, addr: Multiaddr) -> bool {
+        self.add_new_peer_with_config(peer_id, addr, Default::default())
     }
 
     pub fn update_state(

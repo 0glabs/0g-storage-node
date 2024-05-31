@@ -232,16 +232,9 @@ impl FileCache {
     }
 }
 
+#[derive(Default)]
 pub struct PeerShardConfigCache {
     peers: HashMap<PeerId, ShardConfig>,
-}
-
-impl Default for PeerShardConfigCache {
-    fn default() -> Self {
-        Self {
-            peers: HashMap::new(),
-        }
-    }
 }
 
 impl PeerShardConfigCache {
