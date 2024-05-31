@@ -729,7 +729,7 @@ mod tests {
 
     impl Default for TestSyncRuntime {
         fn default() -> Self {
-            TestSyncRuntime::new(vec![1535], 1)
+            TestSyncRuntime::new(vec![1023], 1)
         }
     }
 
@@ -1314,7 +1314,7 @@ mod tests {
             runtime.init_peer_id,
             tx_seq,
             0,
-            2048,
+            1024,
         )
         .await;
 
@@ -1343,7 +1343,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_file_multi_files() {
-        let mut runtime = TestSyncRuntime::new(vec![1535, 1535, 1535], 3);
+        let mut runtime = TestSyncRuntime::new(vec![1023, 1023, 1023], 3);
         let sync_send = runtime.spawn_sync_service(false).await;
 
         // second file
@@ -1430,7 +1430,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_announce_file() {
-        let mut runtime = TestSyncRuntime::new(vec![1535], 0);
+        let mut runtime = TestSyncRuntime::new(vec![1023], 0);
         let mut config = Config::default();
         config.sync_file_on_announcement_enabled = true;
         let sync_send = runtime.spawn_sync_service_with_config(false, config).await;
