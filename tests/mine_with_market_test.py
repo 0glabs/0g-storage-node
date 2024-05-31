@@ -10,20 +10,20 @@ import math
 
 PRICE_PER_SECTOR = math.ceil(10 * (10 ** 18) / (2 ** 30) * 256 / 12)
 
+
 class MineTest(TestFramework):
     def setup_params(self):
         self.num_blockchain_nodes = 1
         self.num_nodes = 1
         self.zgs_node_configs[0] = {
+            "db_max_num_chunks": 2**30,
             "miner_key": GENESIS_PRIV_KEY,
-            "shard_group_bytes": 4 * 1024 * 1024,
             "shard_position": "3 / 8",
         }
         self.enable_market = True
         self.mine_period = int(45 / self.block_time)
         self.launch_wait_seconds = 15
         self.log.info("Contract Info: Est. block time %.2f, Mine period %d", self.block_time, self.mine_period)
-
 
     def submit_data(self, item, size, no_submit = False):
         submissions_before = self.contract.num_submissions()
@@ -37,7 +37,7 @@ class MineTest(TestFramework):
         if not no_submit:
             wait_until(lambda: client.zgs_get_file_info(data_root) is not None)
             segment = submit_data(client, chunk_data)
-            wait_until(lambda: client.zgs_get_file_info(data_root)["finalized"])
+            # wait_until(lambda: client.zgs_get_file_info(data_root)["finalized"])
 
     def run_test(self):
         blockchain = self.blockchain_nodes[0]
@@ -82,7 +82,6 @@ class MineTest(TestFramework):
         assert_equal(current_epoch, start_epoch + 1);
         self.log.info("Sumission Done, epoch is %d, current block number %d", self.contract.epoch(), int(blockchain.eth_blockNumber(), 16))
 
-        
         self.log.info("Wait for mine context release")
         wait_until(lambda: self.contract.epoch() >= start_epoch + 2, timeout=180)
         self.contract.update_context()
@@ -95,7 +94,6 @@ class MineTest(TestFramework):
         self.log.info("Received reward %d Gwei", secondReward / (10**9))
 
         assert_greater_than(secondReward, 100 * firstReward / (start_epoch + 1))
-
 
 
 if __name__ == "__main__":

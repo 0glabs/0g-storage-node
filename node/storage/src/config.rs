@@ -1,4 +1,3 @@
-use crate::log_store::log_manager::PORA_CHUNK_SIZE;
 use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 use std::path::PathBuf;
@@ -11,6 +10,7 @@ pub struct Config {
 }
 
 #[derive(Clone, Copy, Debug, Decode, Encode, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ShardConfig {
     pub shard_id: usize,
     pub num_shard: usize,
@@ -53,11 +53,11 @@ impl ShardConfig {
     }
 
     pub fn miner_shard_mask(&self) -> u64 {
-        !((self.num_shard - 1) * PORA_CHUNK_SIZE) as u64
+        !(self.num_shard - 1) as u64
     }
 
     pub fn miner_shard_id(&self) -> u64 {
-        (self.shard_id * PORA_CHUNK_SIZE) as u64
+        self.shard_id as u64
     }
 
     pub fn in_range(&self, segment_index: u64) -> bool {

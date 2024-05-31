@@ -31,8 +31,8 @@ class PrunerTest(TestFramework):
         # Wait for 1 sec for the shard config to be updated
         time.sleep(1)
         shard_config = client.rpc.zgs_getShardConfig()
-        shard_id = int(shard_config["shard_id"])
-        num_shard = int(shard_config["num_shard"])
+        shard_id = int(shard_config["shardId"])
+        num_shard = int(shard_config["numShard"])
 
         for i in range(len(segment)):
             seg = client.zgs_download_segment(data_root, i * 1024, (i + 1) * 1024)
