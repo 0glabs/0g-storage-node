@@ -591,7 +591,7 @@ impl SerialSyncController {
                 }
 
                 SyncState::FoundPeers => {
-                    if self.peers.count(&[Connecting, Connected]) > 0 {
+                    if self.peers.all_shards_available(vec![Connecting, Connected]) {
                         self.state = SyncState::ConnectingPeers;
                     } else {
                         self.try_connect();
@@ -1414,8 +1414,8 @@ mod tests {
             SyncState::Failed { reason } => {
                 assert!(matches!(reason, FailureReason::DBError(..)));
             }
-            _ => {
-                panic!("Not expected SyncState");
+            state => {
+                panic!("Not expected SyncState, {:?}", state);
             }
         }
 

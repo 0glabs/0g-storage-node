@@ -7,7 +7,7 @@ use network::{
     self, Keypair, NetworkConfig, NetworkGlobals, NetworkMessage, RequestId,
     Service as LibP2PService,
 };
-use pruner::{Pruner, PrunerConfig};
+use pruner::{Pruner, PrunerConfig, PrunerMessage};
 use router::RouterService;
 use rpc::RPCConfig;
 use std::sync::Arc;
@@ -50,7 +50,10 @@ struct LogSyncComponents {
     send: broadcast::Sender<LogSyncEvent>,
 }
 
-struct PrunerComponents {}
+struct PrunerComponents {
+    // note: these will be owned by the router service
+    owned: Option<mpsc::UnboundedReceiver<PrunerMessage>>,
+}
 
 /// Builds a `Client` instance.
 ///
@@ -183,10 +186,10 @@ impl ClientBuilder {
             let miner_send = self.miner.as_ref().map(|miner| miner.send.clone());
             let store = require!("pruner", self, store).clone();
             let executor = require!("pruner", self, runtime_context).clone().executor;
-            Pruner::spawn(executor, config, store, miner_send)
+            let recv = Pruner::spawn(executor, config, store, miner_send)
                 .await
                 .map_err(|e| e.to_string())?;
-            self.pruner = Some(PrunerComponents {});
+            self.pruner = Some(PrunerComponents { owned: Some(recv) });
         }
         Ok(self)
     }
@@ -205,7 +208,7 @@ impl ClientBuilder {
             .owned
             .take() // router takes ownership of libp2p and network_recv
             .ok_or("router requires a network")?;
-
+        let pruner_recv = self.pruner.as_mut().and_then(|pruner| pruner.owned.take());
         RouterService::spawn(
             executor,
             libp2p,
@@ -214,6 +217,7 @@ impl ClientBuilder {
             network.send.clone(),
             sync_send,
             miner_send,
+            pruner_recv,
             store,
             file_location_cache,
             network.keypair.clone(),

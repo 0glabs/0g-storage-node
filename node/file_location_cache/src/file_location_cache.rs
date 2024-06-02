@@ -281,6 +281,7 @@ impl FileLocationCache {
         self.cache.lock().all(tx_id).unwrap_or_default()
     }
 
+    /// TODO: Trigger chunk_pool/sync to reconstruct if it changes?
     pub fn insert_peer_config(
         &self,
         peer: PeerId,

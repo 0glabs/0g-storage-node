@@ -18,6 +18,7 @@ pub enum PeerState {
     Disconnected,
 }
 
+#[derive(Debug)]
 struct PeerInfo {
     /// The reported/connected address of the peer.
     pub addr: Multiaddr,
@@ -38,7 +39,7 @@ impl PeerInfo {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct SyncPeers {
     peers: HashMap<PeerId, PeerInfo>,
 }
@@ -51,7 +52,7 @@ impl SyncPeers {
         shard_config: ShardConfig,
     ) -> bool {
         if let Some(info) = self.peers.get(&peer_id) {
-            if info.shard_config == shard_config && info.addr == addr {
+            if info.shard_config == shard_config {
                 return false;
             }
         }
