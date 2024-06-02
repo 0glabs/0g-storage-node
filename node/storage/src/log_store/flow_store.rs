@@ -582,6 +582,21 @@ pub fn batch_iter(start: u64, end: u64, batch_size: usize) -> Vec<(u64, u64)> {
     list
 }
 
+pub fn batch_iter_sharded(
+    start: u64,
+    end: u64,
+    batch_size: usize,
+    shard_config: ShardConfig,
+) -> Vec<(u64, u64)> {
+    batch_iter(start, end, batch_size)
+        .into_iter()
+        .filter(|(start, _)| {
+            (start / batch_size as u64) % shard_config.num_shard as u64
+                == shard_config.shard_id as u64
+        })
+        .collect()
+}
+
 fn try_decode_usize(data: &[u8]) -> Result<usize> {
     Ok(usize::from_be_bytes(
         data.try_into().map_err(|e| anyhow!("{:?}", e))?,

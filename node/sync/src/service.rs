@@ -1673,7 +1673,10 @@ mod tests {
                         .unwrap();
                 }
                 msg => {
-                    panic!("Not expected message: NetworkMessage::SendRequest, msg={:?}", msg);
+                    panic!(
+                        "Not expected message: NetworkMessage::SendRequest, msg={:?}",
+                        msg
+                    );
                 }
             }
         }
