@@ -23,7 +23,7 @@ class PrunerTest(TestFramework):
     def run_test(self):
         client = self.nodes[0]
 
-        chunk_data = b"\x02" * 16 * 256 * 1024
+        chunk_data = b"\x02" * 8 * 256 * 1024
         submissions, data_root = create_submission(chunk_data)
         self.contract.submit(submissions)
         wait_until(lambda: self.contract.num_submissions() == 1)
