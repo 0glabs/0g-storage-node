@@ -447,13 +447,24 @@ impl SerialSyncController {
 
         self.failures = 0;
 
+        let shard_config = self
+            .store
+            .get_store()
+            .read()
+            .await
+            .flow()
+            .get_shard_config();
+        let next_chunk = shard_config.next_segment_index(
+            (from_chunk / PORA_CHUNK_SIZE as u64) as usize,
+            (self.tx_start_chunk_in_flow / PORA_CHUNK_SIZE as u64) as usize,
+        ) * PORA_CHUNK_SIZE;
         // store in db
         match self
             .store
             .put_chunks_with_tx_hash(self.tx_id.seq, self.tx_id.hash, response.chunks, None)
             .await
         {
-            Ok(true) => self.next_chunk = to_chunk,
+            Ok(true) => self.next_chunk = next_chunk as u64,
             Ok(false) => {
                 warn!(?self.tx_id, "Transaction reverted while storing chunks");
                 self.state = SyncState::Failed {
