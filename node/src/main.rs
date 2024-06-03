@@ -33,9 +33,9 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
         .await?
         .with_pruner(pruner_config)
         .await?
-        .with_router(router_config)?
-        .with_rpc(rpc_config, config.chunk_pool_config())
+        .with_rpc(rpc_config, config.chunk_pool_config()?)
         .await?
+        .with_router(router_config)?
         .build()
 }
 

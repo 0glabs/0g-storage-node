@@ -3,6 +3,7 @@ use crate::Config;
 use anyhow::{bail, Result};
 use shared_types::DataRoot;
 use std::collections::HashMap;
+use storage_async::ShardConfig;
 
 /// The segment status in sliding window
 #[derive(PartialEq, Eq, Debug)]
@@ -197,5 +198,10 @@ impl ChunkPoolWriteCtrl {
 
         assert!(self.total_writings > 0);
         self.total_writings -= 1;
+    }
+
+    pub fn update_shard_config(&mut self, shard_config: ShardConfig) {
+        self.config.shard_config = shard_config;
+        for (_, file_ctrl) in &mut self.files {}
     }
 }

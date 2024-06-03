@@ -1,5 +1,6 @@
 use crate::Config;
 use crate::{libp2p_event_handler::Libp2pEventHandler, peer_manager::PeerManager};
+use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
 use futures::{channel::mpsc::Sender, prelude::*};
 use miner::MinerMessage;
@@ -14,6 +15,7 @@ use storage::log_store::Store as LogStore;
 use storage_async::Store;
 use sync::{SyncMessage, SyncSender};
 use task_executor::ShutdownReason;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio::time::interval;
 
@@ -54,6 +56,7 @@ impl RouterService {
         network_send: mpsc::UnboundedSender<NetworkMessage>,
         sync_send: SyncSender,
         _miner_send: Option<broadcast::Sender<MinerMessage>>,
+        chunk_pool_send: UnboundedSender<ChunkPoolMessage>,
         pruner_recv: Option<mpsc::UnboundedReceiver<PrunerMessage>>,
         store: Arc<RwLock<dyn LogStore>>,
         file_location_cache: Arc<FileLocationCache>,
@@ -75,6 +78,7 @@ impl RouterService {
                 network_globals,
                 network_send,
                 sync_send,
+                chunk_pool_send,
                 local_keypair,
                 store,
                 file_location_cache,
@@ -341,6 +345,8 @@ impl RouterService {
     async fn on_pruner_msg(&mut self, msg: PrunerMessage) {
         match msg {
             PrunerMessage::ChangeShardConfig(shard_config) => {
+                self.libp2p_event_handler
+                    .send_to_chunk_pool(ChunkPoolMessage::ChangeShardConfig(shard_config));
                 if let Some(msg) = self
                     .libp2p_event_handler
                     .construct_announce_shard_config_message(shard_config)

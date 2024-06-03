@@ -1,5 +1,6 @@
 use std::{ops::Neg, sync::Arc};
 
+use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
 use network::types::{AnnounceShardConfig, SignedAnnounceShardConfig};
 use network::{
@@ -15,6 +16,7 @@ use shared_types::{bytes_to_chunks, timestamp_now, TxID};
 use storage::config::ShardConfig;
 use storage_async::Store;
 use sync::{SyncMessage, SyncSender};
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, RwLock};
 
 use crate::peer_manager::PeerManager;
@@ -69,6 +71,8 @@ pub struct Libp2pEventHandler {
     network_send: mpsc::UnboundedSender<NetworkMessage>,
     /// A channel to the syncing service.
     sync_send: SyncSender,
+    /// A channel to the RPC chunk pool service.
+    chunk_pool_send: mpsc::UnboundedSender<ChunkPoolMessage>,
     /// Node keypair for signing messages.
     local_keypair: Keypair,
     /// Log and transaction storage.
@@ -84,6 +88,7 @@ impl Libp2pEventHandler {
         network_globals: Arc<NetworkGlobals>,
         network_send: mpsc::UnboundedSender<NetworkMessage>,
         sync_send: SyncSender,
+        chunk_pool_send: UnboundedSender<ChunkPoolMessage>,
         local_keypair: Keypair,
         store: Store,
         file_location_cache: Arc<FileLocationCache>,
@@ -93,6 +98,7 @@ impl Libp2pEventHandler {
             network_globals,
             network_send,
             sync_send,
+            chunk_pool_send,
             local_keypair,
             store,
             file_location_cache,
@@ -109,6 +115,12 @@ impl Libp2pEventHandler {
     pub fn send_to_sync(&self, message: SyncMessage) {
         self.sync_send.notify(message).unwrap_or_else(|err| {
             warn!(%err, "Could not send message to the sync service");
+        });
+    }
+
+    pub fn send_to_chunk_pool(&self, message: ChunkPoolMessage) {
+        self.chunk_pool_send.send(message).unwrap_or_else(|err| {
+            warn!(%err, "Could not send message to the chunk pool service");
         });
     }
 
@@ -583,6 +595,8 @@ mod tests {
         network_recv: mpsc::UnboundedReceiver<NetworkMessage>,
         sync_send: SyncSender,
         sync_recv: SyncReceiver,
+        chunk_pool_send: mpsc::UnboundedSender<ChunkPoolMessage>,
+        chunk_pool_recv: mpsc::UnboundedReceiver<ChunkPoolMessage>,
         store: Arc<RwLock<dyn Store>>,
         file_location_cache: Arc<FileLocationCache>,
         peers: Arc<RwLock<PeerManager>>,
@@ -594,6 +608,7 @@ mod tests {
             let (network_globals, keypair) = Context::new_network_globals();
             let (network_send, network_recv) = mpsc::unbounded_channel();
             let (sync_send, sync_recv) = channel::Channel::unbounded();
+            let (chunk_pool_send, chunk_pool_recv) = mpsc::unbounded_channel();
             let store = LogManager::memorydb(LogConfig::default()).unwrap();
             Self {
                 runtime,
@@ -603,6 +618,8 @@ mod tests {
                 network_recv,
                 sync_send,
                 sync_recv,
+                chunk_pool_send,
+                chunk_pool_recv,
                 store: Arc::new(RwLock::new(store)),
                 file_location_cache: Arc::new(FileLocationCache::default()),
                 peers: Arc::new(RwLock::new(PeerManager::new(Config::default()))),
@@ -616,6 +633,7 @@ mod tests {
                 self.network_globals.clone(),
                 self.network_send.clone(),
                 self.sync_send.clone(),
+                self.chunk_pool_send.clone(),
                 self.keypair.clone(),
                 storage_async::Store::new(self.store.clone(), self.runtime.task_executor.clone()),
                 self.file_location_cache.clone(),

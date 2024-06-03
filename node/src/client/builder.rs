@@ -1,5 +1,5 @@
 use super::{Client, RuntimeContext};
-use chunk_pool::{Config as ChunkPoolConfig, MemoryChunkPool};
+use chunk_pool::{ChunkPoolMessage, Config as ChunkPoolConfig, MemoryChunkPool};
 use file_location_cache::FileLocationCache;
 use log_entry_sync::{LogSyncConfig, LogSyncEvent, LogSyncManager};
 use miner::{MineService, MinerConfig, MinerMessage};
@@ -55,6 +55,10 @@ struct PrunerComponents {
     owned: Option<mpsc::UnboundedReceiver<PrunerMessage>>,
 }
 
+struct ChunkPoolComponents {
+    send: mpsc::UnboundedSender<ChunkPoolMessage>,
+}
+
 /// Builds a `Client` instance.
 ///
 /// ## Notes
@@ -72,6 +76,7 @@ pub struct ClientBuilder {
     miner: Option<MinerComponents>,
     log_sync: Option<LogSyncComponents>,
     pruner: Option<PrunerComponents>,
+    chunk_pool: Option<ChunkPoolComponents>,
 }
 
 impl ClientBuilder {
@@ -199,6 +204,7 @@ impl ClientBuilder {
         let executor = require!("router", self, runtime_context).clone().executor;
         let sync_send = require!("router", self, sync).send.clone(); // note: we can make this optional in the future
         let miner_send = self.miner.as_ref().map(|x| x.send.clone());
+        let chunk_pool_send = require!("router", self, chunk_pool).send.clone();
         let store = require!("router", self, store).clone();
         let file_location_cache = require!("router", self, file_location_cache).clone();
 
@@ -217,6 +223,7 @@ impl ClientBuilder {
             network.send.clone(),
             sync_send,
             miner_send,
+            chunk_pool_send,
             pruner_recv,
             store,
             file_location_cache,
@@ -228,7 +235,7 @@ impl ClientBuilder {
     }
 
     pub async fn with_rpc(
-        self,
+        mut self,
         rpc_config: RPCConfig,
         chunk_pool_config: ChunkPoolConfig,
     ) -> Result<Self, String> {
@@ -244,6 +251,9 @@ impl ClientBuilder {
 
         let (chunk_pool, chunk_pool_handler) =
             chunk_pool::unbounded(chunk_pool_config, async_store.clone(), network_send.clone());
+        let chunk_pool_components = ChunkPoolComponents {
+            send: chunk_pool.sender(),
+        };
 
         let chunk_pool_clone = chunk_pool.clone();
         let ctx = rpc::Context {
@@ -270,6 +280,8 @@ impl ClientBuilder {
             MemoryChunkPool::monitor_log_entry(chunk_pool_clone, synced_tx_recv),
             "chunk_pool_log_monitor",
         );
+
+        self.chunk_pool = Some(chunk_pool_components);
 
         Ok(self)
     }

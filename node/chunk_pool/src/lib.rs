@@ -4,11 +4,12 @@ extern crate tracing;
 mod handler;
 mod mem_pool;
 
-pub use handler::ChunkPoolHandler;
+pub use handler::{ChunkPoolHandler, ChunkPoolMessage};
 pub use mem_pool::{FileID, MemoryChunkPool, SegmentInfo};
 
 use std::sync::Arc;
 use std::time::Duration;
+use storage_async::ShardConfig;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Config {
@@ -16,6 +17,7 @@ pub struct Config {
     pub max_cached_chunks_all: usize,
     pub max_writings: usize,
     pub expiration_time_secs: u64,
+    pub shard_config: ShardConfig,
 }
 
 impl Config {
