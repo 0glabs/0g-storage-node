@@ -49,7 +49,7 @@ class SyncTest(TestFramework):
 
         # Trigger file sync by rpc
         assert(client2.admin_start_sync_file(0) is None)
-        wait_until(lambda: client2.sycn_status_is_completed_or_unknown(0))
+        wait_until(lambda: client2.sync_status_is_completed_or_unknown(0))
         wait_until(lambda: client2.zgs_get_file_info(data_root)["finalized"])
 
         # Validate data
@@ -96,7 +96,7 @@ class SyncTest(TestFramework):
 
         # Trigger chunks sync by rpc
         assert(client2.admin_start_sync_chunks(1, 1024, 2048) is None)
-        wait_until(lambda: client2.sycn_status_is_completed_or_unknown(1))
+        wait_until(lambda: client2.sync_status_is_completed_or_unknown(1))
         wait_until(lambda: client2.zgs_download_segment_decoded(data_root, 1024, 2048) is not None)
 
         # Validate data

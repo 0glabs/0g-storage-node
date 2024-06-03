@@ -84,7 +84,7 @@ class SubmissionTest(TestFramework):
             self.nodes[i].admin_start_sync_file(submission_index - 1)
 
             wait_until(
-                lambda: self.nodes[i].sycn_status_is_completed_or_unknown(
+                lambda: self.nodes[i].sync_status_is_completed_or_unknown(
                     submission_index - 1
                 )
             )

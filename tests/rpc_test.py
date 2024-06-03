@@ -42,7 +42,7 @@ class RpcTest(TestFramework):
         )
 
         client2.admin_start_sync_file(0)
-        wait_until(lambda: client2.sycn_status_is_completed_or_unknown(0))
+        wait_until(lambda: client2.sync_status_is_completed_or_unknown(0))
 
         wait_until(lambda: client2.zgs_get_file_info(data_root)["finalized"])
         assert_equal(
@@ -84,7 +84,7 @@ class RpcTest(TestFramework):
                 wait_until(lambda: self.nodes[i].zgs_get_file_info(root) is not None)
                 self.nodes[i].admin_start_sync_file(n_files - 1)
                 wait_until(
-                    lambda: self.nodes[i].sycn_status_is_completed_or_unknown(
+                    lambda: self.nodes[i].sync_status_is_completed_or_unknown(
                         n_files - 1
                     )
                 )

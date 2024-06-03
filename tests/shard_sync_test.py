@@ -34,7 +34,7 @@ class PrunerTest(TestFramework):
         submit_data(self.nodes[1], chunk_data)
 
         self.nodes[2].admin_start_sync_file(0)
-        wait_until(lambda: self.nodes[2].sycn_status_is_completed_or_unknown(0))
+        wait_until(lambda: self.nodes[2].sync_status_is_completed_or_unknown(0))
         wait_until(lambda: self.nodes[2].zgs_get_file_info(data_root)["finalized"])
 
         for i in range(len(segment)):
@@ -48,6 +48,7 @@ class PrunerTest(TestFramework):
             assert_equal(seg1, None)
             # node 2 should save all data
             assert_equal(len(seg2), 349528)
+        exit()
 
 
 if __name__ == "__main__":
