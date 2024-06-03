@@ -55,3 +55,10 @@ jobs:
         cd tests
         uname -a
         python test_all.py
+
+    - name: Save logs for failures
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test_logs
+        path: /tmp/zgs_test_*

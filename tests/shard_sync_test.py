@@ -48,7 +48,6 @@ class PrunerTest(TestFramework):
             assert_equal(seg1, None)
             # node 2 should save all data
             assert_equal(len(seg2), 349528)
-        exit()
 
 
 if __name__ == "__main__":
