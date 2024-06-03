@@ -245,16 +245,7 @@ impl SerialSyncController {
     fn try_request_next(&mut self) {
         // request next chunk array
         let from_chunk = self.next_chunk;
-        // let to_chunk = std::cmp::min(from_chunk + MAX_CHUNKS_TO_REQUEST, self.goal.index_end);
-        let to_chunk =
-            if from_chunk == 0 && self.tx_start_chunk_in_flow % PORA_CHUNK_SIZE as u64 != 0 {
-                // Align the first request with segments.
-                PORA_CHUNK_SIZE as u64 - self.tx_start_chunk_in_flow % PORA_CHUNK_SIZE as u64
-            } else {
-                from_chunk + PORA_CHUNK_SIZE as u64
-            };
-        let to_chunk = std::cmp::min(to_chunk, self.goal.index_end);
-
+        let to_chunk = std::cmp::min(from_chunk + PORA_CHUNK_SIZE as u64, self.goal.index_end);
         let request_id = network::RequestId::Sync(RequestId::SerialSync { tx_id: self.tx_id });
         let request = GetChunksRequest {
             tx_id: self.tx_id,

@@ -19,17 +19,19 @@ enum SlotStatus {
 struct CtrlWindow {
     #[allow(unused)]
     size: usize,
+    tx_start_index: usize,
     shard_config: ShardConfig,
     left_boundary: usize,
     slots: HashMap<usize, SlotStatus>,
 }
 
 impl CtrlWindow {
-    fn new(size: usize, shard_config: ShardConfig, tx_start_offset: usize) -> Self {
+    fn new(size: usize, shard_config: ShardConfig, tx_start_index: usize) -> Self {
         CtrlWindow {
             size,
+            tx_start_index,
             shard_config,
-            left_boundary: (shard_config.shard_id + shard_config.num_shard - tx_start_offset)
+            left_boundary: shard_config.next_segment_index(0, tx_start_index)
                 % shard_config.num_shard,
             slots: HashMap::default(),
         }
@@ -74,7 +76,10 @@ impl CtrlWindow {
         let mut left_boundary = self.left_boundary;
         while let Some(&SlotStatus::Finished) = self.slots.get(&left_boundary) {
             self.slots.remove(&left_boundary);
-            left_boundary += self.shard_config.num_shard;
+            // Handle shard_config change.
+            left_boundary = self
+                .shard_config
+                .next_segment_index(left_boundary, self.tx_start_index);
         }
 
         self.left_boundary = left_boundary;
@@ -94,12 +99,12 @@ impl FileWriteCtrl {
         total_segments: usize,
         window_size: usize,
         shard_config: ShardConfig,
-        tx_start_offset: usize,
+        tx_start_index: usize,
     ) -> Self {
         FileWriteCtrl {
             id,
             total_segments,
-            window: CtrlWindow::new(window_size, shard_config, tx_start_offset),
+            window: CtrlWindow::new(window_size, shard_config, tx_start_index),
         }
     }
 
@@ -142,14 +147,13 @@ impl ChunkPoolWriteCtrl {
         total_segments: usize,
         tx_start_index: usize,
     ) -> Result<()> {
-        let tx_start_offset = tx_start_index % self.config.shard_config.num_shard;
         let file_ctrl = self.files.entry(id.root).or_insert_with(|| {
             FileWriteCtrl::new(
                 id,
                 total_segments,
                 self.config.write_window_size,
                 self.config.shard_config,
-                tx_start_offset,
+                tx_start_index,
             )
         });
 
