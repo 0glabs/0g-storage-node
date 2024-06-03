@@ -3,7 +3,7 @@ use super::chunk_write_control::ChunkPoolWriteCtrl;
 use super::FileID;
 use crate::handler::ChunkPoolMessage;
 use crate::Config;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use async_lock::Mutex;
 use log_entry_sync::LogSyncEvent;
 use shared_types::{
@@ -147,10 +147,18 @@ impl MemoryChunkPool {
 
         //Write the segment in window
         let (total_segments, _) = compute_segment_size(total_chunks, seg_info.chunks_per_segment);
+        let tx_start_index = self
+            .log_store
+            .get_tx_by_seq_number(file_id.tx_id.seq)
+            .await?
+            .ok_or(anyhow!("unexpected tx missing"))?
+            .start_entry_index()
+            / seg_info.chunks_per_segment as u64;
         self.inner.lock().await.write_control.write_segment(
             file_id,
             seg_info.seg_index,
             total_segments,
+            tx_start_index as usize,
         )?;
 
         // Write memory cached segments into store.

@@ -2,7 +2,7 @@
 import time
 
 from test_framework.test_framework import TestFramework
-from utility.submission import create_submission, submit_data
+from utility.submission import create_submission, submit_data, data_to_segments
 from utility.utils import wait_until, assert_equal
 
 
@@ -30,14 +30,16 @@ class PrunerTest(TestFramework):
         wait_until(lambda: client.zgs_get_file_info(data_root) is not None)
 
         # Submit data to two nodes with different shards.
-        segment = submit_data(client, chunk_data)
-        submit_data(self.nodes[1], chunk_data)
+        segments = data_to_segments(chunk_data)
+        for i in range(len(segments)):
+            client_index = i % 2
+            self.nodes[client_index].zgs_upload_segment(segments[i])
 
         self.nodes[2].admin_start_sync_file(0)
         wait_until(lambda: self.nodes[2].sync_status_is_completed_or_unknown(0))
         wait_until(lambda: self.nodes[2].zgs_get_file_info(data_root)["finalized"])
 
-        for i in range(len(segment)):
+        for i in range(len(segments)):
             index_store = i % 2
             index_empty = 1 - i % 2
             seg0 = self.nodes[index_store].zgs_download_segment(data_root, i * 1024, (i + 1) * 1024)
