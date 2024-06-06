@@ -4,6 +4,7 @@ import logging
 import os
 import pdb
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -381,8 +382,10 @@ class TestFramework:
                 line = line.decode("utf-8")
                 self.log.debug("line: %s", line)
                 if "root" in line:
-                    index = line.find("root=")
-                    root = line[index + 5 : -1]
+                    filtered_line = re.sub(r'\x1b\[([0-9,A-Z]{1,2}(;[0-9]{1,2})?(;[0-9]{3})?)?[m|K]?', '', line)
+                    index = filtered_line.find("root=")
+                    if index > 0:
+                        root = filtered_line[index + 5 : index + 5 + 66]
         except Exception as ex:
             self.log.error("Failed to upload file via CLI tool, output: %s", output_name)
             raise ex
