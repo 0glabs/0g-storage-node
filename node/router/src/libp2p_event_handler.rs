@@ -84,6 +84,7 @@ pub struct Libp2pEventHandler {
 }
 
 impl Libp2pEventHandler {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         network_globals: Arc<NetworkGlobals>,
         network_send: mpsc::UnboundedSender<NetworkMessage>,

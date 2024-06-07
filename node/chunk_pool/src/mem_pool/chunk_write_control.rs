@@ -224,7 +224,7 @@ impl ChunkPoolWriteCtrl {
 
     pub fn update_shard_config(&mut self, shard_config: ShardConfig) {
         self.config.shard_config = shard_config;
-        for (_, file_ctrl) in &mut self.files {
+        for file_ctrl in self.files.values_mut() {
             file_ctrl.window.shard_config = shard_config;
         }
     }

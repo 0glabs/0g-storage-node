@@ -1381,7 +1381,7 @@ mod tests {
         let peer_id = identity::Keypair::generate_ed25519().public().to_peer_id();
 
         let tx_seq = 0;
-        let chunk_count = 2049;
+        let chunk_count = 1025;
         let (store, peer_store, txs, _) = create_2_store(vec![chunk_count]);
 
         let runtime = TestRuntime::default();
@@ -1397,19 +1397,19 @@ mod tests {
         let chunks = peer_store
             .read()
             .await
-            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, 2048)
+            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, 1024)
             .unwrap()
             .unwrap();
 
         controller.state = SyncState::Downloading {
             peer_id,
             from_chunk: 0,
-            to_chunk: 2048,
+            to_chunk: 1024,
             since: Instant::now(),
         };
 
-        controller.goal.num_chunks = 2048;
-        controller.goal.index_end = 2048;
+        controller.goal.num_chunks = 1024;
+        controller.goal.index_end = 1024;
 
         controller.on_response(peer_id, chunks).await;
         match controller.get_status() {
