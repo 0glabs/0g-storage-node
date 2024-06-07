@@ -8,7 +8,7 @@ use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
 use storage::log_store::config::ConfigurableExt;
 use storage::log_store::Store;
 use task_executor::TaskExecutor;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::debug;
 
 // Start pruning when the db directory size exceeds 0.9 * limit.
@@ -34,6 +34,7 @@ pub struct Pruner {
     config: PrunerConfig,
     store: Arc<RwLock<dyn Store>>,
 
+    sender: mpsc::UnboundedSender<PrunerMessage>,
     miner_sender: Option<broadcast::Sender<MinerMessage>>,
 }
 
@@ -43,13 +44,15 @@ impl Pruner {
         mut config: PrunerConfig,
         store: Arc<RwLock<dyn Store>>,
         miner_sender: Option<broadcast::Sender<MinerMessage>>,
-    ) -> Result<()> {
+    ) -> Result<mpsc::UnboundedReceiver<PrunerMessage>> {
         if let Some(shard_config) = get_shard_config(&store).await? {
             config.shard_config = shard_config;
         }
+        let (tx, rx) = mpsc::unbounded_channel();
         let pruner = Pruner {
             config,
             store,
+            sender: tx,
             miner_sender,
         };
         pruner.put_shard_config().await?;
@@ -59,7 +62,7 @@ impl Pruner {
             },
             "pruner",
         );
-        Ok(())
+        Ok(rx)
     }
 
     pub async fn start(mut self) -> Result<()> {
@@ -119,6 +122,8 @@ impl Pruner {
         if let Some(sender) = &self.miner_sender {
             sender.send(MinerMessage::SetShardConfig(self.config.shard_config))?;
         }
+        self.sender
+            .send(PrunerMessage::ChangeShardConfig(self.config.shard_config))?;
         let mut store = self.store.write().await;
         store
             .flow_mut()
@@ -129,4 +134,9 @@ impl Pruner {
 
 async fn get_shard_config(store: &RwLock<dyn Store>) -> Result<Option<ShardConfig>> {
     store.read().await.get_config_decoded(&SHARD_CONFIG_KEY)
+}
+
+#[derive(Debug)]
+pub enum PrunerMessage {
+    ChangeShardConfig(ShardConfig),
 }

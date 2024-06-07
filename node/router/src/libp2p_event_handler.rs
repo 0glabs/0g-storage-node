@@ -1,6 +1,7 @@
 use std::{ops::Neg, sync::Arc};
 
 use file_location_cache::FileLocationCache;
+use network::types::{AnnounceShardConfig, SignedAnnounceShardConfig};
 use network::{
     rpc::StatusMessage,
     types::{
@@ -11,6 +12,7 @@ use network::{
     PublicKey, PubsubMessage, Request, RequestId, Response,
 };
 use shared_types::{bytes_to_chunks, timestamp_now, TxID};
+use storage::config::ShardConfig;
 use storage_async::Store;
 use sync::{SyncMessage, SyncSender};
 use tokio::sync::{mpsc, RwLock};
@@ -20,6 +22,7 @@ use crate::peer_manager::PeerManager;
 lazy_static::lazy_static! {
     pub static ref FIND_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
     pub static ref ANNOUNCE_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
+    pub static ref ANNOUNCE_SHARD_CONFIG_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
     pub static ref TOLERABLE_DRIFT: chrono::Duration = chrono::Duration::seconds(5);
 }
 
@@ -235,10 +238,13 @@ impl Libp2pEventHandler {
             PubsubMessage::FindChunks(msg) => self.on_find_chunks(msg).await,
             PubsubMessage::AnnounceFile(msg) => self.on_announce_file(propagation_source, msg),
             PubsubMessage::AnnounceChunks(msg) => self.on_announce_chunks(propagation_source, msg),
+            PubsubMessage::AnnounceShardConfig(msg) => {
+                self.on_announce_shard_config(propagation_source, msg)
+            }
         }
     }
 
-    pub fn construct_announce_file_message(&self, tx_id: TxID) -> Option<PubsubMessage> {
+    pub async fn construct_announce_file_message(&self, tx_id: TxID) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
 
         let addr = match self.network_globals.listen_multiaddrs.read().first() {
@@ -250,9 +256,18 @@ impl Libp2pEventHandler {
         };
 
         let timestamp = timestamp_now();
+        let shard_config = self
+            .store
+            .get_store()
+            .read()
+            .await
+            .flow()
+            .get_shard_config();
 
         let msg = AnnounceFile {
             tx_id,
+            num_shard: shard_config.num_shard,
+            shard_id: shard_config.shard_id,
             peer_id: peer_id.into(),
             at: addr.into(),
             timestamp,
@@ -271,6 +286,41 @@ impl Libp2pEventHandler {
         Some(PubsubMessage::AnnounceFile(signed))
     }
 
+    pub async fn construct_announce_shard_config_message(
+        &self,
+        shard_config: ShardConfig,
+    ) -> Option<PubsubMessage> {
+        let peer_id = *self.network_globals.peer_id.read();
+        let addr = match self.network_globals.listen_multiaddrs.read().first() {
+            Some(addr) => addr.clone(),
+            None => {
+                error!("No listen address available");
+                return None;
+            }
+        };
+        let timestamp = timestamp_now();
+
+        let msg = AnnounceShardConfig {
+            num_shard: shard_config.num_shard,
+            shard_id: shard_config.shard_id,
+            peer_id: peer_id.into(),
+            at: addr.into(),
+            timestamp,
+        };
+
+        let mut signed = match SignedMessage::sign_message(msg, &self.local_keypair) {
+            Ok(signed) => signed,
+            Err(e) => {
+                error!(%e, "Failed to sign AnnounceShardConfig message");
+                return None;
+            }
+        };
+
+        signed.resend_timestamp = timestamp;
+
+        Some(PubsubMessage::AnnounceShardConfig(signed))
+    }
+
     async fn on_find_file(&self, msg: FindFile) -> MessageAcceptance {
         let FindFile { tx_id, timestamp } = msg;
 
@@ -287,7 +337,7 @@ impl Libp2pEventHandler {
                 if tx.id() == tx_id {
                     debug!(?tx_id, "Found file locally, responding to FindFile query");
 
-                    return match self.construct_announce_file_message(tx_id) {
+                    return match self.construct_announce_file_message(tx_id).await {
                         Some(msg) => {
                             self.publish(msg);
                             MessageAcceptance::Ignore
@@ -432,6 +482,41 @@ impl Libp2pEventHandler {
 
         // insert message to cache
         self.file_location_cache.insert(msg);
+
+        MessageAcceptance::Accept
+    }
+
+    fn on_announce_shard_config(
+        &self,
+        propagation_source: PeerId,
+        msg: SignedAnnounceShardConfig,
+    ) -> MessageAcceptance {
+        // verify message signature
+        if !verify_signature(&msg, &msg.peer_id, propagation_source) {
+            return MessageAcceptance::Reject;
+        }
+
+        // propagate gossip to peers
+        let d = duration_since(msg.resend_timestamp);
+        if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_SHARD_CONFIG_TIMEOUT {
+            debug!(%msg.resend_timestamp, "Invalid resend timestamp, ignoring AnnounceShardConfig message");
+            return MessageAcceptance::Ignore;
+        }
+
+        let shard_config = ShardConfig {
+            shard_id: msg.shard_id,
+            num_shard: msg.num_shard,
+        };
+        // notify sync layer
+        self.send_to_sync(SyncMessage::AnnounceShardConfig {
+            shard_config,
+            peer_id: msg.peer_id.clone().into(),
+            addr: msg.at.clone().into(),
+        });
+
+        // insert message to cache
+        self.file_location_cache
+            .insert_peer_config(msg.peer_id.clone().into(), shard_config);
 
         MessageAcceptance::Accept
     }
@@ -855,7 +940,11 @@ mod tests {
         let tx_id = TxID::random_hash(412);
 
         // change signed message
-        let message = match handler.construct_announce_file_message(tx_id).unwrap() {
+        let message = match handler
+            .construct_announce_file_message(tx_id)
+            .await
+            .unwrap()
+        {
             PubsubMessage::AnnounceFile(mut file) => {
                 let malicious_addr: Multiaddr = "/ip4/127.0.0.38/tcp/30000".parse().unwrap();
                 file.inner.at = malicious_addr.into();
@@ -878,7 +967,7 @@ mod tests {
         let (alice, bob) = (PeerId::random(), PeerId::random());
         let id = MessageId::new(b"dummy message");
         let tx = TxID::random_hash(412);
-        let message = handler.construct_announce_file_message(tx).unwrap();
+        let message = handler.construct_announce_file_message(tx).await.unwrap();
 
         // succeeded to handle
         let result = handler.on_pubsub_message(alice, bob, &id, message).await;

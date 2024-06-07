@@ -7,6 +7,7 @@ use network::{
     BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage, RequestId,
     Service as LibP2PService, Swarm,
 };
+use pruner::PrunerMessage;
 use std::sync::Arc;
 use std::time::Duration;
 use storage::log_store::Store as LogStore;
@@ -29,6 +30,9 @@ pub struct RouterService {
     /// The receiver channel for Zgs to communicate with the network service.
     network_recv: mpsc::UnboundedReceiver<NetworkMessage>,
 
+    /// The receiver channel for Zgs to communicate with the pruner service.
+    pruner_recv: Option<mpsc::UnboundedReceiver<PrunerMessage>>,
+
     /// All connected peers.
     peers: Arc<RwLock<PeerManager>>,
 
@@ -50,6 +54,7 @@ impl RouterService {
         network_send: mpsc::UnboundedSender<NetworkMessage>,
         sync_send: SyncSender,
         _miner_send: Option<broadcast::Sender<MinerMessage>>,
+        pruner_recv: Option<mpsc::UnboundedReceiver<PrunerMessage>>,
         store: Arc<RwLock<dyn LogStore>>,
         file_location_cache: Arc<FileLocationCache>,
         local_keypair: Keypair,
@@ -64,6 +69,7 @@ impl RouterService {
             libp2p,
             network_globals: network_globals.clone(),
             network_recv,
+            pruner_recv,
             peers: peers.clone(),
             libp2p_event_handler: Libp2pEventHandler::new(
                 network_globals,
@@ -94,9 +100,18 @@ impl RouterService {
                 // handle event coming from the network
                 event = self.libp2p.next_event() => self.on_libp2p_event(event, &mut shutdown_sender).await,
 
+                Some(msg) = Self::try_recv(&mut self.pruner_recv) => self.on_pruner_msg(msg).await,
+
                 // heartbeat
                 _ = heartbeat.tick() => self.on_heartbeat().await,
             }
+        }
+    }
+
+    async fn try_recv<T>(maybe_recv: &mut Option<mpsc::UnboundedReceiver<T>>) -> Option<T> {
+        match maybe_recv {
+            None => None,
+            Some(recv) => recv.recv().await,
         }
     }
 
@@ -286,6 +301,7 @@ impl RouterService {
                 if let Some(msg) = self
                     .libp2p_event_handler
                     .construct_announce_file_message(tx_id)
+                    .await
                 {
                     self.libp2p_event_handler.publish(msg);
                 }
@@ -317,6 +333,20 @@ impl RouterService {
                     {
                         warn!(error = %e, "Failed to update ENR");
                     }
+                }
+            }
+        }
+    }
+
+    async fn on_pruner_msg(&mut self, msg: PrunerMessage) {
+        match msg {
+            PrunerMessage::ChangeShardConfig(shard_config) => {
+                if let Some(msg) = self
+                    .libp2p_event_handler
+                    .construct_announce_shard_config_message(shard_config)
+                    .await
+                {
+                    self.libp2p_event_handler.publish(msg)
                 }
             }
         }

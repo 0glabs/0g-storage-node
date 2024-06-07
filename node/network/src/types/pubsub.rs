@@ -131,6 +131,8 @@ pub struct FindChunks {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub struct AnnounceFile {
     pub tx_id: TxID,
+    pub num_shard: usize,
+    pub shard_id: usize,
     pub peer_id: WrappedPeerId,
     pub at: WrappedMultiaddr,
     pub timestamp: u32,
@@ -195,6 +197,7 @@ impl<T: Encode + Decode> HasSignature for SignedMessage<T> {
 }
 
 pub type SignedAnnounceFile = SignedMessage<AnnounceFile>;
+pub type SignedAnnounceShardConfig = SignedMessage<AnnounceShardConfig>;
 pub type SignedAnnounceChunks = SignedMessage<AnnounceChunks>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -203,6 +206,7 @@ pub enum PubsubMessage {
     FindFile(FindFile),
     FindChunks(FindChunks),
     AnnounceFile(SignedAnnounceFile),
+    AnnounceShardConfig(SignedAnnounceShardConfig),
     AnnounceChunks(SignedAnnounceChunks),
 }
 
@@ -281,6 +285,7 @@ impl PubsubMessage {
             PubsubMessage::FindChunks(_) => GossipKind::FindChunks,
             PubsubMessage::AnnounceFile(_) => GossipKind::AnnounceFile,
             PubsubMessage::AnnounceChunks(_) => GossipKind::AnnounceChunks,
+            PubsubMessage::AnnounceShardConfig(_) => GossipKind::AnnounceShardConfig,
         }
     }
 
@@ -315,6 +320,10 @@ impl PubsubMessage {
                         SignedAnnounceChunks::from_ssz_bytes(data)
                             .map_err(|e| format!("{:?}", e))?,
                     )),
+                    GossipKind::AnnounceShardConfig => Ok(PubsubMessage::AnnounceShardConfig(
+                        SignedAnnounceShardConfig::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
+                    )),
                 }
             }
         }
@@ -333,6 +342,7 @@ impl PubsubMessage {
             PubsubMessage::FindChunks(data) => data.as_ssz_bytes(),
             PubsubMessage::AnnounceFile(data) => data.as_ssz_bytes(),
             PubsubMessage::AnnounceChunks(data) => data.as_ssz_bytes(),
+            PubsubMessage::AnnounceShardConfig(data) => data.as_ssz_bytes(),
         }
     }
 }
@@ -354,6 +364,9 @@ impl std::fmt::Display for PubsubMessage {
             }
             PubsubMessage::AnnounceChunks(msg) => {
                 write!(f, "AnnounceChunks message: {:?}", msg)
+            }
+            PubsubMessage::AnnounceShardConfig(msg) => {
+                write!(f, "AnnounceShardConfig message: {:?}", msg)
             }
         }
     }

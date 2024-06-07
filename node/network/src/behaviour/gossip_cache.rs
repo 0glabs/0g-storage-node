@@ -28,6 +28,8 @@ pub struct GossipCache {
     announce_file: Option<Duration>,
     /// Timeout for AnnounceChunks.
     announce_chunks: Option<Duration>,
+    /// Timeout for AnnounceShardConfig.
+    announce_shard_config: Option<Duration>,
 }
 
 #[derive(Default)]
@@ -43,6 +45,8 @@ pub struct GossipCacheBuilder {
     announce_file: Option<Duration>,
     /// Timeout for AnnounceChunks messages.
     announce_chunks: Option<Duration>,
+    /// Timeout for AnnounceShardConfig messages.
+    announce_shard_config: Option<Duration>,
 }
 
 #[allow(dead_code)]
@@ -84,6 +88,12 @@ impl GossipCacheBuilder {
         self
     }
 
+    /// Timeout for AnnounceShardConfig messages.
+    pub fn announce_shard_config_timeout(mut self, timeout: Duration) -> Self {
+        self.announce_shard_config = Some(timeout);
+        self
+    }
+
     pub fn build(self) -> GossipCache {
         let GossipCacheBuilder {
             default_timeout,
@@ -92,6 +102,7 @@ impl GossipCacheBuilder {
             find_chunks,
             announce_file,
             announce_chunks,
+            announce_shard_config,
         } = self;
 
         GossipCache {
@@ -102,6 +113,7 @@ impl GossipCacheBuilder {
             find_chunks: find_chunks.or(default_timeout),
             announce_file: announce_file.or(default_timeout),
             announce_chunks: announce_chunks.or(default_timeout),
+            announce_shard_config: announce_shard_config.or(default_timeout),
         }
     }
 }
@@ -121,6 +133,7 @@ impl GossipCache {
             GossipKind::FindChunks => self.find_chunks,
             GossipKind::AnnounceFile => self.announce_file,
             GossipKind::AnnounceChunks => self.announce_chunks,
+            GossipKind::AnnounceShardConfig => self.announce_shard_config,
         };
 
         let expire_timeout = match expire_timeout {

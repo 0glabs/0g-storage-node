@@ -16,6 +16,7 @@ storage = { path = "../storage" }
 storage-async = { path = "../storage-async" }
 sync = { path = "../sync" }
 task_executor = { path = "../../common/task_executor" }
+pruner = { path = "../pruner" }
 tokio = { version = "1.19.2", features = ["full"] }
 tracing = "0.1.35"
 rand = "0.8.5"

@@ -99,6 +99,7 @@ pub mod tests {
     use libp2p::PeerId;
     use shared_types::TxID;
     use std::sync::Arc;
+    use storage::config::ShardConfig;
     use storage::{
         log_store::{log_manager::LogConfig, Store as LogStore},
         LogManager,
@@ -144,6 +145,7 @@ pub mod tests {
                 .build();
             cache.insert(announcement);
         }
+        cache.insert_peer_config(peer_id, ShardConfig::default());
 
         Arc::new(cache)
     }

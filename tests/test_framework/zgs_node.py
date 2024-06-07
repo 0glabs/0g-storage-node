@@ -110,7 +110,7 @@ class ZgsNode(TestNode):
     def admin_get_sync_status(self, tx_seq):
         return self.rpc.admin_getSyncStatus([tx_seq])
 
-    def sycn_status_is_completed_or_unknown(self, tx_seq):
+    def sync_status_is_completed_or_unknown(self, tx_seq):
         status = self.rpc.admin_getSyncStatus([tx_seq])
         return status == "Completed" or status == "unknown"
 

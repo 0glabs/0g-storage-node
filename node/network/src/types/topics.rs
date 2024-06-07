@@ -12,6 +12,7 @@ pub const FIND_FILE_TOPIC: &str = "find_file";
 pub const FIND_CHUNKS_TOPIC: &str = "find_chunks";
 pub const ANNOUNCE_FILE_TOPIC: &str = "announce_file";
 pub const ANNOUNCE_CHUNKS_TOPIC: &str = "announce_chunks";
+pub const ANNOUNCE_SHARD_CONFIG_TOPIC: &str = "announce_shard_config";
 
 pub const CORE_TOPICS: [GossipKind; 4] = [
     GossipKind::FindFile,
@@ -39,6 +40,7 @@ pub enum GossipKind {
     FindFile,
     FindChunks,
     AnnounceFile,
+    AnnounceShardConfig,
     AnnounceChunks,
 }
 
@@ -79,6 +81,7 @@ impl GossipTopic {
                 FIND_CHUNKS_TOPIC => GossipKind::FindChunks,
                 ANNOUNCE_FILE_TOPIC => GossipKind::AnnounceFile,
                 ANNOUNCE_CHUNKS_TOPIC => GossipKind::AnnounceChunks,
+                ANNOUNCE_SHARD_CONFIG_TOPIC => GossipKind::AnnounceShardConfig,
                 _ => return Err(format!("Unknown topic: {}", topic)),
             };
 
@@ -107,6 +110,7 @@ impl From<GossipTopic> for String {
             GossipKind::FindChunks => FIND_CHUNKS_TOPIC,
             GossipKind::AnnounceFile => ANNOUNCE_FILE_TOPIC,
             GossipKind::AnnounceChunks => ANNOUNCE_CHUNKS_TOPIC,
+            GossipKind::AnnounceShardConfig => ANNOUNCE_SHARD_CONFIG_TOPIC,
         };
 
         format!("/{}/{}/{}", TOPIC_PREFIX, kind, encoding)
@@ -125,6 +129,7 @@ impl std::fmt::Display for GossipTopic {
             GossipKind::FindChunks => FIND_CHUNKS_TOPIC,
             GossipKind::AnnounceFile => ANNOUNCE_FILE_TOPIC,
             GossipKind::AnnounceChunks => ANNOUNCE_CHUNKS_TOPIC,
+            GossipKind::AnnounceShardConfig => ANNOUNCE_SHARD_CONFIG_TOPIC,
         };
 
         write!(f, "/{}/{}/{}", TOPIC_PREFIX, kind, encoding)

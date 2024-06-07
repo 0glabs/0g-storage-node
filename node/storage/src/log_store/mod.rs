@@ -198,6 +198,8 @@ pub trait FlowRead {
 
     // An estimation of the number of entries in the flow db.
     fn get_num_entries(&self) -> Result<u64>;
+
+    fn get_shard_config(&self) -> ShardConfig;
 }
 
 pub trait FlowWrite {

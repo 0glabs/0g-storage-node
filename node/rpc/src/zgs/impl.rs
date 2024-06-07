@@ -7,8 +7,7 @@ use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
 use shared_types::{DataRoot, Transaction, CHUNK_SIZE};
 use std::fmt::{Debug, Formatter, Result};
-use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
-use storage::log_store::config::ConfigurableExt;
+use storage::config::ShardConfig;
 use storage::try_option;
 
 pub struct RpcServerImpl {
@@ -163,11 +162,8 @@ impl RpcServer for RpcServerImpl {
             .get_store()
             .read()
             .await
-            .get_config_decoded(&SHARD_CONFIG_KEY)?
-            .ok_or(error::invalid_params(
-                "shard_config",
-                "shard_config is unavailable",
-            ))?;
+            .flow()
+            .get_shard_config();
         Ok(shard_config)
     }
 }

@@ -205,6 +205,10 @@ impl FlowRead for FlowStore {
             .map(|num_batches| num_batches * PORA_CHUNK_SIZE as u64)
             .map_err(Into::into)
     }
+
+    fn get_shard_config(&self) -> ShardConfig {
+        self.config.shard_config
+    }
 }
 
 impl FlowWrite for FlowStore {
@@ -576,6 +580,21 @@ pub fn batch_iter(start: u64, end: u64, batch_size: usize) -> Vec<(u64, u64)> {
         list.push((batch_start, batch_end));
     }
     list
+}
+
+pub fn batch_iter_sharded(
+    start: u64,
+    end: u64,
+    batch_size: usize,
+    shard_config: ShardConfig,
+) -> Vec<(u64, u64)> {
+    batch_iter(start, end, batch_size)
+        .into_iter()
+        .filter(|(start, _)| {
+            (start / batch_size as u64) % shard_config.num_shard as u64
+                == shard_config.shard_id as u64
+        })
+        .collect()
 }
 
 fn try_decode_usize(data: &[u8]) -> Result<usize> {

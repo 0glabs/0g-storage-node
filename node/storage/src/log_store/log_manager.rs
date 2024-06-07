@@ -1,4 +1,4 @@
-use crate::log_store::flow_store::{batch_iter, FlowConfig, FlowStore};
+use crate::log_store::flow_store::{batch_iter_sharded, FlowConfig, FlowStore};
 use crate::log_store::tx_store::TransactionStore;
 use crate::log_store::{
     FlowRead, FlowWrite, LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite,
@@ -203,11 +203,7 @@ impl LogStoreWrite for LogManager {
         let tx_end_index = tx.start_entry_index + bytes_to_entries(tx.size);
         // TODO: Check completeness without loading all data in memory.
         // TODO: Should we double check the tx merkle root?
-        if self
-            .flow_store
-            .get_entries(tx.start_entry_index, tx_end_index)?
-            .is_some()
-        {
+        if self.check_data_completed(tx.start_entry_index, tx_end_index)? {
             let same_root_seq_list = self
                 .tx_store
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
@@ -239,14 +235,10 @@ impl LogStoreWrite for LogManager {
 
         self.padding_rear_data(&tx)?;
 
-        let tx_end_index = tx.start_entry_index + bytes_to_entries(tx.size);
         // TODO: Check completeness without loading all data in memory.
         // TODO: Should we double check the tx merkle root?
-        if self
-            .flow_store
-            .get_entries(tx.start_entry_index, tx_end_index)?
-            .is_some()
-        {
+        let tx_end_index = tx.start_entry_index + bytes_to_entries(tx.size);
+        if self.check_data_completed(tx.start_entry_index, tx_end_index)? {
             self.tx_store.finalize_tx(tx_seq)?;
             let same_root_seq_list = self
                 .tx_store
@@ -257,7 +249,7 @@ impl LogStoreWrite for LogManager {
             }
             Ok(true)
         } else {
-            bail!("finalize tx with data missing: tx_seq={}", tx_seq)
+            bail!("finalize tx hash with data missing: tx_seq={}", tx_seq)
         }
     }
 
@@ -988,10 +980,11 @@ impl LogManager {
         }
         // copy data in batches
         // TODO(zz): Do this asynchronously and keep atomicity.
-        for (batch_start, batch_end) in batch_iter(
+        for (batch_start, batch_end) in batch_iter_sharded(
             old_tx.start_entry_index,
             old_tx.start_entry_index + old_tx.num_entries() as u64,
             PORA_CHUNK_SIZE,
+            self.flow_store.get_shard_config(),
         ) {
             let batch_data = self
                 .get_chunk_by_flow_index(batch_start, batch_end - batch_start)?
@@ -1028,6 +1021,24 @@ impl LogManager {
         }
         self.flow_store
             .insert_subtree_list_for_batch(index, to_insert_subtrees)
+    }
+
+    fn check_data_completed(&self, start: u64, end: u64) -> Result<bool> {
+        for (batch_start, batch_end) in batch_iter_sharded(
+            start,
+            end,
+            PORA_CHUNK_SIZE,
+            self.flow_store.get_shard_config(),
+        ) {
+            if self
+                .flow_store
+                .get_entries(batch_start, batch_end)?
+                .is_none()
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 }
 

@@ -36,6 +36,8 @@ impl AnnounceFileBuilder {
 
         let msg = AnnounceFile {
             tx_id,
+            num_shard: 1,
+            shard_id: 0,
             peer_id: peer_id.into(),
             at: at.into(),
             timestamp,

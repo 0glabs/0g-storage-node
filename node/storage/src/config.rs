@@ -9,7 +9,7 @@ pub struct Config {
     pub db_dir: PathBuf,
 }
 
-#[derive(Clone, Copy, Debug, Decode, Encode, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Decode, Encode, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ShardConfig {
     pub shard_id: usize,

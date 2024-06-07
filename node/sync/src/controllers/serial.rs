@@ -13,6 +13,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use storage::log_store::log_manager::PORA_CHUNK_SIZE;
 use storage_async::Store;
 
 pub const MAX_CHUNKS_TO_REQUEST: u64 = 2 * 1024;
@@ -62,6 +63,8 @@ pub struct SerialSyncController {
     /// The unique transaction ID.
     tx_id: TxID,
 
+    tx_start_chunk_in_flow: u64,
+
     since: Instant,
 
     /// File sync goal.
@@ -92,6 +95,7 @@ pub struct SerialSyncController {
 impl SerialSyncController {
     pub fn new(
         tx_id: TxID,
+        tx_start_chunk_in_flow: u64,
         goal: FileSyncGoal,
         ctx: Arc<SyncNetworkContext>,
         store: Store,
@@ -100,6 +104,7 @@ impl SerialSyncController {
         SerialSyncController {
             tx_seq: tx_id.seq,
             tx_id,
+            tx_start_chunk_in_flow,
             since: Instant::now(),
             goal,
             next_chunk: goal.index_start,
@@ -183,11 +188,16 @@ impl SerialSyncController {
             let peer_id: PeerId = announcement.peer_id.clone().into();
             let mut addr: Multiaddr = announcement.at.clone().into();
             addr.push(Protocol::P2p(peer_id.into()));
-
             found_new_peer = self.on_peer_found(peer_id, addr) || found_new_peer;
         }
 
-        if found_new_peer {
+        if found_new_peer
+            && self.peers.all_shards_available(vec![
+                PeerState::Found,
+                PeerState::Connecting,
+                PeerState::Connected,
+            ])
+        {
             return;
         }
 
@@ -208,30 +218,53 @@ impl SerialSyncController {
 
     fn try_connect(&mut self) {
         // select a random peer
-        let (peer_id, address) = match self.peers.random_peer(PeerState::Found) {
-            Some((peer_id, address)) => (peer_id, address),
-            None => {
-                // peer may be disconnected by remote node and need to find peers again
-                warn!(%self.tx_seq, "No peers available to connect");
-                self.state = SyncState::Idle;
-                return;
-            }
-        };
+        while !self
+            .peers
+            .all_shards_available(vec![PeerState::Connecting, PeerState::Connected])
+        {
+            let (peer_id, address) = match self.peers.random_peer(PeerState::Found) {
+                Some((peer_id, address)) => (peer_id, address),
+                None => {
+                    // peer may be disconnected by remote node and need to find peers again
+                    warn!(%self.tx_seq, "No peers available to connect");
+                    self.state = SyncState::Idle;
+                    return;
+                }
+            };
 
-        // connect to peer
-        info!(%peer_id, %address, "Attempting to connect to peer");
-        self.ctx.send(NetworkMessage::DialPeer { address, peer_id });
+            // connect to peer
+            info!(%peer_id, %address, "Attempting to connect to peer");
+            self.ctx.send(NetworkMessage::DialPeer { address, peer_id });
 
-        self.peers
-            .update_state(&peer_id, PeerState::Found, PeerState::Connecting);
-
+            self.peers
+                .update_state(&peer_id, PeerState::Found, PeerState::Connecting);
+        }
         self.state = SyncState::ConnectingPeers;
     }
 
     fn try_request_next(&mut self) {
+        // request next chunk array
+        let from_chunk = self.next_chunk;
+        // let to_chunk = std::cmp::min(from_chunk + MAX_CHUNKS_TO_REQUEST, self.goal.index_end);
+        let to_chunk =
+            if from_chunk == 0 && self.tx_start_chunk_in_flow % PORA_CHUNK_SIZE as u64 != 0 {
+                // Align the first request with segments.
+                PORA_CHUNK_SIZE as u64 - self.tx_start_chunk_in_flow % PORA_CHUNK_SIZE as u64
+            } else {
+                from_chunk + PORA_CHUNK_SIZE as u64
+            };
+        let to_chunk = std::cmp::min(to_chunk, self.goal.index_end);
+
+        let request_id = network::RequestId::Sync(RequestId::SerialSync { tx_id: self.tx_id });
+        let request = GetChunksRequest {
+            tx_id: self.tx_id,
+            index_start: from_chunk,
+            index_end: to_chunk,
+        };
+
         // select a random peer
-        let peer_id = match self.peers.random_peer(PeerState::Connected) {
-            Some((peer_id, _)) => peer_id,
+        let peer_id = match self.select_peer_for_request(&request) {
+            Some(peer_id) => peer_id,
             None => {
                 warn!(%self.tx_seq, "No peers available to request chunks");
                 self.state = SyncState::Idle;
@@ -239,24 +272,11 @@ impl SerialSyncController {
             }
         };
 
-        // request next chunk array
-        let from_chunk = self.next_chunk;
-        let to_chunk = std::cmp::min(from_chunk + MAX_CHUNKS_TO_REQUEST, self.goal.index_end);
-
-        let request_id = network::RequestId::Sync(RequestId::SerialSync { tx_id: self.tx_id });
-
-        let request = network::Request::GetChunks(GetChunksRequest {
-            tx_id: self.tx_id,
-            index_start: from_chunk,
-            index_end: to_chunk,
-        });
-
         self.ctx.send(NetworkMessage::SendRequest {
             peer_id,
             request_id,
-            request,
+            request: network::Request::GetChunks(request),
         });
-
         self.state = SyncState::Downloading {
             peer_id,
             from_chunk,
@@ -273,12 +293,20 @@ impl SerialSyncController {
     }
 
     pub fn on_peer_found(&mut self, peer_id: PeerId, addr: Multiaddr) -> bool {
-        if self.peers.add_new_peer(peer_id, addr.clone()) {
-            info!(%self.tx_seq, %peer_id, %addr, "Found new peer");
-            true
+        if let Some(shard_config) = self.file_location_cache.get_peer_config(&peer_id) {
+            if self
+                .peers
+                .add_new_peer_with_config(peer_id, addr.clone(), shard_config)
+            {
+                info!(%self.tx_seq, %peer_id, %addr, "Found new peer");
+                true
+            } else {
+                // e.g. multiple `AnnounceFile` messages propagated
+                debug!(%self.tx_seq, %peer_id, %addr, "Found an existing peer");
+                false
+            }
         } else {
-            // e.g. multiple `AnnounceFile` messages propagated
-            debug!(%self.tx_seq, %peer_id, %addr, "Found an existing peer");
+            debug!(%self.tx_seq, %peer_id, %addr, "No shard config found");
             false
         }
     }
@@ -515,6 +543,21 @@ impl SerialSyncController {
         }
     }
 
+    fn select_peer_for_request(&self, request: &GetChunksRequest) -> Option<PeerId> {
+        let segment_index =
+            (request.index_start + self.tx_start_chunk_in_flow) / PORA_CHUNK_SIZE as u64;
+        let peers = self.peers.filter_peers(vec![PeerState::Connected]);
+        // TODO: Add randomness
+        for peer in peers {
+            if let Some(shard_config) = self.peers.shard_config(&peer) {
+                if shard_config.in_range(segment_index) {
+                    return Some(peer);
+                }
+            }
+        }
+        None
+    }
+
     pub fn transition(&mut self) {
         use PeerState::*;
 
@@ -548,7 +591,7 @@ impl SerialSyncController {
                 }
 
                 SyncState::FoundPeers => {
-                    if self.peers.count(&[Connecting, Connected]) > 0 {
+                    if self.peers.all_shards_available(vec![Connecting, Connected]) {
                         self.state = SyncState::ConnectingPeers;
                     } else {
                         self.try_connect();
@@ -556,7 +599,7 @@ impl SerialSyncController {
                 }
 
                 SyncState::ConnectingPeers => {
-                    if self.peers.count(&[Connected]) > 0 {
+                    if self.peers.all_shards_available(vec![Connected]) {
                         self.state = SyncState::AwaitingDownload {
                             since: Instant::now(),
                         };
@@ -1371,8 +1414,8 @@ mod tests {
             SyncState::Failed { reason } => {
                 assert!(matches!(reason, FailureReason::DBError(..)));
             }
-            _ => {
-                panic!("Not expected SyncState");
+            state => {
+                panic!("Not expected SyncState, {:?}", state);
             }
         }
 
@@ -1546,6 +1589,7 @@ mod tests {
 
         let controller = SerialSyncController::new(
             tx_id,
+            0,
             FileSyncGoal::new_file(num_chunks as u64),
             ctx,
             Store::new(store, task_executor),
