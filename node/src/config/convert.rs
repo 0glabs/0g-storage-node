@@ -146,7 +146,7 @@ impl ZgsConfig {
         let cpu_percentage = self.miner_cpu_percentage;
         let iter_batch = self.mine_iter_batch_size;
 
-        let shard_config = ShardConfig::new(&self.shard_position)?;
+        let shard_config = self.shard_config()?;
 
         Ok(MinerConfig::new(
             miner_id,
@@ -161,13 +161,14 @@ impl ZgsConfig {
         ))
     }
 
-    pub fn chunk_pool_config(&self) -> chunk_pool::Config {
-        chunk_pool::Config {
+    pub fn chunk_pool_config(&self) -> Result<chunk_pool::Config, String> {
+        Ok(chunk_pool::Config {
             write_window_size: self.chunk_pool_write_window_size,
             max_cached_chunks_all: self.chunk_pool_max_cached_chunks_all,
             max_writings: self.chunk_pool_max_writings,
             expiration_time_secs: self.chunk_pool_expiration_time_secs,
-        }
+            shard_config: self.shard_config()?,
+        })
     }
 
     pub fn router_config(&self, network_config: &NetworkConfig) -> Result<router::Config, String> {
@@ -178,7 +179,7 @@ impl ZgsConfig {
 
     pub fn pruner_config(&self) -> Result<Option<PrunerConfig>, String> {
         if let Some(max_num_chunks) = self.db_max_num_chunks {
-            let shard_config = ShardConfig::new(&self.shard_position)?;
+            let shard_config = self.shard_config()?;
             Ok(Some(PrunerConfig {
                 shard_config,
                 db_path: self.db_dir.clone().into(),
@@ -190,5 +191,9 @@ impl ZgsConfig {
         } else {
             Ok(None)
         }
+    }
+
+    fn shard_config(&self) -> Result<ShardConfig, String> {
+        ShardConfig::new(&self.shard_position)
     }
 }

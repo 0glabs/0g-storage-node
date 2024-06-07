@@ -80,4 +80,10 @@ impl ShardConfig {
 
         Ok((numerator, denominator))
     }
+
+    pub fn next_segment_index(&self, current: usize, start_index: usize) -> usize {
+        // `shift` should be 0 if `current` was returned by the same config.
+        let shift = (start_index + current + self.num_shard - self.shard_id) % self.num_shard;
+        current + self.num_shard - shift
+    }
 }

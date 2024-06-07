@@ -8,6 +8,8 @@ use storage::{error, error::Result, log_store::Store as LogStore, H256};
 use task_executor::TaskExecutor;
 use tokio::sync::{oneshot, RwLock};
 
+pub use storage::config::ShardConfig;
+
 /// The name of the worker tokio tasks.
 const WORKER_TASK_NAME: &str = "async_storage_worker";
 

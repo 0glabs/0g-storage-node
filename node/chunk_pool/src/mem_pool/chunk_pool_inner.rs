@@ -1,15 +1,16 @@
 use super::chunk_cache::{ChunkPoolCache, MemoryCachedFile};
 use super::chunk_write_control::ChunkPoolWriteCtrl;
 use super::FileID;
+use crate::handler::ChunkPoolMessage;
 use crate::Config;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use async_lock::Mutex;
 use log_entry_sync::LogSyncEvent;
 use shared_types::{
     bytes_to_chunks, compute_segment_size, ChunkArray, DataRoot, FileProof, Transaction, CHUNK_SIZE,
 };
 use std::sync::Arc;
-use storage_async::Store;
+use storage_async::{ShardConfig, Store};
 use tokio::sync::broadcast::{error::RecvError, Receiver};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -82,11 +83,15 @@ impl From<SegmentInfo> for (ChunkArray, FileProof) {
 pub struct MemoryChunkPool {
     inner: Mutex<Inner>,
     log_store: Store,
-    sender: UnboundedSender<FileID>,
+    sender: UnboundedSender<ChunkPoolMessage>,
 }
 
 impl MemoryChunkPool {
-    pub(crate) fn new(config: Config, log_store: Store, sender: UnboundedSender<FileID>) -> Self {
+    pub(crate) fn new(
+        config: Config,
+        log_store: Store,
+        sender: UnboundedSender<ChunkPoolMessage>,
+    ) -> Self {
         MemoryChunkPool {
             inner: Mutex::new(Inner::new(config)),
             log_store,
@@ -142,10 +147,18 @@ impl MemoryChunkPool {
 
         //Write the segment in window
         let (total_segments, _) = compute_segment_size(total_chunks, seg_info.chunks_per_segment);
+        let tx_start_index = self
+            .log_store
+            .get_tx_by_seq_number(file_id.tx_id.seq)
+            .await?
+            .ok_or(anyhow!("unexpected tx missing"))?
+            .start_entry_index()
+            / seg_info.chunks_per_segment as u64;
         self.inner.lock().await.write_control.write_segment(
             file_id,
             seg_info.seg_index,
             total_segments,
+            tx_start_index as usize,
         )?;
 
         // Write memory cached segments into store.
@@ -201,10 +214,7 @@ impl MemoryChunkPool {
 
         // Notify to finalize transaction asynchronously.
         if all_uploaded {
-            if let Err(e) = self.sender.send(file_id) {
-                // Channel receiver will not be dropped until program exit.
-                bail!("channel send error: {}", e);
-            }
+            self.send_finalize_file(file_id).await?;
             debug!("Queue to finalize transaction for file {}", seg_info.root);
         }
 
@@ -328,10 +338,7 @@ impl MemoryChunkPool {
 
         self.inner.lock().await.after_flush_cache();
 
-        if let Err(e) = self.sender.send(file) {
-            // Channel receiver will not be dropped until program exit.
-            bail!("channel send error: {}", e);
-        }
+        self.send_finalize_file(file).await?;
 
         Ok(())
     }
@@ -346,6 +353,26 @@ impl MemoryChunkPool {
                 .write_control
                 .get_file(root)
                 .map(|file| (file.uploaded_seg_num(), false))
+        }
+    }
+
+    async fn send_finalize_file(&self, file_id: FileID) -> Result<()> {
+        if let Err(e) = self.sender.send(ChunkPoolMessage::FinalizeFile(file_id)) {
+            // Channel receiver will not be dropped until program exit.
+            bail!("channel send error: {}", e);
+        }
+        Ok(())
+    }
+
+    pub fn sender(&self) -> UnboundedSender<ChunkPoolMessage> {
+        self.sender.clone()
+    }
+
+    pub async fn set_shard_config(&self, shard_config: ShardConfig) {
+        let mut inner = self.inner.lock().await;
+        if inner.config.shard_config != shard_config {
+            inner.config.shard_config = shard_config;
+            inner.write_control.update_shard_config(shard_config);
         }
     }
 }

@@ -3,6 +3,7 @@ use crate::Config;
 use anyhow::{bail, Result};
 use shared_types::DataRoot;
 use std::collections::HashMap;
+use storage_async::ShardConfig;
 
 /// The segment status in sliding window
 #[derive(PartialEq, Eq, Debug)]
@@ -18,15 +19,20 @@ enum SlotStatus {
 struct CtrlWindow {
     #[allow(unused)]
     size: usize,
+    tx_start_index: usize,
+    shard_config: ShardConfig,
     left_boundary: usize,
     slots: HashMap<usize, SlotStatus>,
 }
 
 impl CtrlWindow {
-    fn new(size: usize) -> Self {
+    fn new(size: usize, shard_config: ShardConfig, tx_start_index: usize) -> Self {
         CtrlWindow {
             size,
-            left_boundary: 0,
+            tx_start_index,
+            shard_config,
+            left_boundary: shard_config.next_segment_index(0, tx_start_index)
+                % shard_config.num_shard,
             slots: HashMap::default(),
         }
     }
@@ -70,7 +76,10 @@ impl CtrlWindow {
         let mut left_boundary = self.left_boundary;
         while let Some(&SlotStatus::Finished) = self.slots.get(&left_boundary) {
             self.slots.remove(&left_boundary);
-            left_boundary += 1;
+            // Handle shard_config change.
+            left_boundary = self
+                .shard_config
+                .next_segment_index(left_boundary, self.tx_start_index);
         }
 
         self.left_boundary = left_boundary;
@@ -85,11 +94,17 @@ pub struct FileWriteCtrl {
 }
 
 impl FileWriteCtrl {
-    fn new(id: FileID, total_segments: usize, window_size: usize) -> Self {
+    fn new(
+        id: FileID,
+        total_segments: usize,
+        window_size: usize,
+        shard_config: ShardConfig,
+        tx_start_index: usize,
+    ) -> Self {
         FileWriteCtrl {
             id,
             total_segments,
-            window: CtrlWindow::new(window_size),
+            window: CtrlWindow::new(window_size, shard_config, tx_start_index),
         }
     }
 
@@ -130,9 +145,16 @@ impl ChunkPoolWriteCtrl {
         id: FileID,
         seg_index: usize,
         total_segments: usize,
+        tx_start_index: usize,
     ) -> Result<()> {
         let file_ctrl = self.files.entry(id.root).or_insert_with(|| {
-            FileWriteCtrl::new(id, total_segments, self.config.write_window_size)
+            FileWriteCtrl::new(
+                id,
+                total_segments,
+                self.config.write_window_size,
+                self.config.shard_config,
+                tx_start_index,
+            )
         });
 
         // ensure the tx_id not changed during file uploading
@@ -183,7 +205,8 @@ impl ChunkPoolWriteCtrl {
         );
 
         // All chunks of file written into store.
-        file_ctrl.window.left_boundary >= file_ctrl.total_segments
+        file_ctrl.window.left_boundary + self.config.shard_config.num_shard
+            > file_ctrl.total_segments
     }
 
     pub fn on_write_failed(&mut self, root: &DataRoot, seg_index: usize) {
@@ -197,5 +220,12 @@ impl ChunkPoolWriteCtrl {
 
         assert!(self.total_writings > 0);
         self.total_writings -= 1;
+    }
+
+    pub fn update_shard_config(&mut self, shard_config: ShardConfig) {
+        self.config.shard_config = shard_config;
+        for file_ctrl in self.files.values_mut() {
+            file_ctrl.window.shard_config = shard_config;
+        }
     }
 }

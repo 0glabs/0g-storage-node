@@ -245,16 +245,7 @@ impl SerialSyncController {
     fn try_request_next(&mut self) {
         // request next chunk array
         let from_chunk = self.next_chunk;
-        // let to_chunk = std::cmp::min(from_chunk + MAX_CHUNKS_TO_REQUEST, self.goal.index_end);
-        let to_chunk =
-            if from_chunk == 0 && self.tx_start_chunk_in_flow % PORA_CHUNK_SIZE as u64 != 0 {
-                // Align the first request with segments.
-                PORA_CHUNK_SIZE as u64 - self.tx_start_chunk_in_flow % PORA_CHUNK_SIZE as u64
-            } else {
-                from_chunk + PORA_CHUNK_SIZE as u64
-            };
-        let to_chunk = std::cmp::min(to_chunk, self.goal.index_end);
-
+        let to_chunk = std::cmp::min(from_chunk + PORA_CHUNK_SIZE as u64, self.goal.index_end);
         let request_id = network::RequestId::Sync(RequestId::SerialSync { tx_id: self.tx_id });
         let request = GetChunksRequest {
             tx_id: self.tx_id,
@@ -456,13 +447,24 @@ impl SerialSyncController {
 
         self.failures = 0;
 
+        let shard_config = self
+            .store
+            .get_store()
+            .read()
+            .await
+            .flow()
+            .get_shard_config();
+        let next_chunk = shard_config.next_segment_index(
+            (from_chunk / PORA_CHUNK_SIZE as u64) as usize,
+            (self.tx_start_chunk_in_flow / PORA_CHUNK_SIZE as u64) as usize,
+        ) * PORA_CHUNK_SIZE;
         // store in db
         match self
             .store
             .put_chunks_with_tx_hash(self.tx_id.seq, self.tx_id.hash, response.chunks, None)
             .await
         {
-            Ok(true) => self.next_chunk = to_chunk,
+            Ok(true) => self.next_chunk = next_chunk as u64,
             Ok(false) => {
                 warn!(?self.tx_id, "Transaction reverted while storing chunks");
                 self.state = SyncState::Failed {
@@ -1379,7 +1381,7 @@ mod tests {
         let peer_id = identity::Keypair::generate_ed25519().public().to_peer_id();
 
         let tx_seq = 0;
-        let chunk_count = 2049;
+        let chunk_count = 1025;
         let (store, peer_store, txs, _) = create_2_store(vec![chunk_count]);
 
         let runtime = TestRuntime::default();
@@ -1395,19 +1397,19 @@ mod tests {
         let chunks = peer_store
             .read()
             .await
-            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, 2048)
+            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, 1024)
             .unwrap()
             .unwrap();
 
         controller.state = SyncState::Downloading {
             peer_id,
             from_chunk: 0,
-            to_chunk: 2048,
+            to_chunk: 1024,
             since: Instant::now(),
         };
 
-        controller.goal.num_chunks = 2048;
-        controller.goal.index_end = 2048;
+        controller.goal.num_chunks = 1024;
+        controller.goal.index_end = 1024;
 
         controller.on_response(peer_id, chunks).await;
         match controller.get_status() {
