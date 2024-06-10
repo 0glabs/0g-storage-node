@@ -17,7 +17,7 @@ ZG_BINARY = "0gchaind.exe" if is_windows_platform() else "0gchaind"
 CLIENT_BINARY = "0g-storage-client.exe" if is_windows_platform() else "0g-storage-client"
 
 ZG_GIT_REV = "7bc25a060fab9c17bc9942b6747cd07a668d3042" # v0.1.0
-CLI_GIT_REV = "1d09ec4f0b9c27428b2357de46b66e8c231b74df"
+CLI_GIT_REV = "98d74b7e7e6084fc986cb43ce2c66692dac094a6"
 
 @unique
 class BuildBinaryResult(Enum):
