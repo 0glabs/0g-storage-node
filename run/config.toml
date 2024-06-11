@@ -165,6 +165,34 @@ miner_id = ""
 miner_key = ""
 
 #######################################################################
+###                   Sharding Config Options                       ###
+#######################################################################
+# The max number of chunk entries to store in db.
+# Each entry is 256B, so the db size is roughly limited to
+# `256 * db_max_num_chunks` Bytes.
+# If this limit is reached, the node will update its `shard_position`
+# and store only half data.
+#
+# db_max_num_chunks = 1000000000
+
+# The format is <shard_id>/<shard_number>, where the shard number is 2^n.
+# This only applies if there is no stored shard config in db.
+# shard_position = "0/2"
+
+# The time interval to check if we should half `shard_position` to prune data.
+#
+# prune_check_time_s = 60
+
+# The number of chunk entries to delete in a batch when we prune data.
+#
+# prune_batch_size = 1024
+
+# The time interval to wait between each prune batch deletion to avoid
+# IO resource exhaustion.
+#
+# prune_batch_wait_time_ms = 1000
+
+#######################################################################
 ###                   File Sync Config Options                      ###
 #######################################################################
 # [sync]
