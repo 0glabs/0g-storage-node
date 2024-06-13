@@ -13,13 +13,14 @@
 
 # The address to broadcast to peers about which address we are listening on. Empty indicates
 # that no discovery address has been set.
+# REQUIRED, fill your instance's public IP address.
 # network_enr_address = ""
 
 # The tcp port to broadcast to peers in order to reach back for libp2p services.
-# network_enr_tcp_port = 1234
+network_enr_tcp_port = 1234
 
 # The udp port to broadcast to peers in order to reach back for discovery.
-# network_enr_udp_port = 1234
+network_enr_udp_port = 1234
 
 # The TCP port that libp2p listens on.
 # network_libp2p_port = 1234
