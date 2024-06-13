@@ -12,7 +12,8 @@
 # network_listen_address = "0.0.0.0"
 
 # The address to broadcast to peers about which address we are listening on. Empty indicates
-# that no discovery address has been set.
+# that no discovery address has been set. Generally, configure public IP address along with
+# `network_enr_tcp_port` and `network_enr_udp_port` with default values to enable UDP discovery.
 # network_enr_address = ""
 
 # The tcp port to broadcast to peers in order to reach back for libp2p services.
@@ -30,7 +31,8 @@
 # Target number of connected peers.
 # network_target_peers = 50
 
-# List of nodes to initially connect to
+# List of nodes to bootstrap UDP discovery. Note, `network_enr_address`, `network_enr_tcp_port`
+# and `network_enr_udp_port` should be configured as well to enable UDP discovery.
 network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79J32pTJLKGcpjRMb4Qb8xxKkyuG1","/ip4/52.52.127.117/udp/1234/p2p/16Uiu2HAm93Hd5azfhkGBbkx1zero3nYHvfjQYM2NtiW4R3r5bE2g"]
 
 # List of libp2p nodes to initially connect to.
@@ -42,6 +44,26 @@ network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79
 
 # Disables the discovery protocol from starting.
 # network_disable_discovery = false
+
+#######################################################################
+###                   UDP Discovery Config Options                  ###
+#######################################################################
+# The request timeout for each UDP request.
+# discv5_request_timeout_secs = 5
+
+# The timeout after which a `QueryPeer` in an ongoing query is marked unresponsive.
+# Unresponsive peers don't count towards the parallelism limits for a query.
+# Hence, we may potentially end up making more requests to good peers.
+# discv5_query_peer_timeout_secs = 2
+
+# The number of retries for each UDP request.
+# discv5_request_retries = 1
+
+# The number of peers to request in parallel in a single query.
+# discv5_query_parallelism = 5
+
+# Reports all discovered ENR's when traversing the DHT to the event stream.
+# discv5_report_discovered_peers = false
 
 #######################################################################
 ###                     Log Sync Config Options                     ###
