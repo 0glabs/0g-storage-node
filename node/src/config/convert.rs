@@ -46,8 +46,12 @@ impl ZgsConfig {
             .map_err(|e| format!("Unable to parse network_libp2p_nodes: {:?}", e))?;
 
         network_config.discv5_config.table_filter = |_| true;
+        network_config.discv5_config.request_timeout = Duration::from_secs(self.discv5_request_timeout_secs);
+        network_config.discv5_config.query_peer_timeout = Duration::from_secs(self.discv5_query_peer_timeout_secs);
+        network_config.discv5_config.request_retries = self.discv5_request_retries;
+        network_config.discv5_config.query_parallelism = self.discv5_query_parallelism;
+        network_config.discv5_config.report_discovered_peers = self.discv5_report_discovered_peers;
 
-        // TODO
         network_config.target_peers = self.network_target_peers;
         network_config.private = self.network_private;
 

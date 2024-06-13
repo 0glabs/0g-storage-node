@@ -20,6 +20,13 @@ build_config! {
     (network_private, (bool), false)
     (network_disable_discovery, (bool), false)
 
+    // discv5
+    (discv5_request_timeout_secs, (u64), 5)
+    (discv5_query_peer_timeout_secs, (u64), 2)
+    (discv5_request_retries, (u8), 1)
+    (discv5_query_parallelism, (usize), 5)
+    (discv5_report_discovered_peers, (bool), false)
+
     // log sync
     (blockchain_rpc_endpoint, (String), "http://127.0.0.1:8545".to_string())
     (log_contract_address, (String), "".to_string())
@@ -72,6 +79,8 @@ build_config! {
     (mine_iter_batch_size, (usize), 100)
     (shard_position, (Option<String>), None)
 }
+
+
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
