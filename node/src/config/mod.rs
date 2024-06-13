@@ -80,8 +80,6 @@ build_config! {
     (shard_position, (Option<String>), None)
 }
 
-
-
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct ZgsConfig {
