@@ -46,6 +46,26 @@ network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmTVDGNhkHD98zDnJxQ
 # network_disable_discovery = false
 
 #######################################################################
+###                   UDP Discovery Config Options                  ###
+#######################################################################
+# The request timeout for each UDP request.
+# discv5_request_timeout_secs = 5
+
+# The timeout after which a `QueryPeer` in an ongoing query is marked unresponsive.
+# Unresponsive peers don't count towards the parallelism limits for a query.
+# Hence, we may potentially end up making more requests to good peers.
+# discv5_query_peer_timeout_secs = 2
+
+# The number of retries for each UDP request.
+# discv5_request_retries = 1
+
+# The number of peers to request in parallel in a single query.
+# discv5_query_parallelism = 5
+
+# Reports all discovered ENR's when traversing the DHT to the event stream.
+# discv5_report_discovered_peers = false
+
+#######################################################################
 ###                     Log Sync Config Options                     ###
 #######################################################################
 
