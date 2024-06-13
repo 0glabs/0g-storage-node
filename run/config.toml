@@ -196,7 +196,7 @@ miner_key = ""
 
 # Enable file sync among peers automatically. When enabled, each node will store
 # all files, and sufficient disk space is required.
-# auto_sync_enabled = false
+auto_sync_enabled = true
 
 #  Maximum number of files in sync from other peers simultaneously.
 # max_sync_files = 8
