@@ -53,6 +53,8 @@ impl ZgsConfig {
         network_config.discv5_config.request_retries = self.discv5_request_retries;
         network_config.discv5_config.query_parallelism = self.discv5_query_parallelism;
         network_config.discv5_config.report_discovered_peers = self.discv5_report_discovered_peers;
+        network_config.discv5_config.enable_packet_filter = !self.discv5_disable_packet_filter;
+        network_config.discv5_config.ip_limit = !self.discv5_disable_ip_limit;
 
         network_config.target_peers = self.network_target_peers;
         network_config.private = self.network_private;

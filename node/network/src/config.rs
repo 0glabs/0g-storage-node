@@ -145,9 +145,9 @@ impl Default for Config {
         // Discv5 Unsolicited Packet Rate Limiter
         let filter_rate_limiter = Some(
             discv5::RateLimiterBuilder::new()
-                .total_n_every(10, Duration::from_secs(1)) // Allow bursts, average 10 per second
-                .ip_n_every(9, Duration::from_secs(1)) // Allow bursts, average 9 per second
-                .node_n_every(8, Duration::from_secs(1)) // Allow bursts, average 8 per second
+                .total_n_every(300, Duration::from_secs(1)) // Allow bursts, average 300 per second
+                .ip_n_every(300, Duration::from_secs(1)) // Allow bursts, average 300 per second
+                .node_n_every(300, Duration::from_secs(1)) // Allow bursts, average 300 per second
                 .build()
                 .expect("The total rate limit has been specified"),
         );

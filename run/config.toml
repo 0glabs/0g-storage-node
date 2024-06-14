@@ -65,6 +65,13 @@ network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79
 # Reports all discovered ENR's when traversing the DHT to the event stream.
 # discv5_report_discovered_peers = false
 
+# Disables the incoming packet filter.
+# discv5_disable_packet_filter = false
+
+# Disable to limit the number of IP addresses from the same
+# /24 subnet in the kbuckets table. This is to mitigate eclipse attacks.
+# discv5_disable_ip_limit = false
+
 #######################################################################
 ###                     Log Sync Config Options                     ###
 #######################################################################
