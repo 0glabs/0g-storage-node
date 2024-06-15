@@ -17,10 +17,10 @@
 # network_enr_address = ""
 
 # The tcp port to broadcast to peers in order to reach back for libp2p services.
-# network_enr_tcp_port = 1234
+network_enr_tcp_port = 1234
 
 # The udp port to broadcast to peers in order to reach back for discovery.
-# network_enr_udp_port = 1234
+network_enr_udp_port = 1234
 
 # The TCP port that libp2p listens on.
 # network_libp2p_port = 1234
@@ -33,7 +33,7 @@
 
 # List of nodes to bootstrap UDP discovery. Note, `network_enr_address`, `network_enr_tcp_port`
 # and `network_enr_udp_port` should be configured as well to enable UDP discovery.
-network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79J32pTJLKGcpjRMb4Qb8xxKkyuG1","/ip4/52.52.127.117/udp/1234/p2p/16Uiu2HAm93Hd5azfhkGBbkx1zero3nYHvfjQYM2NtiW4R3r5bE2g"]
+network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmTVDGNhkHD98zDnJxQWu3i1FL1aFYeh9wiQTNu4pDCgps","/ip4/52.52.127.117/udp/1234/p2p/16Uiu2HAkzRjxK2gorngB1Xq84qDrT4hSVznYDHj6BkbaE4SGx9oS"]
 
 # List of libp2p nodes to initially connect to.
 # network_libp2p_nodes = []
@@ -80,11 +80,11 @@ network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79
 blockchain_rpc_endpoint = "https://rpc-testnet.0g.ai"
 
 # Flow contract address to sync event logs.
-log_contract_address = "0x22C1CaF8cbb671F220789184fda68BfD7eaA2eE1"
+log_contract_address = "0xb8F03061969da6Ad38f0a4a9f8a86bE71dA3c8E7"
 
 # Block number to sync event logs from blockchain. Generally, this is
 # the block number when flow contract deployed.
-log_sync_start_block_number = 512567
+log_sync_start_block_number = 334797
 
 # Number of blocks to confirm a transaction.
 # confirmation_block_count = 12
@@ -180,11 +180,7 @@ rpc_listen_address = "0.0.0.0:5678"
 #######################################################################
 
 # Mine contract address for incentive.
-mine_contract_address = "0x8B9221eE2287aFBb34A7a1Ef72eB00fdD853FFC2"
-
-# Miner ID registered in contract, which is mandatory for incentive.
-# The value should be a hex string of length 64 without 0x prefix. 
-miner_id = ""
+mine_contract_address = "0x96D90AAcb2D5Ab5C69c1c351B0a0F105aae490bE"
 
 # Miner key is used to sign blockchain transaction for incentive.
 # The value should be a hex string of length 64 without 0x prefix.
@@ -228,7 +224,7 @@ miner_key = ""
 
 # Enable file sync among peers automatically. When enabled, each node will store
 # all files, and sufficient disk space is required.
-# auto_sync_enabled = false
+auto_sync_enabled = true
 
 #  Maximum number of files in sync from other peers simultaneously.
 # max_sync_files = 8
