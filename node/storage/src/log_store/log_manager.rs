@@ -150,7 +150,7 @@ impl LogStoreInner for LogManager {
 }
 
 impl LogStoreChunkWrite for LogManager {
-    fn put_chunks(&mut self, tx_seq: u64, chunks: ChunkArray) -> Result<()> {
+    fn put_chunks(&self, tx_seq: u64, chunks: ChunkArray) -> Result<()> {
         let mut merkle = self.merkle.write();
         let tx = self
             .tx_store
@@ -175,7 +175,7 @@ impl LogStoreChunkWrite for LogManager {
     }
 
     fn put_chunks_with_tx_hash(
-        &mut self,
+        &self,
         tx_seq: u64,
         tx_hash: H256,
         chunks: ChunkArray,
@@ -242,7 +242,7 @@ impl LogStoreWrite for LogManager {
     /// Only the last tx may have this case, so we rerun
     /// `put_tx` for the last tx when we restart the node to ensure that it succeeds.
     ///
-    fn put_tx(&mut self, tx: Transaction) -> Result<()> {
+    fn put_tx(&self, tx: Transaction) -> Result<()> {
         let mut merkle = self.merkle.write();
         debug!("put_tx: tx={:?}", tx);
         let expected_seq = self.next_tx_seq();
@@ -276,7 +276,7 @@ impl LogStoreWrite for LogManager {
         Ok(())
     }
 
-    fn finalize_tx(&mut self, tx_seq: u64) -> Result<()> {
+    fn finalize_tx(&self, tx_seq: u64) -> Result<()> {
         let tx = self
             .tx_store
             .get_tx_by_seq_number(tx_seq)?
@@ -302,7 +302,7 @@ impl LogStoreWrite for LogManager {
         }
     }
 
-    fn finalize_tx_with_hash(&mut self, tx_seq: u64, tx_hash: H256) -> crate::error::Result<bool> {
+    fn finalize_tx_with_hash(&self, tx_seq: u64, tx_hash: H256) -> crate::error::Result<bool> {
         trace!(
             "finalize_tx_with_hash: tx_seq={} tx_hash={:?}",
             tx_seq,
@@ -343,7 +343,7 @@ impl LogStoreWrite for LogManager {
 
     /// Return the reverted Transactions in order.
     /// `tx_seq == u64::MAX` is a special case for reverting all transactions.
-    fn revert_to(&mut self, tx_seq: u64) -> Result<Vec<Transaction>> {
+    fn revert_to(&self, tx_seq: u64) -> Result<Vec<Transaction>> {
         // FIXME(zz): If this revert is triggered by chain reorg after restarts, this will fail.
         let mut merkle = self.merkle.write();
         merkle.revert_merkle_tree(tx_seq, &self.tx_store)?;
@@ -362,7 +362,7 @@ impl LogStoreWrite for LogManager {
     }
 
     fn validate_and_insert_range_proof(
-        &mut self,
+        &self,
         tx_seq: u64,
         data: &ChunkArrayWithProof,
     ) -> Result<bool> {
@@ -681,7 +681,7 @@ impl LogManager {
             pora_chunks_merkle,
             last_chunk_merkle,
         });
-        let mut log_manager = Self {
+        let log_manager = Self {
             db,
             tx_store,
             flow_store,
@@ -960,7 +960,7 @@ impl LogManager {
         &self.flow_store
     }
 
-    fn padding_rear_data(&mut self, tx: &Transaction) -> Result<()> {
+    fn padding_rear_data(&self, tx: &Transaction) -> Result<()> {
         let (chunks, _) = compute_padded_chunk_size(tx.size as usize);
         let (segments_for_proof, last_segment_size_for_proof) =
             compute_segment_size(chunks, PORA_CHUNK_SIZE);
@@ -1007,7 +1007,7 @@ impl LogManager {
         Ok(())
     }
 
-    fn copy_tx_data(&mut self, from_tx_seq: u64, to_tx_seq_list: Vec<u64>) -> Result<()> {
+    fn copy_tx_data(&self, from_tx_seq: u64, to_tx_seq_list: Vec<u64>) -> Result<()> {
         let mut merkle = self.merkle.write();
         // We have all the data need for this tx, so just copy them.
         let old_tx = self

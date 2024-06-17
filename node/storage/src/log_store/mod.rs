@@ -103,7 +103,7 @@ pub trait LogStoreChunkRead {
 
 pub trait LogStoreWrite: LogStoreChunkWrite {
     /// Store a data entry metadata.
-    fn put_tx(&mut self, tx: Transaction) -> Result<()>;
+    fn put_tx(&self, tx: Transaction) -> Result<()>;
 
     /// Finalize a transaction storage.
     /// This will compute and the merkle tree, check the data root, and persist a part of the merkle
@@ -111,8 +111,8 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
     ///
     /// This will return error if not all chunks are stored. But since this check can be expensive,
     /// the caller is supposed to track chunk statuses and call this after storing all the chunks.
-    fn finalize_tx(&mut self, tx_seq: u64) -> Result<()>;
-    fn finalize_tx_with_hash(&mut self, tx_seq: u64, tx_hash: H256) -> Result<bool>;
+    fn finalize_tx(&self, tx_seq: u64) -> Result<()>;
+    fn finalize_tx_with_hash(&self, tx_seq: u64, tx_hash: H256) -> Result<bool>;
 
     /// Store the progress of synced block number and its hash.
     fn put_sync_progress(&self, progress: (u64, H256, Option<Option<u64>>)) -> Result<()>;
@@ -121,11 +121,11 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
     /// This is needed when transactions are reverted because of chain reorg.
     ///
     /// Reverted transactions are returned in order.
-    fn revert_to(&mut self, tx_seq: u64) -> Result<Vec<Transaction>>;
+    fn revert_to(&self, tx_seq: u64) -> Result<Vec<Transaction>>;
 
     /// If the proof is valid, fill the tree nodes with the new data.
     fn validate_and_insert_range_proof(
-        &mut self,
+        &self,
         tx_seq: u64,
         data: &ChunkArrayWithProof,
     ) -> Result<bool>;
@@ -135,10 +135,10 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
 
 pub trait LogStoreChunkWrite {
     /// Store data chunks of a data entry.
-    fn put_chunks(&mut self, tx_seq: u64, chunks: ChunkArray) -> Result<()>;
+    fn put_chunks(&self, tx_seq: u64, chunks: ChunkArray) -> Result<()>;
 
     fn put_chunks_with_tx_hash(
-        &mut self,
+        &self,
         tx_seq: u64,
         tx_hash: H256,
         chunks: ChunkArray,

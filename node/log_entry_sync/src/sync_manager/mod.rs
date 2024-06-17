@@ -401,7 +401,7 @@ impl LogSyncManager {
             false
         } else {
             if let Some(data) = self.data_cache.pop_data(&tx.data_merkle_root) {
-                let mut store = self.store.write().await;
+                let store = self.store.write().await;
                 // We are holding a mutable reference of LogSyncManager, so no chain reorg is
                 // possible after put_tx.
                 if let Err(e) = store
