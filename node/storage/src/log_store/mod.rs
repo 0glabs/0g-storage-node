@@ -206,11 +206,11 @@ pub trait FlowWrite {
     /// Append data to the flow. `start_index` is included in `ChunkArray`, so
     /// it's possible to append arrays in any place.
     /// Return the list of completed chunks.
-    fn append_entries(&mut self, data: ChunkArray) -> Result<Vec<(u64, DataRoot)>>;
+    fn append_entries(&self, data: ChunkArray) -> Result<Vec<(u64, DataRoot)>>;
 
     /// Remove all the entries after `start_index`.
     /// This is used to remove deprecated data in case of chain reorg.
-    fn truncate(&mut self, start_index: u64) -> Result<()>;
+    fn truncate(&self, start_index: u64) -> Result<()>;
 
     /// Update the shard config.
     fn update_shard_config(&mut self, shard_config: ShardConfig);
