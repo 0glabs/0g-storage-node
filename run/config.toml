@@ -220,7 +220,7 @@ miner_key = ""
 #######################################################################
 ###                   File Sync Config Options                      ###
 #######################################################################
-# [sync]
+[sync]
 
 # Enable file sync among peers automatically. When enabled, each node will store
 # all files, and sufficient disk space is required.
