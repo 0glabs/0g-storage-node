@@ -651,7 +651,7 @@ mod tests {
     use storage::H256;
     use task_executor::{test_utils::TestRuntime, TaskExecutor};
     use tokio::sync::mpsc::{self, UnboundedReceiver};
-    use tokio::sync::RwLock;
+    
 
     #[test]
     fn test_status() {
@@ -1423,8 +1423,6 @@ mod tests {
         );
 
         let chunks = peer_store
-            .read()
-            .await
             .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
             .unwrap()
             .unwrap();
@@ -1547,7 +1545,7 @@ mod tests {
         let num_chunks = 123;
 
         let config = LogConfig::default();
-        let store = Arc::new(RwLock::new(LogManager::memorydb(config).unwrap()));
+        let store = Arc::new(LogManager::memorydb(config).unwrap());
 
         create_controller(task_executor, peer_id, store, tx_id, num_chunks)
     }

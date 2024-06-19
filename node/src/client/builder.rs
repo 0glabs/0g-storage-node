@@ -15,7 +15,7 @@ use storage::log_store::log_manager::LogConfig;
 use storage::log_store::Store;
 use storage::{LogManager, StorageConfig};
 use sync::{SyncSender, SyncService};
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{broadcast, mpsc};
 
 macro_rules! require {
     ($component:expr, $self:ident, $e:ident) => {

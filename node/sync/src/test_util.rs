@@ -8,7 +8,7 @@ use storage::{
     },
     LogManager,
 };
-use tokio::sync::RwLock;
+
 
 /// Creates stores for local node and peers with initialized transaction of specified chunk count.
 /// The first store is for local node, and data not stored. The second store is for peers, and all
@@ -101,7 +101,7 @@ pub mod tests {
     };
     use storage_async::Store;
     use task_executor::test_utils::TestRuntime;
-    use tokio::sync::RwLock;
+    
 
     pub struct TestStoreRuntime {
         pub runtime: TestRuntime,

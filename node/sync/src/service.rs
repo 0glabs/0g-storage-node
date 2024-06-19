@@ -23,7 +23,7 @@ use storage::config::ShardConfig;
 use storage::error::Result as StorageResult;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{broadcast, mpsc};
 
 const HEARTBEAT_INTERVAL_SEC: u64 = 5;
 
@@ -1158,7 +1158,7 @@ mod tests {
 
         let config = LogConfig::default();
 
-        let store = Arc::new(RwLock::new(LogManager::memorydb(config.clone()).unwrap()));
+        let store = Arc::new(LogManager::memorydb(config.clone()).unwrap());
 
         let init_peer_id = identity::Keypair::generate_ed25519().public().to_peer_id();
         let file_location_cache: Arc<FileLocationCache> =
@@ -1364,7 +1364,7 @@ mod tests {
 
         wait_for_tx_finalized(runtime.store.clone(), tx_seq).await;
 
-        assert!(!runtime.store.read().await.check_tx_completed(0).unwrap());
+        assert!(!runtime.store.check_tx_completed(0).unwrap());
 
         // first file
         let tx_seq = 0u64;

@@ -2,7 +2,6 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use ethereum_types::H256;
 use tokio::{
-    sync::RwLock,
     time::{sleep, Duration, Instant},
 };
 

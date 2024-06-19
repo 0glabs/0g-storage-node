@@ -8,7 +8,7 @@ use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
 use storage::log_store::config::ConfigurableExt;
 use storage::log_store::Store;
 use task_executor::TaskExecutor;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{broadcast, mpsc};
 use tracing::debug;
 
 // Start pruning when the db directory size exceeds 0.9 * limit.

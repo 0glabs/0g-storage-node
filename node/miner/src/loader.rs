@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 use storage::log_store::{MineLoadChunk, Store};
-use tokio::sync::RwLock;
+
 
 #[async_trait]
 pub trait PoraLoader: Send + Sync {

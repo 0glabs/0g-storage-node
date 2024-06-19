@@ -8,7 +8,7 @@ use shared_types::FlowRangeProof;
 use std::sync::Arc;
 use storage::log_store::Store;
 use task_executor::TaskExecutor;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc};
 
 use crate::config::{MineServiceMiddleware, MinerConfig};
 use crate::pora::AnswerWithoutProof;

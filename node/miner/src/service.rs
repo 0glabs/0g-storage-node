@@ -7,7 +7,7 @@ use std::sync::Arc;
 use storage::config::ShardConfig;
 use storage::log_store::Store;
 use tokio::sync::mpsc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast};
 
 #[derive(Clone, Debug)]
 pub enum MinerMessage {

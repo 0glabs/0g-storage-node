@@ -6,7 +6,7 @@ use shared_types::{Chunk, ChunkArray, ChunkArrayWithProof, DataRoot, FlowProof, 
 use std::sync::Arc;
 use storage::{error, error::Result, log_store::Store as LogStore, H256};
 use task_executor::TaskExecutor;
-use tokio::sync::{oneshot, RwLock};
+use tokio::sync::{oneshot};
 
 pub use storage::config::ShardConfig;
 

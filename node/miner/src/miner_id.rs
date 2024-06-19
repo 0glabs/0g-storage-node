@@ -7,7 +7,7 @@ use ethers::contract::EthEvent;
 use std::sync::Arc;
 use storage::log_store::{config::ConfigurableExt, Store};
 use storage::H256;
-use tokio::sync::RwLock;
+
 
 const MINER_ID: &str = "mine.miner_id";
 

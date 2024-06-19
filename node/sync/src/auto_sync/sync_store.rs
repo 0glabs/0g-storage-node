@@ -1,6 +1,6 @@
 use super::tx_store::TxStore;
 use anyhow::Result;
-use std::ops::Deref;
+
 use storage::log_store::config::{ConfigTx, ConfigurableExt};
 use storage_async::Store;
 
@@ -57,12 +57,12 @@ impl SyncStore {
         let store = self.store.get_store();
 
         // already in ready queue
-        if self.ready_txs.has(store.deref(), tx_seq)? {
+        if self.ready_txs.has(store, tx_seq)? {
             return Ok(false);
         }
 
         // always add in pending queue
-        self.pending_txs.add(store.deref(), None, tx_seq)
+        self.pending_txs.add(store, None, tx_seq)
     }
 
     pub async fn upgrade_tx_to_ready(&self, tx_seq: u64) -> Result<bool> {
@@ -73,13 +73,13 @@ impl SyncStore {
         // not in pending queue
         if !self
             .pending_txs
-            .remove(store.deref(), Some(&mut tx), tx_seq)?
+            .remove(store, Some(&mut tx), tx_seq)?
         {
             return Ok(false);
         }
 
         // move from pending to ready queue
-        let added = self.ready_txs.add(store.deref(), Some(&mut tx), tx_seq)?;
+        let added = self.ready_txs.add(store, Some(&mut tx), tx_seq)?;
 
         store.exec_configs(tx)?;
 
@@ -94,13 +94,13 @@ impl SyncStore {
         // not in ready queue
         if !self
             .ready_txs
-            .remove(store.deref(), Some(&mut tx), tx_seq)?
+            .remove(store, Some(&mut tx), tx_seq)?
         {
             return Ok(false);
         }
 
         // move from ready to pending queue
-        let added = self.pending_txs.add(store.deref(), Some(&mut tx), tx_seq)?;
+        let added = self.pending_txs.add(store, Some(&mut tx), tx_seq)?;
 
         store.exec_configs(tx)?;
 
@@ -111,24 +111,24 @@ impl SyncStore {
         let store = self.store.get_store();
 
         // try to find a tx in ready queue with high priority
-        if let Some(val) = self.ready_txs.random(store.deref())? {
+        if let Some(val) = self.ready_txs.random(store)? {
             return Ok(Some(val));
         }
 
         // otherwise, find tx in pending queue
-        self.pending_txs.random(store.deref())
+        self.pending_txs.random(store)
     }
 
     pub async fn remove_tx(&self, tx_seq: u64) -> Result<bool> {
         let store = self.store.get_store();
 
         // removed in ready queue
-        if self.ready_txs.remove(store.deref(), None, tx_seq)? {
+        if self.ready_txs.remove(store, None, tx_seq)? {
             return Ok(true);
         }
 
         // otherwise, try to remove in pending queue
-        self.pending_txs.remove(store.deref(), None, tx_seq)
+        self.pending_txs.remove(store, None, tx_seq)
     }
 }
 
