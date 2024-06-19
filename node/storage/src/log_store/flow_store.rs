@@ -87,7 +87,7 @@ impl FlowStore {
 #[derive(Clone, Debug)]
 pub struct FlowConfig {
     pub batch_size: usize,
-    pub shard_config: ShardConfig,
+    pub shard_config: Arc<RwLock<ShardConfig>>,
 }
 
 impl Default for FlowConfig {
@@ -208,7 +208,7 @@ impl FlowRead for FlowStore {
     }
 
     fn get_shard_config(&self) -> ShardConfig {
-        self.config.shard_config
+        self.config.shard_config.read().clone()
     }
 }
 
@@ -233,7 +233,7 @@ impl FlowWrite for FlowStore {
                 .expect("in range");
 
             let chunk_index = chunk.start_index / self.config.batch_size as u64;
-            if !self.config.shard_config.in_range(chunk_index) {
+            if !self.config.shard_config.read().in_range(chunk_index) {
                 // The data are in a shard range that we are not storing.
                 continue;
             }
@@ -273,8 +273,8 @@ impl FlowWrite for FlowStore {
         Ok(())
     }
 
-    fn update_shard_config(&mut self, shard_config: ShardConfig) {
-        self.config.shard_config = shard_config;
+    fn update_shard_config(&self, shard_config: ShardConfig) {
+        *self.config.shard_config.write() = shard_config;
     }
 }
 
@@ -313,7 +313,7 @@ impl FlowSeal for FlowStore {
         Ok(Some(tasks))
     }
 
-    fn submit_seal_result(&mut self, answers: Vec<SealAnswer>) -> Result<()> {
+    fn submit_seal_result(&self, answers: Vec<SealAnswer>) -> Result<()> {
         let mut to_seal_set = self.to_seal_set.write();
         let is_consistent = |answer: &SealAnswer| {
             to_seal_set

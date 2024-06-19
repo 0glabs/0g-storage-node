@@ -213,7 +213,7 @@ pub trait FlowWrite {
     fn truncate(&self, start_index: u64) -> Result<()>;
 
     /// Update the shard config.
-    fn update_shard_config(&mut self, shard_config: ShardConfig);
+    fn update_shard_config(&self, shard_config: ShardConfig);
 }
 
 pub struct SealTask {
@@ -247,7 +247,7 @@ pub trait FlowSeal {
 
     /// Submit sealing result
 
-    fn submit_seal_result(&mut self, answers: Vec<SealAnswer>) -> Result<()>;
+    fn submit_seal_result(&self, answers: Vec<SealAnswer>) -> Result<()>;
 }
 
 pub trait Flow: FlowRead + FlowWrite + FlowSeal {}

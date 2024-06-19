@@ -29,7 +29,7 @@ impl SyncStore {
     }
 
     pub async fn get_tx_seq_range(&self) -> Result<(Option<u64>, Option<u64>)> {
-        let store = self.store.get_store().read().await;
+        let store = self.store.get_store();
 
         // load next_tx_seq
         let next_tx_seq = store.get_config_decoded(&KEY_NEXT_TX_SEQ)?;
@@ -43,8 +43,6 @@ impl SyncStore {
     pub async fn set_next_tx_seq(&self, tx_seq: u64) -> Result<()> {
         self.store
             .get_store()
-            .write()
-            .await
             .set_config_encoded(&KEY_NEXT_TX_SEQ, &tx_seq)
     }
 
@@ -52,13 +50,11 @@ impl SyncStore {
         debug!(%tx_seq, "set_max_tx_seq");
         self.store
             .get_store()
-            .write()
-            .await
             .set_config_encoded(&KEY_MAX_TX_SEQ, &tx_seq)
     }
 
     pub async fn add_pending_tx(&self, tx_seq: u64) -> Result<bool> {
-        let store = self.store.get_store().write().await;
+        let store = self.store.get_store();
 
         // already in ready queue
         if self.ready_txs.has(store.deref(), tx_seq)? {
@@ -70,7 +66,7 @@ impl SyncStore {
     }
 
     pub async fn upgrade_tx_to_ready(&self, tx_seq: u64) -> Result<bool> {
-        let store = self.store.get_store().write().await;
+        let store = self.store.get_store();
 
         let mut tx = ConfigTx::default();
 
@@ -91,7 +87,7 @@ impl SyncStore {
     }
 
     pub async fn downgrade_tx_to_pending(&self, tx_seq: u64) -> Result<bool> {
-        let store = self.store.get_store().write().await;
+        let store = self.store.get_store();
 
         let mut tx = ConfigTx::default();
 
@@ -112,7 +108,7 @@ impl SyncStore {
     }
 
     pub async fn random_tx(&self) -> Result<Option<u64>> {
-        let store = self.store.get_store().read().await;
+        let store = self.store.get_store();
 
         // try to find a tx in ready queue with high priority
         if let Some(val) = self.ready_txs.random(store.deref())? {
@@ -124,7 +120,7 @@ impl SyncStore {
     }
 
     pub async fn remove_tx(&self, tx_seq: u64) -> Result<bool> {
-        let store = self.store.get_store().write().await;
+        let store = self.store.get_store();
 
         // removed in ready queue
         if self.ready_txs.remove(store.deref(), None, tx_seq)? {

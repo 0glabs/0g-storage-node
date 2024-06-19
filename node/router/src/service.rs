@@ -58,7 +58,7 @@ impl RouterService {
         _miner_send: Option<broadcast::Sender<MinerMessage>>,
         chunk_pool_send: UnboundedSender<ChunkPoolMessage>,
         pruner_recv: Option<mpsc::UnboundedReceiver<PrunerMessage>>,
-        store: Arc<RwLock<dyn LogStore>>,
+        store: Arc<dyn LogStore>,
         file_location_cache: Arc<FileLocationCache>,
         local_keypair: Keypair,
         config: Config,

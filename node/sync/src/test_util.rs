@@ -17,8 +17,8 @@ use tokio::sync::RwLock;
 pub fn create_2_store(
     chunk_count: Vec<usize>,
 ) -> (
-    Arc<RwLock<LogManager>>,
-    Arc<RwLock<LogManager>>,
+    Arc<LogManager>,
+    Arc<LogManager>,
     Vec<Transaction>,
     Vec<Vec<u8>>,
 ) {
@@ -37,12 +37,7 @@ pub fn create_2_store(
         offset = ret.2;
     }
 
-    (
-        Arc::new(RwLock::new(store)),
-        Arc::new(RwLock::new(peer_store)),
-        txs,
-        data,
-    )
+    (Arc::new(store), Arc::new(peer_store), txs, data)
 }
 
 fn generate_data(
@@ -115,7 +110,7 @@ pub mod tests {
 
     impl Default for TestStoreRuntime {
         fn default() -> Self {
-            let store = Arc::new(RwLock::new(Self::new_store()));
+            let store = Arc::new(Self::new_store());
             Self::new(store)
         }
     }
@@ -125,7 +120,7 @@ pub mod tests {
             LogManager::memorydb(LogConfig::default()).unwrap()
         }
 
-        pub fn new(store: Arc<RwLock<dyn LogStore>>) -> TestStoreRuntime {
+        pub fn new(store: Arc<dyn LogStore>) -> TestStoreRuntime {
             let runtime = TestRuntime::default();
             let executor = runtime.task_executor.clone();
             Self {

@@ -269,13 +269,7 @@ impl Libp2pEventHandler {
         };
 
         let timestamp = timestamp_now();
-        let shard_config = self
-            .store
-            .get_store()
-            .read()
-            .await
-            .flow()
-            .get_shard_config();
+        let shard_config = self.store.get_store().flow().get_shard_config();
 
         let msg = AnnounceFile {
             tx_id,
@@ -598,7 +592,7 @@ mod tests {
         sync_recv: SyncReceiver,
         chunk_pool_send: mpsc::UnboundedSender<ChunkPoolMessage>,
         chunk_pool_recv: mpsc::UnboundedReceiver<ChunkPoolMessage>,
-        store: Arc<RwLock<dyn Store>>,
+        store: Arc<dyn Store>,
         file_location_cache: Arc<FileLocationCache>,
         peers: Arc<RwLock<PeerManager>>,
     }
@@ -621,7 +615,7 @@ mod tests {
                 sync_recv,
                 chunk_pool_send,
                 chunk_pool_recv,
-                store: Arc::new(RwLock::new(store)),
+                store: Arc::new(store),
                 file_location_cache: Arc::new(FileLocationCache::default()),
                 peers: Arc::new(RwLock::new(PeerManager::new(Config::default()))),
             }

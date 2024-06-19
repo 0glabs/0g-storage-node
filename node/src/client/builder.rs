@@ -68,7 +68,7 @@ struct ChunkPoolComponents {
 #[derive(Default)]
 pub struct ClientBuilder {
     runtime_context: Option<RuntimeContext>,
-    store: Option<Arc<RwLock<dyn Store>>>,
+    store: Option<Arc<dyn Store>>,
     async_store: Option<storage_async::Store>,
     file_location_cache: Option<Arc<FileLocationCache>>,
     network: Option<NetworkComponents>,
@@ -89,10 +89,10 @@ impl ClientBuilder {
     /// Initializes in-memory storage.
     pub fn with_memory_store(mut self) -> Result<Self, String> {
         // TODO(zz): Set config.
-        let store = Arc::new(RwLock::new(
+        let store = Arc::new(
             LogManager::memorydb(LogConfig::default())
                 .map_err(|e| format!("Unable to start in-memory store: {:?}", e))?,
-        ));
+        );
 
         self.store = Some(store.clone());
 
@@ -105,10 +105,10 @@ impl ClientBuilder {
 
     /// Initializes RocksDB storage.
     pub fn with_rocksdb_store(mut self, config: &StorageConfig) -> Result<Self, String> {
-        let store = Arc::new(RwLock::new(
+        let store = Arc::new(
             LogManager::rocksdb(LogConfig::default(), &config.db_dir)
                 .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))?,
-        ));
+        );
 
         self.store = Some(store.clone());
 

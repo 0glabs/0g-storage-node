@@ -21,11 +21,11 @@ fn set_miner_id(store: &dyn Store, miner_id: &H256) -> storage::error::Result<()
 
 pub(crate) async fn check_and_request_miner_id(
     config: &MinerConfig,
-    store: &RwLock<dyn Store>,
+    store: &dyn Store,
     provider: &Arc<MineServiceMiddleware>,
 ) -> Result<H256, String> {
-    let db_miner_id = load_miner_id(&*store.read().await)
-        .map_err(|e| format!("miner_id on db corrupt: {:?}", e))?;
+    let db_miner_id =
+        load_miner_id(store).map_err(|e| format!("miner_id on db corrupt: {:?}", e))?;
 
     let mine_contract = PoraMine::new(config.mine_address, provider.clone());
 
@@ -42,7 +42,7 @@ pub(crate) async fn check_and_request_miner_id(
         }
         (None, Some(c_id)) => {
             check_miner_id(&mine_contract, c_id).await?;
-            set_miner_id(&*store.write().await, &c_id)
+            set_miner_id(store, &c_id)
                 .map_err(|e| format!("set miner id on db corrupt: {:?}", e))?;
             Ok(c_id)
         }
@@ -53,8 +53,7 @@ pub(crate) async fn check_and_request_miner_id(
         (None, None) => {
             let beneficiary = provider.address();
             let id = request_miner_id(&mine_contract, beneficiary).await?;
-            set_miner_id(&*store.write().await, &id)
-                .map_err(|e| format!("set miner id on db corrupt: {:?}", e))?;
+            set_miner_id(store, &id).map_err(|e| format!("set miner id on db corrupt: {:?}", e))?;
             Ok(id)
         }
     }

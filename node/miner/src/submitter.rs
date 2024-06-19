@@ -22,7 +22,7 @@ pub struct Submitter {
     mine_contract: PoraMine<MineServiceMiddleware>,
     flow_contract: ZgsFlow<MineServiceMiddleware>,
     default_gas_limit: Option<U256>,
-    store: Arc<RwLock<dyn Store>>,
+    store: Arc<dyn Store>,
 }
 
 impl Submitter {
@@ -30,7 +30,7 @@ impl Submitter {
         executor: TaskExecutor,
         mine_answer_receiver: mpsc::UnboundedReceiver<AnswerWithoutProof>,
         provider: Arc<MineServiceMiddleware>,
-        store: Arc<RwLock<dyn Store>>,
+        store: Arc<dyn Store>,
         config: &MinerConfig,
     ) {
         let mine_contract = PoraMine::new(config.mine_address, provider.clone());
@@ -80,8 +80,6 @@ impl Submitter {
 
         let flow_proof = self
             .store
-            .read()
-            .await
             .get_proof_at_root(
                 &mine_answer.context_flow_root,
                 mine_answer.recall_position,

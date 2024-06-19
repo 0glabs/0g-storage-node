@@ -29,13 +29,13 @@ impl MineService {
         executor: task_executor::TaskExecutor,
         _network_send: mpsc::UnboundedSender<NetworkMessage>,
         config: MinerConfig,
-        store: Arc<RwLock<dyn Store>>,
+        store: Arc<dyn Store>,
     ) -> Result<broadcast::Sender<MinerMessage>, String> {
         let provider = Arc::new(config.make_provider().await?);
 
         let (msg_send, msg_recv) = broadcast::channel(1024);
 
-        let miner_id = check_and_request_miner_id(&config, &store, &provider).await?;
+        let miner_id = check_and_request_miner_id(&config, store.as_ref(), &provider).await?;
         debug!("miner id setting complete.");
 
         let mine_context_receiver = MineContextWatcher::spawn(

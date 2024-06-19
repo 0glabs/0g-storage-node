@@ -122,7 +122,7 @@ impl LogEntryFetcher {
     pub fn start_remove_finalized_block_task(
         &self,
         executor: &TaskExecutor,
-        store: Arc<RwLock<dyn Store>>,
+        store: Arc<dyn Store>,
         block_hash_cache: Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
         default_finalized_block_count: u64,
         remove_finalized_block_interval_minutes: u64,
@@ -133,7 +133,7 @@ impl LogEntryFetcher {
                 loop {
                     debug!("processing finalized block");
 
-                    let processed_block_number = match store.read().await.get_sync_progress() {
+                    let processed_block_number = match store.get_sync_progress() {
                         Ok(Some((processed_block_number, _))) => Some(processed_block_number),
                         Ok(None) => None,
                         Err(e) => {
@@ -176,9 +176,7 @@ impl LogEntryFetcher {
                                 }
 
                                 for key in pending_keys.into_iter() {
-                                    if let Err(e) =
-                                        store.write().await.delete_block_hash_by_number(key)
-                                    {
+                                    if let Err(e) = store.delete_block_hash_by_number(key) {
                                         error!(
                                             "remove block tx for number {} error: e={:?}",
                                             key, e

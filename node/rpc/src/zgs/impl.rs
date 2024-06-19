@@ -23,8 +23,6 @@ impl RpcServer for RpcServerImpl {
             .ctx
             .log_store
             .get_store()
-            .read()
-            .await
             .get_sync_progress()?
             .unwrap_or_default();
 
@@ -156,14 +154,7 @@ impl RpcServer for RpcServerImpl {
 
     async fn get_shard_config(&self) -> RpcResult<ShardConfig> {
         debug!("zgs_getShardConfig");
-        let shard_config = self
-            .ctx
-            .log_store
-            .get_store()
-            .read()
-            .await
-            .flow()
-            .get_shard_config();
+        let shard_config = self.ctx.log_store.get_store().flow().get_shard_config();
         Ok(shard_config)
     }
 }

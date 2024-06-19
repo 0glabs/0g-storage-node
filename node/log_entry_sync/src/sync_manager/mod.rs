@@ -33,7 +33,7 @@ pub enum LogSyncEvent {
 pub struct LogSyncManager {
     config: LogSyncConfig,
     log_fetcher: LogEntryFetcher,
-    store: Arc<RwLock<dyn Store>>,
+    store: Arc<dyn Store>,
     data_cache: DataCache,
 
     next_tx_seq: u64,
@@ -48,9 +48,9 @@ impl LogSyncManager {
     pub async fn spawn(
         config: LogSyncConfig,
         executor: TaskExecutor,
-        store: Arc<RwLock<dyn Store>>,
+        store: Arc<dyn Store>,
     ) -> Result<broadcast::Sender<LogSyncEvent>> {
-        let next_tx_seq = store.read().await.next_tx_seq();
+        let next_tx_seq = store.next_tx_seq();
 
         let executor_clone = executor.clone();
         let mut shutdown_sender = executor.shutdown_sender();
@@ -81,8 +81,6 @@ impl LogSyncManager {
 
                     let block_hash_cache = Arc::new(RwLock::new(
                         store
-                            .read()
-                            .await
                             .get_block_hashes()?
                             .into_iter()
                             .map(|(x, y)| (x, Some(y)))
@@ -124,7 +122,7 @@ impl LogSyncManager {
                     // TODO(zz): Handle reorg instead of return.
                     let mut need_handle_reorg = false;
                     let (mut start_block_number, mut start_block_hash) =
-                        match log_sync_manager.store.read().await.get_sync_progress()? {
+                        match log_sync_manager.store.get_sync_progress()? {
                             // No previous progress, so just use config.
                             None => {
                                 let block_number = log_sync_manager.config.start_block_number;
@@ -176,7 +174,7 @@ impl LogSyncManager {
                         log_sync_manager.handle_data(reorg_rx).await?;
 
                         if let Some((block_number, block_hash)) =
-                            log_sync_manager.store.read().await.get_sync_progress()?
+                            log_sync_manager.store.get_sync_progress()?
                         {
                             start_block_number = block_number;
                             start_block_hash = block_hash;
@@ -301,7 +299,7 @@ impl LogSyncManager {
     async fn process_reverted(&mut self, tx_seq: u64) {
         warn!("revert for chain reorg: seq={}", tx_seq);
         {
-            let store = self.store.read().await;
+            let store = self.store.clone();
             for seq in tx_seq..self.next_tx_seq {
                 if matches!(store.check_tx_completed(seq), Ok(true)) {
                     if let Ok(Some(tx)) = store.get_tx_by_seq_number(seq) {
@@ -325,7 +323,7 @@ impl LogSyncManager {
         let _ = self.event_send.send(LogSyncEvent::ReorgDetected { tx_seq });
 
         // TODO(zz): `wrapping_sub` here is a hack to handle the case of tx_seq=0.
-        if let Err(e) = self.store.write().await.revert_to(tx_seq.wrapping_sub(1)) {
+        if let Err(e) = self.store.revert_to(tx_seq.wrapping_sub(1)) {
             error!("revert_to fails: e={:?}", e);
             return;
         }
@@ -353,7 +351,7 @@ impl LogSyncManager {
                         );
                     }
 
-                    self.store.write().await.put_sync_progress((
+                    self.store.put_sync_progress((
                         block_number,
                         block_hash,
                         first_submission_index,
@@ -396,12 +394,12 @@ impl LogSyncManager {
     }
 
     async fn put_tx_inner(&mut self, tx: Transaction) -> bool {
-        if let Err(e) = self.store.write().await.put_tx(tx.clone()) {
+        if let Err(e) = self.store.put_tx(tx.clone()) {
             error!("put_tx error: e={:?}", e);
             false
         } else {
             if let Some(data) = self.data_cache.pop_data(&tx.data_merkle_root) {
-                let store = self.store.write().await;
+                let store = self.store.clone();
                 // We are holding a mutable reference of LogSyncManager, so no chain reorg is
                 // possible after put_tx.
                 if let Err(e) = store

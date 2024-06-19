@@ -28,14 +28,14 @@ macro_rules! delegate {
 #[derive(Clone)]
 pub struct Store {
     /// Log and transaction storage.
-    store: Arc<RwLock<dyn LogStore>>,
+    store: Arc<dyn LogStore>,
 
     /// Tokio executor for spawning worker tasks.
     executor: TaskExecutor,
 }
 
 impl Store {
-    pub fn new(store: Arc<RwLock<dyn LogStore>>, executor: TaskExecutor) -> Self {
+    pub fn new(store: Arc<dyn LogStore>, executor: TaskExecutor) -> Self {
         Store { store, executor }
     }
 
@@ -64,7 +64,7 @@ impl Store {
 
     async fn spawn<T, F>(&self, f: F) -> Result<T>
     where
-        F: FnOnce(&mut dyn LogStore) -> Result<T> + Send + 'static,
+        F: FnOnce(&dyn LogStore) -> Result<T> + Send + 'static,
         T: Send + 'static,
     {
         let store = self.store.clone();
@@ -73,7 +73,7 @@ impl Store {
         self.executor.spawn(
             async move {
                 // FIXME(zz): Not all functions need `write`. Refactor store usage.
-                let res = f(&mut *store.write().await);
+                let res = f(&*store);
 
                 if tx.send(res).is_err() {
                     error!("Unable to complete async storage operation: the receiver dropped");
@@ -87,7 +87,7 @@ impl Store {
     }
 
     // FIXME(zz): Refactor the lock and async call here.
-    pub fn get_store(&self) -> &RwLock<dyn LogStore> {
+    pub fn get_store(&self) -> &dyn LogStore {
         self.store.as_ref()
     }
 }

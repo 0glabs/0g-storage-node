@@ -22,7 +22,7 @@ const CHAIN_STATUS_QUERY_PERIOD: u64 = 5;
 
 pub struct Sealer {
     flow_contract: ZgsFlow<MineServiceMiddleware>,
-    store: Arc<RwLock<dyn Store>>,
+    store: Arc<dyn Store>,
     context_cache: BTreeMap<u128, EpochRangeWithContextDigest>,
     last_context_flow_length: u64,
     miner_id: H256,
@@ -32,7 +32,7 @@ impl Sealer {
     pub fn spawn(
         executor: TaskExecutor,
         provider: Arc<MineServiceMiddleware>,
-        store: Arc<RwLock<dyn Store>>,
+        store: Arc<dyn Store>,
         config: &MinerConfig,
         miner_id: H256,
     ) {
@@ -152,19 +152,11 @@ impl Sealer {
 
     async fn fetch_task(&self) -> Result<Option<Vec<SealTask>>> {
         let seal_index_max = self.last_context_flow_length as usize / SECTORS_PER_SEAL;
-        self.store
-            .read()
-            .await
-            .flow()
-            .pull_seal_chunk(seal_index_max)
+        self.store.flow().pull_seal_chunk(seal_index_max)
     }
 
     async fn submit_answer(&self, answers: Vec<SealAnswer>) -> Result<()> {
-        self.store
-            .write()
-            .await
-            .flow_mut()
-            .submit_seal_result(answers)
+        self.store.flow().submit_seal_result(answers)
     }
 
     async fn seal_iteration(&mut self) -> Result<bool> {
