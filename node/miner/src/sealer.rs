@@ -1,9 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use ethereum_types::H256;
-use tokio::{
-    time::{sleep, Duration, Instant},
-};
+use tokio::time::{sleep, Duration, Instant};
 
 use contract_interface::{EpochRangeWithContextDigest, ZgsFlow};
 use storage::{

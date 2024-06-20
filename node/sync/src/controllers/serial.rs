@@ -651,7 +651,6 @@ mod tests {
     use storage::H256;
     use task_executor::{test_utils::TestRuntime, TaskExecutor};
     use tokio::sync::mpsc::{self, UnboundedReceiver};
-    
 
     #[test]
     fn test_status() {

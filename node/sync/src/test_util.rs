@@ -9,7 +9,6 @@ use storage::{
     LogManager,
 };
 
-
 /// Creates stores for local node and peers with initialized transaction of specified chunk count.
 /// The first store is for local node, and data not stored. The second store is for peers, and all
 /// transactions are finalized for file sync.
@@ -101,7 +100,6 @@ pub mod tests {
     };
     use storage_async::Store;
     use task_executor::test_utils::TestRuntime;
-    
 
     pub struct TestStoreRuntime {
         pub runtime: TestRuntime,

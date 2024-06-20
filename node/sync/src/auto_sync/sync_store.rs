@@ -71,10 +71,7 @@ impl SyncStore {
         let mut tx = ConfigTx::default();
 
         // not in pending queue
-        if !self
-            .pending_txs
-            .remove(store, Some(&mut tx), tx_seq)?
-        {
+        if !self.pending_txs.remove(store, Some(&mut tx), tx_seq)? {
             return Ok(false);
         }
 
@@ -92,10 +89,7 @@ impl SyncStore {
         let mut tx = ConfigTx::default();
 
         // not in ready queue
-        if !self
-            .ready_txs
-            .remove(store, Some(&mut tx), tx_seq)?
-        {
+        if !self.ready_txs.remove(store, Some(&mut tx), tx_seq)? {
             return Ok(false);
         }
 

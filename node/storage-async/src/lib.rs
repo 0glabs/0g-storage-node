@@ -6,7 +6,7 @@ use shared_types::{Chunk, ChunkArray, ChunkArrayWithProof, DataRoot, FlowProof, 
 use std::sync::Arc;
 use storage::{error, error::Result, log_store::Store as LogStore, H256};
 use task_executor::TaskExecutor;
-use tokio::sync::{oneshot};
+use tokio::sync::oneshot;
 
 pub use storage::config::ShardConfig;
 
@@ -70,8 +70,8 @@ impl Store {
         let store = self.store.clone();
         let (tx, rx) = oneshot::channel();
 
-        self.executor.spawn(
-            async move {
+        self.executor.spawn_blocking(
+            move || {
                 // FIXME(zz): Not all functions need `write`. Refactor store usage.
                 let res = f(&*store);
 

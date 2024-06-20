@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use storage::log_store::{MineLoadChunk, Store};
 
-
 #[async_trait]
 pub trait PoraLoader: Send + Sync {
     async fn load_sealed_data(&self, index: u64) -> Option<MineLoadChunk>;

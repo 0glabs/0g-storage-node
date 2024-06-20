@@ -8,7 +8,6 @@ use std::sync::Arc;
 use storage::log_store::{config::ConfigurableExt, Store};
 use storage::H256;
 
-
 const MINER_ID: &str = "mine.miner_id";
 
 pub fn load_miner_id(store: &dyn Store) -> storage::error::Result<Option<H256>> {
