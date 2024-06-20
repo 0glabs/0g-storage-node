@@ -997,7 +997,11 @@ mod tests {
                 assert_eq!(peer_id, *ctx.network_globals.peer_id.read());
                 assert_eq!(
                     addr,
-                    *ctx.network_globals.listen_multiaddrs.read().get(0).unwrap()
+                    *ctx.network_globals
+                        .listen_multiaddrs
+                        .read()
+                        .first()
+                        .unwrap()
                 );
             }
             Ok(_) => panic!("Unexpected sync message type received"),

@@ -208,7 +208,7 @@ impl FlowRead for FlowStore {
     }
 
     fn get_shard_config(&self) -> ShardConfig {
-        self.config.shard_config.read().clone()
+        *self.config.shard_config.read()
     }
 }
 

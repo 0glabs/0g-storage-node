@@ -170,7 +170,7 @@ impl LogStoreChunkWrite for LogManager {
         // TODO: Use another struct to avoid confusion.
         let mut flow_entry_array = chunks;
         flow_entry_array.start_index += tx.start_entry_index;
-        self.append_entries(flow_entry_array, &mut *merkle)?;
+        self.append_entries(flow_entry_array, &mut merkle)?;
         Ok(())
     }
 
@@ -203,7 +203,7 @@ impl LogStoreChunkWrite for LogManager {
         // TODO: Use another struct to avoid confusion.
         let mut flow_entry_array = chunks;
         flow_entry_array.start_index += tx.start_entry_index;
-        self.append_entries(flow_entry_array, &mut *merkle)?;
+        self.append_entries(flow_entry_array, &mut merkle)?;
 
         if let Some(file_proof) = maybe_file_proof {
             let updated_node_list = merkle.pora_chunks_merkle.fill_with_file_proof(
@@ -258,7 +258,7 @@ impl LogStoreWrite for LogManager {
         }
         let maybe_same_data_tx_seq = self.tx_store.put_tx(tx.clone())?.first().cloned();
         // TODO(zz): Should we validate received tx?
-        self.append_subtree_list(tx.merkle_nodes.clone(), &mut *merkle)?;
+        self.append_subtree_list(tx.merkle_nodes.clone(), &mut merkle)?;
         merkle.commit_merkle(tx.seq)?;
         debug!(
             "commit flow root: root={:?}",
@@ -1041,7 +1041,7 @@ impl LogManager {
             for (_, offset) in &to_tx_offset_list {
                 let mut data = batch_data.clone();
                 data.start_index += offset;
-                self.append_entries(data, &mut *merkle)?;
+                self.append_entries(data, &mut merkle)?;
             }
         }
         // num_entries() includes the rear padding data, so no need for more padding.
