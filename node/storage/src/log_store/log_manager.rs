@@ -323,7 +323,6 @@ impl LogStoreWrite for LogManager {
         // TODO: Should we double check the tx merkle root?
         let tx_end_index = tx.start_entry_index + bytes_to_entries(tx.size);
         if self.check_data_completed(tx.start_entry_index, tx_end_index)? {
-            self.tx_store.finalize_tx(tx_seq)?;
             let same_root_seq_list = self
                 .tx_store
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
@@ -331,6 +330,7 @@ impl LogStoreWrite for LogManager {
             if same_root_seq_list.first() == Some(&tx_seq) {
                 self.copy_tx_data(tx_seq, same_root_seq_list[1..].to_vec())?;
             }
+            self.tx_store.finalize_tx(tx_seq)?;
             Ok(true)
         } else {
             bail!("finalize tx hash with data missing: tx_seq={}", tx_seq)
