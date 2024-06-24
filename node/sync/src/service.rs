@@ -175,7 +175,7 @@ impl SyncService {
             manager,
         };
 
-        debug!("Starting sync service");
+        info!("Starting sync service");
         executor.spawn(async move { Box::pin(sync.main()).await }, "sync");
 
         Ok(sync_send)
@@ -306,7 +306,6 @@ impl SyncService {
                 tx_seq,
                 is_reverted,
             } => {
-                debug!(?tx_seq, "terminate file sync");
                 let count = self.on_terminate_file_sync(tx_seq, is_reverted);
                 let _ = sender.send(SyncResponse::TerminateFileSync { count });
             }
@@ -314,7 +313,7 @@ impl SyncService {
     }
 
     fn on_dail_failed(&mut self, peer_id: PeerId, err: DialError) {
-        info!(%peer_id, "Dail to peer failed");
+        info!(%peer_id, ?err, "Dail to peer failed");
 
         for controller in self.controllers.values_mut() {
             controller.on_dail_failed(peer_id, &err);
@@ -525,7 +524,7 @@ impl SyncService {
         maybe_range: Option<(u64, u64)>,
         maybe_peer: Option<(PeerId, Multiaddr)>,
     ) -> Result<()> {
-        info!(%tx_seq, "Start to sync file");
+        info!(%tx_seq, ?maybe_range, ?maybe_peer, "Start to sync file");
 
         // remove failed entry if caused by tx reverted, so as to re-sync
         // file with latest tx_id.
@@ -541,10 +540,14 @@ impl SyncService {
 
         if tx_reverted {
             self.controllers.remove(&tx_seq);
+            info!(%tx_seq, "Terminate file sync due to tx reverted");
         }
 
         let controller = match self.controllers.entry(tx_seq) {
-            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Occupied(entry) => {
+                debug!(%tx_seq, "File already in sync");
+                entry.into_mut()
+            }
             Entry::Vacant(entry) => {
                 let tx = match self.store.get_tx_by_seq_number(tx_seq).await? {
                     Some(tx) => tx,
@@ -587,6 +590,7 @@ impl SyncService {
         // Trigger file or chunks sync again if completed or failed.
         if controller.is_completed_or_failed() {
             controller.reset(maybe_range);
+            debug!(%tx_seq, "Reset completed or failed file sync");
         }
 
         if let Some((peer_id, addr)) = maybe_peer {
@@ -661,6 +665,7 @@ impl SyncService {
     /// Note, this function should be as fast as possible to avoid
     /// message lagged in channel.
     fn on_terminate_file_sync(&mut self, min_tx_seq: u64, is_reverted: bool) -> usize {
+        info!(%min_tx_seq, %is_reverted, "Terminate file sync");
         let mut to_terminate = vec![];
 
         if is_reverted {
@@ -677,18 +682,30 @@ impl SyncService {
             self.controllers.remove(tx_seq);
         }
 
+        debug!(?to_terminate, "File sync terminated");
+
         to_terminate.len()
     }
 
     fn on_heartbeat(&mut self) {
         let mut completed = vec![];
+        let mut incompleted = vec![];
 
         for (&tx_seq, controller) in self.controllers.iter_mut() {
             controller.transition();
 
             if let SyncState::Completed = controller.get_status() {
                 completed.push(tx_seq);
+            } else {
+                incompleted.push(tx_seq);
             }
+        }
+
+        if !completed.is_empty() || !incompleted.is_empty() {
+            debug!(
+                "Sync stat: incompleted = {:?}, completed = {:?}",
+                incompleted, completed
+            );
         }
 
         for tx_seq in completed {

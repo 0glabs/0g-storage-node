@@ -563,10 +563,14 @@ impl SerialSyncController {
     pub fn transition(&mut self) {
         use PeerState::*;
 
+        debug!(%self.tx_seq, ?self.state, "transition started");
+
         // update peer connection states
         self.peers.transition();
 
-        loop {
+        let mut completed = false;
+
+        while !completed {
             match self.state {
                 SyncState::Idle => {
                     if self.peers.count(&[Found, Connecting, Connected]) > 0 {
@@ -584,11 +588,11 @@ impl SerialSyncController {
                         // gossip message received. In this case, just broadcast the
                         // `FindFile` message again.
                         if updated.elapsed() >= PEER_REQUEST_TIMEOUT {
-                            debug!(%self.tx_seq, "Peer request timeout");
+                            debug!(%self.tx_seq, "Finding peer timeout and try to find peers again");
                             self.try_find_peers();
                         }
 
-                        return;
+                        completed = true;
                     }
                 }
 
@@ -606,43 +610,48 @@ impl SerialSyncController {
                             since: Instant::now(),
                         };
                     } else if self.peers.count(&[Connecting]) == 0 {
+                        debug!(%self.tx_seq, "Connecting to peers timeout and try to find other peers to dial");
                         self.state = SyncState::Idle;
                     } else {
                         // peers.transition() will handle the case that peer connecting timeout
-                        return;
+                        completed = true;
                     }
                 }
 
                 SyncState::AwaitingOutgoingConnection { since } => {
                     if since.elapsed() < WAIT_OUTGOING_CONNECTION_TIMEOUT {
-                        return;
+                        completed = true;
+                    } else {
+                        debug!(%self.tx_seq, "Waiting for outgoing connection timeout and try to find other peers to dial");
+                        self.state = SyncState::Idle;
                     }
-
-                    self.state = SyncState::Idle;
                 }
 
                 SyncState::AwaitingDownload { since } => {
                     if Instant::now() < since {
-                        return;
+                        completed = true;
+                    } else {
+                        self.try_request_next();
                     }
-
-                    self.try_request_next();
                 }
 
                 SyncState::Downloading { peer_id, since, .. } => {
                     if !matches!(self.peers.peer_state(&peer_id), Some(PeerState::Connected)) {
                         // e.g. peer disconnected by remote node
+                        debug!(%self.tx_seq, "No peer to continue downloading and try to find other peers to download");
                         self.state = SyncState::Idle;
                     } else if since.elapsed() >= DOWNLOAD_TIMEOUT {
                         self.handle_response_failure(peer_id, "RPC timeout");
                     } else {
-                        return;
+                        completed = true;
                     }
                 }
 
-                SyncState::Completed | SyncState::Failed { .. } => return,
+                SyncState::Completed | SyncState::Failed { .. } => completed = true,
             }
         }
+
+        debug!(%self.tx_seq, ?self.state, "transition ended");
     }
 }
 
