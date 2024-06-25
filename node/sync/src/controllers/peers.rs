@@ -42,16 +42,17 @@ impl PeerInfo {
     }
 }
 
+#[derive(Default)]
 pub struct SyncPeers {
     peers: HashMap<PeerId, PeerInfo>,
-    ctx: Arc<SyncNetworkContext>,
+    ctx: Option<Arc<SyncNetworkContext>>,
 }
 
 impl SyncPeers {
     pub fn new(ctx: Arc<SyncNetworkContext>) -> Self {
         Self {
             peers: Default::default(),
-            ctx,
+            ctx: Some(ctx),
         }
     }
 
@@ -191,11 +192,13 @@ impl SyncPeers {
                     if info.since.elapsed() >= PEER_CONNECT_TIMEOUT {
                         info!(%peer_id, %info.addr, "Peer connection timeout");
                         bad_peers.push(*peer_id);
-                        self.ctx.report_peer(
-                            *peer_id,
-                            PeerAction::LowToleranceError,
-                            "Dail timeout",
-                        );
+                        if let Some(ctx) = &self.ctx {
+                            ctx.report_peer(
+                                *peer_id,
+                                PeerAction::LowToleranceError,
+                                "Dail timeout",
+                            );
+                        }
                     }
                 }
 

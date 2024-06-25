@@ -588,8 +588,8 @@ mod tests {
             // no peers for file sync for a long time
             SyncResponse::SyncStatus {
                 status: Some(SyncState::FindingPeers {
-                    since: Instant::now().sub(Duration::from_secs(10000)),
-                    updated: Instant::now(),
+                    origin: Instant::now().sub(Duration::from_secs(10000)),
+                    since: Instant::now(),
                 }),
             },
             // required to terminate the file sync
