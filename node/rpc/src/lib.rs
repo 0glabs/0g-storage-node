@@ -44,7 +44,7 @@ pub struct Context {
     pub network_send: UnboundedSender<NetworkMessage>,
     pub sync_send: SyncSender,
     pub chunk_pool: Arc<MemoryChunkPool>,
-    pub log_store: Store,
+    pub log_store: Arc<Store>,
     pub shutdown_sender: Sender<ShutdownReason>,
     pub mine_service_sender: Option<broadcast::Sender<MinerMessage>>,
 }

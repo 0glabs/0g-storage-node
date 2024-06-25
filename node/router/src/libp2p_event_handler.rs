@@ -591,7 +591,7 @@ mod tests {
         sync_send: SyncSender,
         sync_recv: SyncReceiver,
         chunk_pool_send: mpsc::UnboundedSender<ChunkPoolMessage>,
-        chunk_pool_recv: mpsc::UnboundedReceiver<ChunkPoolMessage>,
+        // chunk_pool_recv: mpsc::UnboundedReceiver<ChunkPoolMessage>,
         store: Arc<dyn Store>,
         file_location_cache: Arc<FileLocationCache>,
         peers: Arc<RwLock<PeerManager>>,
@@ -603,7 +603,7 @@ mod tests {
             let (network_globals, keypair) = Context::new_network_globals();
             let (network_send, network_recv) = mpsc::unbounded_channel();
             let (sync_send, sync_recv) = channel::Channel::unbounded();
-            let (chunk_pool_send, chunk_pool_recv) = mpsc::unbounded_channel();
+            let (chunk_pool_send, _chunk_pool_recv) = mpsc::unbounded_channel();
             let store = LogManager::memorydb(LogConfig::default()).unwrap();
             Self {
                 runtime,
@@ -614,7 +614,7 @@ mod tests {
                 sync_send,
                 sync_recv,
                 chunk_pool_send,
-                chunk_pool_recv,
+                // chunk_pool_recv,
                 store: Arc::new(store),
                 file_location_cache: Arc::new(FileLocationCache::default()),
                 peers: Arc::new(RwLock::new(PeerManager::new(Config::default()))),

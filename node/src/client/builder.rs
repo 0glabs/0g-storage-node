@@ -69,7 +69,7 @@ struct ChunkPoolComponents {
 pub struct ClientBuilder {
     runtime_context: Option<RuntimeContext>,
     store: Option<Arc<dyn Store>>,
-    async_store: Option<storage_async::Store>,
+    async_store: Option<Arc<storage_async::Store>>,
     file_location_cache: Option<Arc<FileLocationCache>>,
     network: Option<NetworkComponents>,
     sync: Option<SyncComponents>,
@@ -97,7 +97,10 @@ impl ClientBuilder {
         self.store = Some(store.clone());
 
         if let Some(ctx) = self.runtime_context.as_ref() {
-            self.async_store = Some(storage_async::Store::new(store, ctx.executor.clone()));
+            self.async_store = Some(Arc::new(storage_async::Store::new(
+                store,
+                ctx.executor.clone(),
+            )));
         }
 
         Ok(self)
@@ -113,7 +116,10 @@ impl ClientBuilder {
         self.store = Some(store.clone());
 
         if let Some(ctx) = self.runtime_context.as_ref() {
-            self.async_store = Some(storage_async::Store::new(store, ctx.executor.clone()));
+            self.async_store = Some(Arc::new(storage_async::Store::new(
+                store,
+                ctx.executor.clone(),
+            )));
         }
 
         Ok(self)
@@ -177,7 +183,7 @@ impl ClientBuilder {
         if let Some(config) = config {
             let executor = require!("miner", self, runtime_context).clone().executor;
             let network_send = require!("miner", self, network).send.clone();
-            let store = self.store.as_ref().unwrap().clone();
+            let store = self.async_store.as_ref().unwrap().clone();
 
             let send = MineService::spawn(executor, network_send, config, store).await?;
             self.miner = Some(MinerComponents { send });

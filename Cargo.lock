@@ -4441,6 +4441,7 @@ dependencies = [
  "rand 0.8.5",
  "shared_types",
  "storage",
+ "storage-async",
  "task_executor",
  "tiny-keccak",
  "tokio",
@@ -6903,6 +6904,7 @@ name = "storage-async"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "eth2_ssz",
  "shared_types",
  "storage",
  "task_executor",

@@ -6,7 +6,7 @@ use ethers::providers::PendingTransaction;
 use hex::ToHex;
 use shared_types::FlowRangeProof;
 use std::sync::Arc;
-use storage::log_store::Store;
+use storage_async::Store;
 use task_executor::TaskExecutor;
 use tokio::sync::mpsc;
 
@@ -22,7 +22,7 @@ pub struct Submitter {
     mine_contract: PoraMine<MineServiceMiddleware>,
     flow_contract: ZgsFlow<MineServiceMiddleware>,
     default_gas_limit: Option<U256>,
-    store: Arc<dyn Store>,
+    store: Arc<Store>,
 }
 
 impl Submitter {
@@ -30,7 +30,7 @@ impl Submitter {
         executor: TaskExecutor,
         mine_answer_receiver: mpsc::UnboundedReceiver<AnswerWithoutProof>,
         provider: Arc<MineServiceMiddleware>,
-        store: Arc<dyn Store>,
+        store: Arc<Store>,
         config: &MinerConfig,
     ) {
         let mine_contract = PoraMine::new(config.mine_address, provider.clone());
@@ -81,10 +81,11 @@ impl Submitter {
         let flow_proof = self
             .store
             .get_proof_at_root(
-                &mine_answer.context_flow_root,
+                mine_answer.context_flow_root,
                 mine_answer.recall_position,
                 SECTORS_PER_SEAL as u64,
             )
+            .await
             .map_err(|e| e.to_string())?;
 
         let answer = PoraAnswer {

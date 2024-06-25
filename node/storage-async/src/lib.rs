@@ -2,13 +2,18 @@
 extern crate tracing;
 
 use anyhow::bail;
-use shared_types::{Chunk, ChunkArray, ChunkArrayWithProof, DataRoot, FlowProof, Transaction};
+use shared_types::{
+    Chunk, ChunkArray, ChunkArrayWithProof, DataRoot, FlowProof, FlowRangeProof, Transaction,
+};
+use ssz::{Decode, Encode};
 use std::sync::Arc;
 use storage::{error, error::Result, log_store::Store as LogStore, H256};
 use task_executor::TaskExecutor;
 use tokio::sync::oneshot;
 
 pub use storage::config::ShardConfig;
+use storage::log_store::config::ConfigurableExt;
+use storage::log_store::{MineLoadChunk, SealAnswer, SealTask};
 
 /// The name of the worker tokio tasks.
 const WORKER_TASK_NAME: &str = "async_storage_worker";
@@ -49,6 +54,7 @@ impl Store {
     delegate!(fn get_chunk_by_flow_index(index: u64, length: u64) -> Result<Option<ChunkArray>>);
     delegate!(fn finalize_tx(tx_seq: u64) -> Result<()>);
     delegate!(fn finalize_tx_with_hash(tx_seq: u64, tx_hash: H256) -> Result<bool>);
+    delegate!(fn get_proof_at_root(root: DataRoot, index: u64, length: u64) -> Result<FlowRangeProof>);
 
     pub async fn get_tx_seq_by_data_root(&self, data_root: &DataRoot) -> Result<Option<u64>> {
         let root = *data_root;
@@ -59,6 +65,44 @@ impl Store {
     pub async fn get_tx_by_data_root(&self, data_root: &DataRoot) -> Result<Option<Transaction>> {
         let root = *data_root;
         self.spawn(move |store| store.get_tx_by_data_root(&root))
+            .await
+    }
+
+    pub async fn get_config_decoded<K: AsRef<[u8]> + Send + Sync, T: Decode + Send + 'static>(
+        &self,
+        key: &K,
+    ) -> Result<Option<T>> {
+        let key = key.as_ref().to_vec();
+        self.spawn(move |store| store.get_config_decoded(&key))
+            .await
+    }
+
+    pub async fn set_config_encoded<K: AsRef<[u8]> + Send + Sync, T: Encode + Send + Sync>(
+        &self,
+        key: &K,
+        value: &T,
+    ) -> anyhow::Result<()> {
+        let key = key.as_ref().to_vec();
+        let value = value.as_ssz_bytes();
+        self.spawn(move |store| store.set_config(&key, &value))
+            .await
+    }
+
+    pub async fn pull_seal_chunk(
+        &self,
+        seal_index_max: usize,
+    ) -> anyhow::Result<Option<Vec<SealTask>>> {
+        self.spawn(move |store| store.flow().pull_seal_chunk(seal_index_max))
+            .await
+    }
+
+    pub async fn submit_seal_result(&self, answers: Vec<SealAnswer>) -> anyhow::Result<()> {
+        self.spawn(move |store| store.flow().submit_seal_result(answers))
+            .await
+    }
+
+    pub async fn load_sealed_data(&self, chunk_index: u64) -> Result<Option<MineLoadChunk>> {
+        self.spawn(move |store| store.flow().load_sealed_data(chunk_index))
             .await
     }
 

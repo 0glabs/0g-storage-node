@@ -5,7 +5,7 @@ use crate::{config::MinerConfig, mine::PoraService, watcher::MineContextWatcher}
 use network::NetworkMessage;
 use std::sync::Arc;
 use storage::config::ShardConfig;
-use storage::log_store::Store;
+use storage_async::Store;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
@@ -29,7 +29,7 @@ impl MineService {
         executor: task_executor::TaskExecutor,
         _network_send: mpsc::UnboundedSender<NetworkMessage>,
         config: MinerConfig,
-        store: Arc<dyn Store>,
+        store: Arc<Store>,
     ) -> Result<broadcast::Sender<MinerMessage>, String> {
         let provider = Arc::new(config.make_provider().await?);
 
@@ -49,7 +49,7 @@ impl MineService {
             executor.clone(),
             msg_recv.resubscribe(),
             mine_context_receiver,
-            Arc::new(store.clone()),
+            store.clone(),
             &config,
             miner_id,
         );

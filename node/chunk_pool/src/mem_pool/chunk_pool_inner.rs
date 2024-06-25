@@ -82,14 +82,14 @@ impl From<SegmentInfo> for (ChunkArray, FileProof) {
 /// and data root verified on blockchain.
 pub struct MemoryChunkPool {
     inner: Mutex<Inner>,
-    log_store: Store,
+    log_store: Arc<Store>,
     sender: UnboundedSender<ChunkPoolMessage>,
 }
 
 impl MemoryChunkPool {
     pub(crate) fn new(
         config: Config,
-        log_store: Store,
+        log_store: Arc<Store>,
         sender: UnboundedSender<ChunkPoolMessage>,
     ) -> Self {
         MemoryChunkPool {
