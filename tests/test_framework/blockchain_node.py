@@ -283,63 +283,52 @@ class BlockchainNode(TestNode):
             )
             return contract, tx_hash
         
-        def predict_contract_address(offset):
-            nonce = w3.eth.get_transaction_count(account1.address)
-            rlp_encoded = rlp.encode([decode_hex(account1.address), nonce + offset])
-            contract_address_bytes = keccak(rlp_encoded)[-20:]
-            contract_address = '0x' + contract_address_bytes.hex()           
-            return Web3.to_checksum_address(contract_address)
-        
         def deploy_no_market():
-            flowAddress = predict_contract_address(1)
-            mineAddress = predict_contract_address(2)
-
-            ZERO = "0x0000000000000000000000000000000000000000"
-
             self.log.debug("Start deploy contracts")
-            book, _ = deploy_contract("AddressBook", [flowAddress, ZERO, ZERO, mineAddress]);
-            self.log.debug("AddressBook deployed")
-
-            flow_contract, flow_contract_hash = deploy_contract("Flow", [book.address, mine_period, 0])
+            dummy_market_contract, _ = deploy_contract("DummyMarket", [])
+            self.log.debug("DummyMarket deployed")
+            dummy_reward_contract, _ = deploy_contract("DummyReward", [])
+            self.log.debug("DummyReward deployed")
+            flow_contract, _ = deploy_contract("Flow", [mine_period, 0])
             self.log.debug("Flow deployed")
-
-            mine_contract, _ = deploy_contract("PoraMineTest", [book.address, 0])
+            mine_contract, _ = deploy_contract("PoraMineTest", [0])
             self.log.debug("Mine deployed")
+            mine_contract.functions.initialize(1, 1, flow_contract.address, dummy_reward_contract.address).transact(TX_PARAMS)
+            self.log.debug("Mine Initialized")
+            flow_initialize_hash = (flow_contract.get_function_by_signature('initialize(address)'))(dummy_market_contract.address).transact(TX_PARAMS)
+            self.log.debug("Flow Initialized")
+            self.wait_for_transaction_receipt(w3, flow_initialize_hash)
             self.log.info("All contracts deployed")
 
             # tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
             # self.wait_for_transaction_receipt(w3, tx_hash)
-            
-            dummy_reward_contract = w3.eth.contract(
-                address = book.functions.reward().call(),
-                abi=load_contract_metadata(base_path=self.contract_path, name="IReward")["abi"],
-            )
 
-            return flow_contract, flow_contract_hash, mine_contract, dummy_reward_contract
+            return flow_contract, flow_initialize_hash, mine_contract, dummy_reward_contract
         
         def deploy_with_market():
-            mineAddress = predict_contract_address(1)
-            marketAddress = predict_contract_address(2)
-            rewardAddress = predict_contract_address(3)
-            flowAddress = predict_contract_address(4)
-
             LIFETIME_MONTH = 1
 
             self.log.debug("Start deploy contracts")
-            book, _ = deploy_contract("AddressBook", [flowAddress, marketAddress, rewardAddress, mineAddress]);
-            self.log.debug("AddressBook deployed")
-
-            mine_contract, _ = deploy_contract("PoraMineTest", [book.address, 0])
-            deploy_contract("FixedPrice", [book.address, LIFETIME_MONTH])
-            reward_contract, _ =deploy_contract("OnePoolReward", [book.address, LIFETIME_MONTH])
-            flow_contract, flow_contract_hash = deploy_contract("FixedPriceFlow", [book.address, mine_period, 0])
-
+            mine_contract, _ = deploy_contract("PoraMineTest", [0])
+            self.log.debug("Mine deployed")
+            market_contract, _ = deploy_contract("FixedPrice", [])
+            self.log.debug("Market deployed")
+            reward_contract, _ =deploy_contract("OnePoolReward", [LIFETIME_MONTH])
+            self.log.debug("Reward deployed")
+            flow_contract, _ = deploy_contract("FixedPriceFlow", [mine_period, 0])
+            self.log.debug("Flow deployed")
+            mine_contract.functions.initialize(1, 1, flow_contract.address, reward_contract.address).transact(TX_PARAMS)
+            self.log.debug("Mine Initialized")
+            market_contract.functions.initialize(LIFETIME_MONTH, flow_contract.address, reward_contract.address).transact(TX_PARAMS)
+            self.log.debug("Market Initialized")
+            reward_contract.functions.initialize(market_contract.address, mine_contract.address).transact(TX_PARAMS)
+            self.log.debug("Reward Initialized")
+            flow_initialize_hash = (flow_contract.get_function_by_signature('initialize(address)'))(market_contract.address).transact(TX_PARAMS)
+            self.log.debug("Flow Initialized")
+            self.wait_for_transaction_receipt(w3, flow_initialize_hash)
             self.log.info("All contracts deployed")
 
-            # tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
-            # self.wait_for_transaction_receipt(w3, tx_hash)
-
-            return flow_contract, flow_contract_hash, mine_contract, reward_contract
+            return flow_contract, flow_initialize_hash, mine_contract, reward_contract
         
         if enable_market:
             return deploy_with_market()
