@@ -195,7 +195,7 @@ impl Manager {
             }
         }
 
-        if matches!(state, Some(SyncState::FindingPeers { since, .. }) if since.elapsed() > self.config.find_peer_timeout)
+        if matches!(state, Some(SyncState::FindingPeers { origin, .. }) if origin.elapsed() > self.config.find_peer_timeout)
         {
             // no peers found for a long time
             self.terminate_file_sync(tx_seq, false).await;

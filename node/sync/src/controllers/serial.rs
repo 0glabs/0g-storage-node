@@ -33,8 +33,8 @@ pub enum FailureReason {
 pub enum SyncState {
     Idle,
     FindingPeers {
+        origin: Instant,
         since: Instant,
-        updated: Instant,
     },
     FoundPeers,
     ConnectingPeers,
@@ -169,14 +169,10 @@ impl SerialSyncController {
             self.publish_find_chunks();
         }
 
-        let now = Instant::now();
-
-        let (since, updated) = match self.state {
-            SyncState::FindingPeers { since, .. } => (since, now),
-            _ => (now, now),
+        self.state = SyncState::FindingPeers {
+            origin: self.since,
+            since: Instant::now(),
         };
-
-        self.state = SyncState::FindingPeers { since, updated };
     }
 
     fn publish_find_file(&mut self) {
@@ -580,14 +576,14 @@ impl SerialSyncController {
                     }
                 }
 
-                SyncState::FindingPeers { updated, .. } => {
+                SyncState::FindingPeers { since, .. } => {
                     if self.peers.count(&[Found, Connecting, Connected]) > 0 {
                         self.state = SyncState::FoundPeers;
                     } else {
                         // storage node may not have the specific file when `FindFile`
                         // gossip message received. In this case, just broadcast the
                         // `FindFile` message again.
-                        if updated.elapsed() >= PEER_REQUEST_TIMEOUT {
+                        if since.elapsed() >= PEER_REQUEST_TIMEOUT {
                             debug!(%self.tx_seq, "Finding peer timeout and try to find peers again");
                             self.try_find_peers();
                         }
