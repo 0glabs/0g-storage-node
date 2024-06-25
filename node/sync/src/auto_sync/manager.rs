@@ -119,8 +119,11 @@ impl Manager {
     }
 
     pub async fn update_on_announcement(&self, announced_tx_seq: u64) {
-        // new file announced
+        let next_tx_seq = self.next_tx_seq.load(Ordering::Relaxed);
         let max_tx_seq = self.max_tx_seq.load(Ordering::Relaxed);
+        debug!(%next_tx_seq, %max_tx_seq, %announced_tx_seq, "Update for new announcement");
+
+        // new file announced
         if max_tx_seq == u64::MAX || announced_tx_seq > max_tx_seq {
             match self.sync_store.set_max_tx_seq(announced_tx_seq).await {
                 Ok(()) => self.max_tx_seq.store(announced_tx_seq, Ordering::Relaxed),
@@ -130,7 +133,7 @@ impl Manager {
         }
 
         // already wait for sequential sync
-        if announced_tx_seq >= self.next_tx_seq.load(Ordering::Relaxed) {
+        if announced_tx_seq >= next_tx_seq {
             return;
         }
 
@@ -142,7 +145,8 @@ impl Manager {
 
     async fn move_forward(&self, pending: bool) -> Result<bool> {
         let tx_seq = self.next_tx_seq.load(Ordering::Relaxed);
-        if tx_seq > self.max_tx_seq.load(Ordering::Relaxed) {
+        let max_tx_seq = self.max_tx_seq.load(Ordering::Relaxed);
+        if tx_seq > max_tx_seq {
             return Ok(false);
         }
 
@@ -154,6 +158,8 @@ impl Manager {
         let next_tx_seq = tx_seq + 1;
         self.sync_store.set_next_tx_seq(next_tx_seq).await?;
         self.next_tx_seq.store(next_tx_seq, Ordering::Relaxed);
+
+        debug!(%next_tx_seq, %max_tx_seq, "Move forward");
 
         Ok(true)
     }
@@ -189,10 +195,11 @@ impl Manager {
             }
         }
 
-        if matches!(state, Some(SyncState::FindingPeers { since, .. }) if since.elapsed() > self.config.find_peer_timeout)
+        if matches!(state, Some(SyncState::FindingPeers { origin, .. }) if origin.elapsed() > self.config.find_peer_timeout)
         {
             // no peers found for a long time
             self.terminate_file_sync(tx_seq, false).await;
+            info!(%tx_seq, "Terminate file sync due to finding peers timeout");
             Ok(true)
         } else {
             // otherwise, continue to wait for file sync that already in progress
@@ -310,7 +317,10 @@ impl Manager {
         loop {
             if next {
                 match self.sync_store.random_tx().await {
-                    Ok(Some(seq)) => tx_seq = seq,
+                    Ok(Some(seq)) => {
+                        tx_seq = seq;
+                        debug!(%tx_seq, "Start to sync pending file");
+                    }
                     Ok(None) => {
                         trace!("No pending file to sync");
                         sleep(INTERVAL).await;
@@ -578,8 +588,8 @@ mod tests {
             // no peers for file sync for a long time
             SyncResponse::SyncStatus {
                 status: Some(SyncState::FindingPeers {
-                    since: Instant::now().sub(Duration::from_secs(10000)),
-                    updated: Instant::now(),
+                    origin: Instant::now().sub(Duration::from_secs(10000)),
+                    since: Instant::now(),
                 }),
             },
             // required to terminate the file sync
