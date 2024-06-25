@@ -1,10 +1,13 @@
-use network::{Multiaddr, PeerId};
+use network::{Multiaddr, PeerAction, PeerId};
 use rand::seq::IteratorRandom;
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 use storage::config::ShardConfig;
+
+use crate::context::SyncNetworkContext;
 
 const PEER_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const PEER_DISCONNECT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -39,12 +42,19 @@ impl PeerInfo {
     }
 }
 
-#[derive(Default, Debug)]
 pub struct SyncPeers {
     peers: HashMap<PeerId, PeerInfo>,
+    ctx: Arc<SyncNetworkContext>,
 }
 
 impl SyncPeers {
+    pub fn new(ctx: Arc<SyncNetworkContext>) -> Self {
+        Self {
+            peers: Default::default(),
+            ctx,
+        }
+    }
+
     pub fn add_new_peer_with_config(
         &mut self,
         peer_id: PeerId,
@@ -181,6 +191,11 @@ impl SyncPeers {
                     if info.since.elapsed() >= PEER_CONNECT_TIMEOUT {
                         info!(%peer_id, %info.addr, "Peer connection timeout");
                         bad_peers.push(*peer_id);
+                        self.ctx.report_peer(
+                            *peer_id,
+                            PeerAction::LowToleranceError,
+                            "Dail timeout",
+                        );
                     }
                 }
 

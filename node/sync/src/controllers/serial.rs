@@ -110,7 +110,7 @@ impl SerialSyncController {
             next_chunk: goal.index_start,
             failures: 0,
             state: SyncState::Idle,
-            peers: Default::default(),
+            peers: SyncPeers::new(ctx.clone()),
             ctx,
             store,
             file_location_cache,
