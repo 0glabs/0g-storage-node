@@ -24,7 +24,8 @@ type ReqId = usize;
 use tempfile::Builder as TempBuilder;
 use tokio::sync::mpsc::unbounded_channel;
 
-pub struct Libp2pInstance(LibP2PService<ReqId>);
+#[allow(unused)]
+pub struct Libp2pInstance(LibP2PService<ReqId>, exit_future::Signal);
 
 impl std::ops::Deref for Libp2pInstance {
     type Target = LibP2PService<ReqId>;
@@ -67,7 +68,7 @@ pub async fn build_libp2p_instance(rt: Weak<Runtime>, boot_nodes: Vec<Enr>) -> L
     let config = build_config(port, boot_nodes);
     // launch libp2p service
 
-    let (_signal, exit) = exit_future::signal();
+    let (signal, exit) = exit_future::signal();
     let (shutdown_tx, _) = futures::channel::mpsc::channel(1);
     let executor = task_executor::TaskExecutor::new(rt, exit, shutdown_tx);
     let libp2p_context = network::Context { config: &config };
@@ -77,6 +78,7 @@ pub async fn build_libp2p_instance(rt: Weak<Runtime>, boot_nodes: Vec<Enr>) -> L
             .await
             .expect("should build libp2p instance")
             .2,
+        signal
     )
 }
 
