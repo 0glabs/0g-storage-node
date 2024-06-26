@@ -724,10 +724,10 @@ mod tests {
         }
     }
 
-    fn verify(data: &Vec<H256>, merkle: &mut AppendMerkleTree<H256, Sha3Algorithm>) {
-        for i in 0..data.len() {
+    fn verify(data: &[H256], merkle: &mut AppendMerkleTree<H256, Sha3Algorithm>) {
+        for (i, item) in data.iter().enumerate() {
             let proof = merkle.gen_proof(i + 1).unwrap();
-            let r = merkle.validate(&proof, &data[i], i + 1);
+            let r = merkle.validate(&proof, item, i + 1);
             assert!(matches!(r, Ok(true)), "{:?}", r);
         }
         for i in (0..data.len()).step_by(6) {

@@ -37,8 +37,8 @@ fn write_performance(c: &mut Criterion) {
 
     for _ in 0..5000 {
         let mut data = vec![0; data_size];
-        for i in 0..data_size {
-            data[i] = random();
+        for item in data.iter_mut().take(data_size) {
+            *item = random();
         }
 
         let merkel_nodes = tx_subtree_root_list_padded(&data[..]);
@@ -119,8 +119,8 @@ fn read_performance(c: &mut Criterion) {
 
     for seq in 0..tx_size {
         let mut data = vec![0; data_size];
-        for i in 0..data_size {
-            data[i] = random();
+        for item in data.iter_mut().take(data_size) {
+            *item = random();
         }
 
         let merkel_nodes = tx_subtree_root_list_padded(&data[..]);

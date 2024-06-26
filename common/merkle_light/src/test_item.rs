@@ -1,4 +1,3 @@
-#![cfg(test)]
 #![allow(unsafe_code)]
 
 use crate::hash::{Algorithm, Hashable};
@@ -10,7 +9,7 @@ pub struct Item(pub u64);
 
 impl AsRef<[u8]> for Item {
     fn as_ref(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(mem::transmute(&self.0), 8) }
+        unsafe { slice::from_raw_parts(&self.0 as *const u64 as *const u8, 8) }
     }
 }
 

@@ -13,7 +13,7 @@ use tokio::sync::mpsc;
 use crate::config::{MineServiceMiddleware, MinerConfig};
 use crate::pora::AnswerWithoutProof;
 
-use zgs_spec::SECTORS_PER_SEAL;
+use zgs_spec::{BYTES_PER_SEAL, SECTORS_PER_SEAL};
 
 const SUBMISSION_RETIES: usize = 3;
 
@@ -96,7 +96,11 @@ impl Submitter {
             recall_position: mine_answer.recall_position.into(),
             seal_offset: mine_answer.seal_offset.into(),
             sealed_context_digest: sealed_context_digest.digest,
-            sealed_data: unsafe { std::mem::transmute(mine_answer.sealed_data) },
+            sealed_data: unsafe {
+                std::mem::transmute::<[u8; BYTES_PER_SEAL], [[u8; 32]; BYTES_PER_SEAL / 32]>(
+                    mine_answer.sealed_data,
+                )
+            },
             merkle_proof: flow_proof_to_pora_merkle_proof(flow_proof),
         };
         trace!("submit_answer: answer={:?}", answer);

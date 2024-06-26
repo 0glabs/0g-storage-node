@@ -67,4 +67,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          # blocks_in_conditions is triggered for tracing::instrument.
+          # This can be removed after the fix is released.
+          args: -- -D warnings -A clippy::blocks_in_conditions

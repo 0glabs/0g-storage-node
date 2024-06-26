@@ -597,7 +597,7 @@ fn submission_event_to_transaction(e: SubmitFilter) -> LogFetchProgress {
     })
 }
 
-fn nodes_to_root(node_list: &Vec<SubmissionNode>) -> DataRoot {
+fn nodes_to_root(node_list: &[SubmissionNode]) -> DataRoot {
     let mut root: DataRoot = node_list.last().expect("not empty").root.into();
     for next_node in node_list[..node_list.len() - 1].iter().rev() {
         root = Sha3Algorithm::parent(&next_node.root.into(), &root);

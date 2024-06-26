@@ -99,7 +99,7 @@ impl MemoryChunkPool {
         }
     }
 
-    pub fn validate_segment_size(&self, segment: &Vec<u8>) -> Result<()> {
+    pub fn validate_segment_size(&self, segment: &[u8]) -> Result<()> {
         if segment.is_empty() {
             bail!("data is empty");
         }

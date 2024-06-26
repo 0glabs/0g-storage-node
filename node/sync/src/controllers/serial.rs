@@ -1218,7 +1218,6 @@ mod tests {
                     source,
                     msg,
                 } => {
-                    assert_eq!(peer_id, peer_id);
                     match action {
                         PeerAction::Fatal => {}
                         _ => {
