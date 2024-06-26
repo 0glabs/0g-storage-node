@@ -1,10 +1,11 @@
 extern crate core;
 
-pub(crate) mod rpc_proxy;
 mod sync_manager;
 
-pub use rpc_proxy::ContractAddress;
+use ethers::prelude::H160;
 pub use sync_manager::{
     config::{CacheConfig, LogSyncConfig},
     LogSyncEvent, LogSyncManager,
 };
+
+pub type ContractAddress = H160;

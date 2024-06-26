@@ -1,6 +1,6 @@
-use crate::rpc_proxy::ContractAddress;
 use crate::sync_manager::log_query::LogQuery;
 use crate::sync_manager::RETRY_WAIT_MS;
+use crate::ContractAddress;
 use anyhow::{anyhow, bail, Result};
 use append_merkle::{Algorithm, Sha3Algorithm};
 use contract_interface::{SubmissionNode, SubmitFilter, ZgsFlow};
