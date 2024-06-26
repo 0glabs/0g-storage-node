@@ -1,7 +1,6 @@
 #![allow(unsafe_code)]
 
 use crate::hash::{Algorithm, Hashable};
-use std::mem;
 use std::slice;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Debug)]

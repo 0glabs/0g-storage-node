@@ -1419,7 +1419,7 @@ mod tests {
     #[tokio::test]
     async fn test_announce_file() {
         let mut runtime = TestSyncRuntime::new(vec![1023], 0);
-        let mut config = Config {
+        let config = Config {
             sync_file_on_announcement_enabled: true,
             ..Default::default()
         };
