@@ -1,5 +1,7 @@
+use file_location_cache::FileLocationCache;
 use network::{Multiaddr, PeerAction, PeerId};
 use rand::seq::IteratorRandom;
+use shared_types::TxID;
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
@@ -46,13 +48,19 @@ impl PeerInfo {
 pub struct SyncPeers {
     peers: HashMap<PeerId, PeerInfo>,
     ctx: Option<Arc<SyncNetworkContext>>,
+    file_location_cache: Option<(TxID, Arc<FileLocationCache>)>,
 }
 
 impl SyncPeers {
-    pub fn new(ctx: Arc<SyncNetworkContext>) -> Self {
+    pub fn new(
+        ctx: Arc<SyncNetworkContext>,
+        tx_id: TxID,
+        file_location_cache: Arc<FileLocationCache>,
+    ) -> Self {
         Self {
             peers: Default::default(),
             ctx: Some(ctx),
+            file_location_cache: Some((tx_id, file_location_cache)),
         }
     }
 
@@ -192,12 +200,19 @@ impl SyncPeers {
                     if info.since.elapsed() >= PEER_CONNECT_TIMEOUT {
                         info!(%peer_id, %info.addr, "Peer connection timeout");
                         bad_peers.push(*peer_id);
+
+                        // Ban peer in case of continuous connection timeout
                         if let Some(ctx) = &self.ctx {
                             ctx.report_peer(
                                 *peer_id,
                                 PeerAction::LowToleranceError,
                                 "Dail timeout",
                             );
+                        }
+
+                        // Remove cached file announcement if connection timeout
+                        if let Some((tx_id, cache)) = &self.file_location_cache {
+                            cache.remove(tx_id, peer_id);
                         }
                     }
                 }

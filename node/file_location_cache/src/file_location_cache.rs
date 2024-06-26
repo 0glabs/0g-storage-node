@@ -126,6 +126,12 @@ impl AnnouncementCache {
         let result = self.items.values().cloned().collect();
         (result, collected)
     }
+
+    /// Removes announcement for the specified `peer_id` if any.
+    fn remove(&mut self, peer_id: &PeerId) -> Option<SignedAnnounceFile> {
+        self.priorities.remove(peer_id)?;
+        self.items.remove(peer_id)
+    }
 }
 
 /// Caches announcements for different files.
@@ -230,6 +236,14 @@ impl FileCache {
         self.update_on_announcement_cache_changed(&tx_id, collected);
         Some(result)
     }
+
+    /// Removes the announcement of specified file by `tx_id` and `peer_id`.
+    fn remove(&mut self, tx_id: &TxID, peer_id: &PeerId) -> Option<SignedAnnounceFile> {
+        let item = self.files.get_mut(tx_id)?;
+        let result = item.remove(peer_id)?;
+        self.update_on_announcement_cache_changed(tx_id, 1);
+        Some(result)
+    }
 }
 
 #[derive(Default)]
@@ -279,6 +293,10 @@ impl FileLocationCache {
 
     pub fn get_all(&self, tx_id: TxID) -> Vec<SignedAnnounceFile> {
         self.cache.lock().all(tx_id).unwrap_or_default()
+    }
+
+    pub fn remove(&self, tx_id: &TxID, peer_id: &PeerId) -> Option<SignedAnnounceFile> {
+        self.cache.lock().remove(tx_id, peer_id)
     }
 
     /// TODO: Trigger chunk_pool/sync to reconstruct if it changes?
