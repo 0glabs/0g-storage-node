@@ -11,9 +11,8 @@
 # IP address to listen on.
 # network_listen_address = "0.0.0.0"
 
-# The address to broadcast to peers about which address we are listening on. Empty indicates
-# that no discovery address has been set. Generally, configure public IP address along with
-# `network_enr_tcp_port` and `network_enr_udp_port` with default values to enable UDP discovery.
+# The address to broadcast to peers about which address we are listening on. Empty indicates that
+# no discovery address has been set. Generally, configure public IP address to enable UDP discovery.
 # network_enr_address = ""
 
 # The tcp port to broadcast to peers in order to reach back for libp2p services.
@@ -31,8 +30,8 @@
 # Target number of connected peers.
 # network_target_peers = 50
 
-# List of nodes to bootstrap UDP discovery. Note, `network_enr_address`, `network_enr_tcp_port`
-# and `network_enr_udp_port` should be configured as well to enable UDP discovery.
+# List of nodes to bootstrap UDP discovery. Note, `network_enr_address` should be
+# configured as well to enable UDP discovery.
 network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79J32pTJLKGcpjRMb4Qb8xxKkyuG1","/ip4/52.52.127.117/udp/1234/p2p/16Uiu2HAm93Hd5azfhkGBbkx1zero3nYHvfjQYM2NtiW4R3r5bE2g"]
 
 # List of libp2p nodes to initially connect to.
@@ -90,7 +89,7 @@ log_sync_start_block_number = 512567
 # confirmation_block_count = 12
 
 # Maximum number of event logs to poll at a time.
-log_page_size = 999
+# log_page_size = 999
 
 # Maximum data size to cache in memory (by default, 100MB).
 # max_cache_data_size = 104857600
@@ -128,7 +127,7 @@ log_page_size = 999
 # rpc_enabled = true
 
 # HTTP server address to bind for public RPC.
-rpc_listen_address = "0.0.0.0:5678"
+# rpc_listen_address = "0.0.0.0:5678"
 
 # HTTP server address to bind for admin and debug RPC.
 # rpc_listen_address_admin = "127.0.0.1:5679"

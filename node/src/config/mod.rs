@@ -10,8 +10,8 @@ build_config! {
     (network_dir, (String), "network".to_string())
     (network_listen_address, (String), "0.0.0.0".to_string())
     (network_enr_address, (Option<String>), None)
-    (network_enr_tcp_port, (Option<u16>), None)
-    (network_enr_udp_port, (Option<u16>), None)
+    (network_enr_tcp_port, (u16), 1234)
+    (network_enr_udp_port, (u16), 1234)
     (network_libp2p_port, (u16), 1234)
     (network_discovery_port, (u16), 1234)
     (network_target_peers, (usize), 50)
@@ -34,7 +34,7 @@ build_config! {
     (log_contract_address, (String), "".to_string())
     (log_sync_start_block_number, (u64), 0)
     (confirmation_block_count, (u64), 12)
-    (log_page_size, (u64), 1000)
+    (log_page_size, (u64), 999)
     (max_cache_data_size, (usize), 100 * 1024 * 1024) // 100 MB
     (cache_tx_seq_ttl, (usize), 500)
 
@@ -49,7 +49,7 @@ build_config! {
 
     // rpc
     (rpc_enabled, (bool), true)
-    (rpc_listen_address, (String), "127.0.0.1:5678".to_string())
+    (rpc_listen_address, (String), "0.0.0.0:5678".to_string())
     (rpc_listen_address_admin, (String), "127.0.0.1:5679".to_string())
     (max_request_body_size, (u32), 100*1024*1024) // 100MB
     (rpc_chunks_per_segment, (usize), 1024)

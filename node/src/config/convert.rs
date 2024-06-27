@@ -24,12 +24,12 @@ impl ZgsConfig {
         network_config.libp2p_port = self.network_libp2p_port;
         network_config.disable_discovery = self.network_disable_discovery;
         network_config.discovery_port = self.network_discovery_port;
-        network_config.enr_tcp_port = self.network_enr_tcp_port;
-        network_config.enr_udp_port = self.network_enr_udp_port;
-        network_config.enr_address = self
-            .network_enr_address
-            .as_ref()
-            .map(|x| x.parse::<std::net::IpAddr>().unwrap());
+
+        if let Some(addr) = &self.network_enr_address {
+            network_config.enr_tcp_port = Some(self.network_enr_tcp_port);
+            network_config.enr_udp_port = Some(self.network_enr_udp_port);
+            network_config.enr_address = Some(addr.parse().unwrap());
+        }
 
         network_config.boot_nodes_multiaddr = self
             .network_boot_nodes
