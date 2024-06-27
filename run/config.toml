@@ -181,10 +181,6 @@ log_sync_start_block_number = 512567
 # Mine contract address for incentive.
 mine_contract_address = "0x8B9221eE2287aFBb34A7a1Ef72eB00fdD853FFC2"
 
-# Miner ID registered in contract, which is mandatory for incentive.
-# The value should be a hex string of length 64 without 0x prefix. 
-miner_id = ""
-
 # Miner key is used to sign blockchain transaction for incentive.
 # The value should be a hex string of length 64 without 0x prefix.
 #
