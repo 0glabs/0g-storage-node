@@ -13,7 +13,7 @@
 
 # The address to broadcast to peers about which address we are listening on. Empty indicates that
 # no discovery address has been set. Generally, configure public IP address to enable UDP discovery.
-# network_enr_address = ""
+network_enr_address = ""
 
 # The tcp port to broadcast to peers in order to reach back for libp2p services.
 # network_enr_tcp_port = 1234
@@ -79,11 +79,11 @@ network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79
 blockchain_rpc_endpoint = "https://rpc-testnet.0g.ai"
 
 # Flow contract address to sync event logs.
-log_contract_address = "0x22C1CaF8cbb671F220789184fda68BfD7eaA2eE1"
+log_contract_address = "0x8873cc79c5b3b5666535C825205C9a128B1D75F1"
 
 # Block number to sync event logs from blockchain. Generally, this is
 # the block number when flow contract deployed.
-log_sync_start_block_number = 512567
+log_sync_start_block_number = 802
 
 # Number of blocks to confirm a transaction.
 # confirmation_block_count = 12
@@ -179,7 +179,7 @@ log_sync_start_block_number = 512567
 #######################################################################
 
 # Mine contract address for incentive.
-mine_contract_address = "0x8B9221eE2287aFBb34A7a1Ef72eB00fdD853FFC2"
+mine_contract_address = "0x85F6722319538A805ED5733c5F4882d96F1C7384"
 
 # Miner key is used to sign blockchain transaction for incentive.
 # The value should be a hex string of length 64 without 0x prefix.
@@ -219,18 +219,18 @@ miner_key = ""
 #######################################################################
 ###                   File Sync Config Options                      ###
 #######################################################################
-# [sync]
+[sync]
 
 # Enable file sync among peers automatically. When enabled, each node will store
 # all files, and sufficient disk space is required.
-# auto_sync_enabled = false
+auto_sync_enabled = true
 
 #  Maximum number of files in sync from other peers simultaneously.
 # max_sync_files = 8
 
 # Timeout to terminate a file sync when automatically sync from other peers.
 # If timeout, terminated file sync will be triggered later.
-# find_peer_timeout = "30s"
+find_peer_timeout = "10s"
 
 # Enable to start a file sync via RPC (e.g. `admin_startSyncFile`).
 # sync_file_by_rpc_enabled = true
