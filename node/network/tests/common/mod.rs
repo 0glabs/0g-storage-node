@@ -78,7 +78,7 @@ pub async fn build_libp2p_instance(rt: Weak<Runtime>, boot_nodes: Vec<Enr>) -> L
             .await
             .expect("should build libp2p instance")
             .2,
-        signal
+        signal,
     )
 }
 
