@@ -8,7 +8,7 @@ use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
 use storage_async::Store;
 use task_executor::TaskExecutor;
 use tokio::sync::{broadcast, mpsc};
-use tracing::debug;
+use tracing::{debug, info};
 
 // Start pruning when the db directory size exceeds 0.9 * limit.
 const PRUNE_THRESHOLD: f32 = 0.9;
@@ -67,7 +67,7 @@ impl Pruner {
     pub async fn start(mut self) -> Result<()> {
         loop {
             if let Some(delete_list) = self.maybe_update().await? {
-                debug!(new_config = ?self.config.shard_config, "new shard config");
+                info!(new_config = ?self.config.shard_config, "new shard config");
                 self.put_shard_config().await?;
                 let mut batch = Vec::with_capacity(self.config.batch_size);
                 let mut iter = delete_list.peekable();
