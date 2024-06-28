@@ -5712,6 +5712,7 @@ dependencies = [
  "miner",
  "rand 0.8.5",
  "storage",
+ "storage-async",
  "task_executor",
  "tokio",
  "tracing",

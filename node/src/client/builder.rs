@@ -195,7 +195,7 @@ impl ClientBuilder {
     pub async fn with_pruner(mut self, config: Option<PrunerConfig>) -> Result<Self, String> {
         if let Some(config) = config {
             let miner_send = self.miner.as_ref().map(|miner| miner.send.clone());
-            let store = require!("pruner", self, store).clone();
+            let store = require!("pruner", self, async_store).clone();
             let executor = require!("pruner", self, runtime_context).clone().executor;
             let recv = Pruner::spawn(executor, config, store, miner_send)
                 .await

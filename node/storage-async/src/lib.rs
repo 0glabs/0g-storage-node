@@ -55,6 +55,7 @@ impl Store {
     delegate!(fn finalize_tx(tx_seq: u64) -> Result<()>);
     delegate!(fn finalize_tx_with_hash(tx_seq: u64, tx_hash: H256) -> Result<bool>);
     delegate!(fn get_proof_at_root(root: DataRoot, index: u64, length: u64) -> Result<FlowRangeProof>);
+    delegate!(fn get_context() -> Result<(DataRoot, u64)>);
 
     pub async fn get_tx_seq_by_data_root(&self, data_root: &DataRoot) -> Result<Option<u64>> {
         let root = *data_root;
@@ -104,6 +105,26 @@ impl Store {
     pub async fn load_sealed_data(&self, chunk_index: u64) -> Result<Option<MineLoadChunk>> {
         self.spawn(move |store| store.flow().load_sealed_data(chunk_index))
             .await
+    }
+
+    pub async fn get_num_entries(&self) -> Result<u64> {
+        self.spawn(move |store| store.flow().get_num_entries())
+            .await
+    }
+
+    pub async fn remove_chunks_batch(&self, batch_list: &[u64]) -> Result<()> {
+        let batch_list = batch_list.to_vec();
+        self.spawn(move |store| store.remove_chunks_batch(&batch_list))
+            .await
+    }
+
+    pub async fn update_shard_config(&self, shard_config: ShardConfig) {
+        self.spawn(move |store| {
+            store.flow().update_shard_config(shard_config);
+            Ok(())
+        })
+        .await
+        .expect("always ok")
     }
 
     async fn spawn<T, F>(&self, f: F) -> Result<T>

@@ -5,8 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
-use storage::log_store::config::ConfigurableExt;
-use storage::log_store::Store;
+use storage_async::Store;
 use task_executor::TaskExecutor;
 use tokio::sync::{broadcast, mpsc};
 use tracing::debug;
@@ -32,7 +31,7 @@ impl PrunerConfig {
 
 pub struct Pruner {
     config: PrunerConfig,
-    store: Arc<dyn Store>,
+    store: Arc<Store>,
 
     sender: mpsc::UnboundedSender<PrunerMessage>,
     miner_sender: Option<broadcast::Sender<MinerMessage>>,
@@ -42,7 +41,7 @@ impl Pruner {
     pub async fn spawn(
         executor: TaskExecutor,
         mut config: PrunerConfig,
-        store: Arc<dyn Store>,
+        store: Arc<Store>,
         miner_sender: Option<broadcast::Sender<MinerMessage>>,
     ) -> Result<mpsc::UnboundedReceiver<PrunerMessage>> {
         if let Some(shard_config) = get_shard_config(store.as_ref()).await? {
@@ -76,7 +75,7 @@ impl Pruner {
                     batch.push(index);
                     if batch.len() == self.config.batch_size || iter.peek().is_none() {
                         debug!(start = batch.first(), end = batch.last(), "prune batch");
-                        self.store.remove_chunks_batch(&batch)?;
+                        self.store.remove_chunks_batch(&batch).await?;
                         batch = Vec::with_capacity(self.config.batch_size);
                         tokio::time::sleep(self.config.batch_wait_time).await;
                     }
@@ -87,7 +86,7 @@ impl Pruner {
     }
 
     async fn maybe_update(&mut self) -> Result<Option<Box<dyn Send + Iterator<Item = u64>>>> {
-        let current_size = self.store.flow().get_num_entries()?;
+        let current_size = self.store.get_num_entries().await?;
         debug!(
             current_size = current_size,
             config = ?self.config.shard_config,
@@ -109,7 +108,7 @@ impl Pruner {
             config.num_shard *= 2;
 
             // Generate delete list
-            let flow_len = self.store.get_context()?.1;
+            let flow_len = self.store.get_context().await?.1;
             let start_index = old_shard_id + (!rand_bit) as usize * old_num_shard;
             return Ok(Some(Box::new(
                 (start_index as u64..flow_len).step_by(config.num_shard),
@@ -125,15 +124,16 @@ impl Pruner {
         self.sender
             .send(PrunerMessage::ChangeShardConfig(self.config.shard_config))?;
         self.store
-            .flow()
-            .update_shard_config(self.config.shard_config);
+            .update_shard_config(self.config.shard_config)
+            .await;
         self.store
             .set_config_encoded(&SHARD_CONFIG_KEY, &self.config.shard_config)
+            .await
     }
 }
 
-async fn get_shard_config(store: &dyn Store) -> Result<Option<ShardConfig>> {
-    store.get_config_decoded(&SHARD_CONFIG_KEY)
+async fn get_shard_config(store: &Store) -> Result<Option<ShardConfig>> {
+    store.get_config_decoded(&SHARD_CONFIG_KEY).await
 }
 
 #[derive(Debug)]
