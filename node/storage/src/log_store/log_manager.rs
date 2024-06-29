@@ -216,7 +216,7 @@ impl LogStoreChunkWrite for LogManager {
         Ok(true)
     }
 
-    fn remove_chunks_batch(&self, batch_list: &[u64]) -> crate::error::Result<()> {
+    fn remove_chunks_batch(&mut self, batch_list: &[u64]) -> crate::error::Result<()> {
         self.flow_store.delete_batch_list(batch_list)
     }
 }
