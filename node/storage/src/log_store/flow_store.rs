@@ -79,9 +79,10 @@ impl FlowStore {
     }
 
     pub fn delete_batch_list(&mut self, batch_list: &[u64]) -> Result<()> {
-        
         for batch_index in batch_list {
-            for seal_index in (*batch_index as usize)*SEALS_PER_LOAD..(*batch_index as usize+1)*SEALS_PER_LOAD {
+            for seal_index in (*batch_index as usize) * SEALS_PER_LOAD
+                ..(*batch_index as usize + 1) * SEALS_PER_LOAD
+            {
                 self.to_seal_set.remove(&seal_index);
             }
         }
