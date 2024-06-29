@@ -23,7 +23,7 @@ use storage::config::ShardConfig;
 use storage::error::Result as StorageResult;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{broadcast, mpsc};
 
 const HEARTBEAT_INTERVAL_SEC: u64 = 5;
 
@@ -129,7 +129,7 @@ impl SyncService {
     pub async fn spawn(
         executor: task_executor::TaskExecutor,
         network_send: mpsc::UnboundedSender<NetworkMessage>,
-        store: Arc<RwLock<dyn LogStore>>,
+        store: Arc<dyn LogStore>,
         file_location_cache: Arc<FileLocationCache>,
         event_recv: broadcast::Receiver<LogSyncEvent>,
     ) -> Result<SyncSender> {
@@ -148,7 +148,7 @@ impl SyncService {
         config: Config,
         executor: task_executor::TaskExecutor,
         network_send: mpsc::UnboundedSender<NetworkMessage>,
-        store: Arc<RwLock<dyn LogStore>>,
+        store: Arc<dyn LogStore>,
         file_location_cache: Arc<FileLocationCache>,
         event_recv: broadcast::Receiver<LogSyncEvent>,
     ) -> Result<SyncSender> {
@@ -740,8 +740,8 @@ mod tests {
         runtime: TestRuntime,
 
         chunk_count: usize,
-        store: Arc<RwLock<LogManager>>,
-        peer_store: Arc<RwLock<LogManager>>,
+        store: Arc<LogManager>,
+        peer_store: Arc<LogManager>,
         txs: Vec<Transaction>,
         init_data: Vec<u8>,
 
@@ -930,8 +930,6 @@ mod tests {
 
                         runtime
                             .peer_store
-                            .read()
-                            .await
                             .validate_range_proof(0, &response)
                             .expect("validate proof");
                     }
@@ -1177,7 +1175,7 @@ mod tests {
 
         let config = LogConfig::default();
 
-        let store = Arc::new(RwLock::new(LogManager::memorydb(config.clone()).unwrap()));
+        let store = Arc::new(LogManager::memorydb(config.clone()).unwrap());
 
         let init_peer_id = identity::Keypair::generate_ed25519().public().to_peer_id();
         let file_location_cache: Arc<FileLocationCache> =
@@ -1203,10 +1201,7 @@ mod tests {
             .unwrap();
 
         thread::sleep(Duration::from_millis(1000));
-        assert_eq!(
-            store.read().await.get_tx_by_seq_number(tx_seq).unwrap(),
-            None
-        );
+        assert_eq!(store.get_tx_by_seq_number(tx_seq).unwrap(), None);
         assert!(network_recv.try_recv().is_err());
     }
 
@@ -1222,18 +1217,13 @@ mod tests {
             .unwrap();
 
         thread::sleep(Duration::from_millis(1000));
-        assert!(runtime
-            .peer_store
-            .read()
-            .await
-            .check_tx_completed(tx_seq)
-            .unwrap());
+        assert!(runtime.peer_store.check_tx_completed(tx_seq).unwrap());
         assert!(runtime.network_recv.try_recv().is_err());
     }
 
-    async fn wait_for_tx_finalized(store: Arc<RwLock<LogManager>>, tx_seq: u64) {
+    async fn wait_for_tx_finalized(store: Arc<LogManager>, tx_seq: u64) {
         let deadline = Instant::now() + Duration::from_millis(5000);
-        while !store.read().await.check_tx_completed(tx_seq).unwrap() {
+        while !store.check_tx_completed(tx_seq).unwrap() {
             if Instant::now() >= deadline {
                 panic!("Failed to wait tx completed");
             }
@@ -1255,12 +1245,7 @@ mod tests {
 
         receive_dial(&mut runtime, &sync_send).await;
 
-        assert!(!runtime
-            .store
-            .read()
-            .await
-            .check_tx_completed(tx_seq)
-            .unwrap());
+        assert!(!runtime.store.check_tx_completed(tx_seq).unwrap());
 
         assert!(!matches!(
             sync_send
@@ -1330,12 +1315,7 @@ mod tests {
 
         receive_dial(&mut runtime, &sync_send).await;
 
-        assert!(!runtime
-            .store
-            .read()
-            .await
-            .check_tx_completed(tx_seq)
-            .unwrap());
+        assert!(!runtime.store.check_tx_completed(tx_seq).unwrap());
 
         receive_chunk_request(
             &mut runtime.network_recv,
@@ -1385,13 +1365,8 @@ mod tests {
 
         receive_dial(&mut runtime, &sync_send).await;
 
-        assert!(!runtime
-            .store
-            .read()
-            .await
-            .check_tx_completed(tx_seq)
-            .unwrap());
-        assert!(!runtime.store.read().await.check_tx_completed(0).unwrap());
+        assert!(!runtime.store.check_tx_completed(tx_seq).unwrap());
+        assert!(!runtime.store.check_tx_completed(0).unwrap());
 
         receive_chunk_request(
             &mut runtime.network_recv,
@@ -1406,7 +1381,7 @@ mod tests {
 
         wait_for_tx_finalized(runtime.store.clone(), tx_seq).await;
 
-        assert!(!runtime.store.read().await.check_tx_completed(0).unwrap());
+        assert!(!runtime.store.check_tx_completed(0).unwrap());
 
         // first file
         let tx_seq = 0u64;
@@ -1461,8 +1436,10 @@ mod tests {
     #[tokio::test]
     async fn test_announce_file() {
         let mut runtime = TestSyncRuntime::new(vec![1023], 0);
-        let mut config = Config::default();
-        config.sync_file_on_announcement_enabled = true;
+        let config = Config {
+            sync_file_on_announcement_enabled: true,
+            ..Default::default()
+        };
         let sync_send = runtime.spawn_sync_service_with_config(false, config).await;
 
         let tx_seq = 0u64;
@@ -1477,12 +1454,7 @@ mod tests {
 
         receive_dial(&mut runtime, &sync_send).await;
 
-        assert!(!runtime
-            .store
-            .read()
-            .await
-            .check_tx_completed(tx_seq)
-            .unwrap());
+        assert!(!runtime.store.check_tx_completed(tx_seq).unwrap());
 
         receive_chunk_request(
             &mut runtime.network_recv,
@@ -1520,12 +1492,7 @@ mod tests {
 
         receive_dial(&mut runtime, &sync_send).await;
 
-        assert!(!runtime
-            .store
-            .read()
-            .await
-            .check_tx_completed(tx_seq)
-            .unwrap());
+        assert!(!runtime.store.check_tx_completed(tx_seq).unwrap());
 
         receive_chunk_request(
             &mut runtime.network_recv,
@@ -1606,12 +1573,7 @@ mod tests {
 
         receive_dial(&mut runtime, &sync_send).await;
 
-        assert!(!runtime
-            .store
-            .read()
-            .await
-            .check_tx_completed(tx_seq)
-            .unwrap());
+        assert!(!runtime.store.check_tx_completed(tx_seq).unwrap());
 
         assert!(!matches!(
             sync_send
@@ -1637,7 +1599,7 @@ mod tests {
     async fn receive_chunk_request(
         network_recv: &mut UnboundedReceiver<NetworkMessage>,
         sync_send: &SyncSender,
-        peer_store: Arc<RwLock<LogManager>>,
+        peer_store: Arc<LogManager>,
         init_peer_id: PeerId,
         tx_seq: u64,
         index_start: u64,
@@ -1671,8 +1633,6 @@ mod tests {
                     };
 
                     let chunks = peer_store
-                        .read()
-                        .await
                         .get_chunks_with_proof_by_tx_and_index_range(
                             tx_seq,
                             req.index_start as usize,

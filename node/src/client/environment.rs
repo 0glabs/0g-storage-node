@@ -119,8 +119,7 @@ impl Environment {
         let inner_shutdown =
             async move { rx.next().await.ok_or("Internal shutdown channel exhausted") };
         futures::pin_mut!(inner_shutdown);
-
-        match self.runtime().block_on(async {
+        let shutdown = async {
             let mut handles = vec![];
 
             // setup for handling SIGTERM
@@ -151,7 +150,9 @@ impl Environment {
             }
 
             future::select(inner_shutdown, future::select_all(handles.into_iter())).await
-        }) {
+        };
+
+        match self.runtime().block_on(shutdown) {
             future::Either::Left((Ok(reason), _)) => {
                 info!(reason = reason.message(), "Internal shutdown received");
                 Ok(reason)

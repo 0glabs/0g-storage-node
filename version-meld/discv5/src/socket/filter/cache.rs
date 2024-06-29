@@ -23,6 +23,7 @@ use std::{
 pub const ENFORCED_SIZE_TIME: u64 = 1;
 
 pub struct ReceivedPacket<T> {
+    #[allow(unused)]
     /// The source that sent us the packet.
     pub content: T,
     /// The time the packet was received.

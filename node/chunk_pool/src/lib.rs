@@ -28,7 +28,7 @@ impl Config {
 
 pub fn unbounded(
     config: Config,
-    log_store: storage_async::Store,
+    log_store: Arc<storage_async::Store>,
     network_send: tokio::sync::mpsc::UnboundedSender<network::NetworkMessage>,
 ) -> (Arc<MemoryChunkPool>, ChunkPoolHandler) {
     let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();

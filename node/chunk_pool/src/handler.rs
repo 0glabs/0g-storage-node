@@ -12,7 +12,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 pub struct ChunkPoolHandler {
     receiver: UnboundedReceiver<ChunkPoolMessage>,
     mem_pool: Arc<MemoryChunkPool>,
-    log_store: Store,
+    log_store: Arc<Store>,
     sender: UnboundedSender<NetworkMessage>,
 }
 
@@ -20,7 +20,7 @@ impl ChunkPoolHandler {
     pub(crate) fn new(
         receiver: UnboundedReceiver<ChunkPoolMessage>,
         mem_pool: Arc<MemoryChunkPool>,
-        log_store: Store,
+        log_store: Arc<Store>,
         sender: UnboundedSender<NetworkMessage>,
     ) -> Self {
         ChunkPoolHandler {

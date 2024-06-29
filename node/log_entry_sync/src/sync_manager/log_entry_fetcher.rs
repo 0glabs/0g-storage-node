@@ -1,6 +1,6 @@
-use crate::rpc_proxy::ContractAddress;
 use crate::sync_manager::log_query::LogQuery;
 use crate::sync_manager::RETRY_WAIT_MS;
+use crate::ContractAddress;
 use anyhow::{anyhow, bail, Result};
 use append_merkle::{Algorithm, Sha3Algorithm};
 use contract_interface::{SubmissionNode, SubmitFilter, ZgsFlow};
@@ -122,7 +122,7 @@ impl LogEntryFetcher {
     pub fn start_remove_finalized_block_task(
         &self,
         executor: &TaskExecutor,
-        store: Arc<RwLock<dyn Store>>,
+        store: Arc<dyn Store>,
         block_hash_cache: Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
         default_finalized_block_count: u64,
         remove_finalized_block_interval_minutes: u64,
@@ -133,7 +133,7 @@ impl LogEntryFetcher {
                 loop {
                     debug!("processing finalized block");
 
-                    let processed_block_number = match store.read().await.get_sync_progress() {
+                    let processed_block_number = match store.get_sync_progress() {
                         Ok(Some((processed_block_number, _))) => Some(processed_block_number),
                         Ok(None) => None,
                         Err(e) => {
@@ -176,9 +176,7 @@ impl LogEntryFetcher {
                                 }
 
                                 for key in pending_keys.into_iter() {
-                                    if let Err(e) =
-                                        store.write().await.delete_block_hash_by_number(key)
-                                    {
+                                    if let Err(e) = store.delete_block_hash_by_number(key) {
                                         error!(
                                             "remove block tx for number {} error: e={:?}",
                                             key, e
@@ -599,7 +597,7 @@ fn submission_event_to_transaction(e: SubmitFilter) -> LogFetchProgress {
     })
 }
 
-fn nodes_to_root(node_list: &Vec<SubmissionNode>) -> DataRoot {
+fn nodes_to_root(node_list: &[SubmissionNode]) -> DataRoot {
     let mut root: DataRoot = node_list.last().expect("not empty").root.into();
     for next_node in node_list[..node_list.len() - 1].iter().rev() {
         root = Sha3Algorithm::parent(&next_node.root.into(), &root);

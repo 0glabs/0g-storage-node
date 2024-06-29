@@ -1,6 +1,6 @@
 use super::tx_store::TxStore;
 use anyhow::Result;
-use std::ops::Deref;
+
 use storage::log_store::config::{ConfigTx, ConfigurableExt};
 use storage_async::Store;
 
@@ -29,7 +29,7 @@ impl SyncStore {
     }
 
     pub async fn get_tx_seq_range(&self) -> Result<(Option<u64>, Option<u64>)> {
-        let store = self.store.get_store().read().await;
+        let store = self.store.get_store();
 
         // load next_tx_seq
         let next_tx_seq = store.get_config_decoded(&KEY_NEXT_TX_SEQ)?;
@@ -43,8 +43,6 @@ impl SyncStore {
     pub async fn set_next_tx_seq(&self, tx_seq: u64) -> Result<()> {
         self.store
             .get_store()
-            .write()
-            .await
             .set_config_encoded(&KEY_NEXT_TX_SEQ, &tx_seq)
     }
 
@@ -52,38 +50,33 @@ impl SyncStore {
         debug!(%tx_seq, "set_max_tx_seq");
         self.store
             .get_store()
-            .write()
-            .await
             .set_config_encoded(&KEY_MAX_TX_SEQ, &tx_seq)
     }
 
     pub async fn add_pending_tx(&self, tx_seq: u64) -> Result<bool> {
-        let store = self.store.get_store().write().await;
+        let store = self.store.get_store();
 
         // already in ready queue
-        if self.ready_txs.has(store.deref(), tx_seq)? {
+        if self.ready_txs.has(store, tx_seq)? {
             return Ok(false);
         }
 
         // always add in pending queue
-        self.pending_txs.add(store.deref(), None, tx_seq)
+        self.pending_txs.add(store, None, tx_seq)
     }
 
     pub async fn upgrade_tx_to_ready(&self, tx_seq: u64) -> Result<bool> {
-        let store = self.store.get_store().write().await;
+        let store = self.store.get_store();
 
         let mut tx = ConfigTx::default();
 
         // not in pending queue
-        if !self
-            .pending_txs
-            .remove(store.deref(), Some(&mut tx), tx_seq)?
-        {
+        if !self.pending_txs.remove(store, Some(&mut tx), tx_seq)? {
             return Ok(false);
         }
 
         // move from pending to ready queue
-        let added = self.ready_txs.add(store.deref(), Some(&mut tx), tx_seq)?;
+        let added = self.ready_txs.add(store, Some(&mut tx), tx_seq)?;
 
         store.exec_configs(tx)?;
 
@@ -91,20 +84,17 @@ impl SyncStore {
     }
 
     pub async fn downgrade_tx_to_pending(&self, tx_seq: u64) -> Result<bool> {
-        let store = self.store.get_store().write().await;
+        let store = self.store.get_store();
 
         let mut tx = ConfigTx::default();
 
         // not in ready queue
-        if !self
-            .ready_txs
-            .remove(store.deref(), Some(&mut tx), tx_seq)?
-        {
+        if !self.ready_txs.remove(store, Some(&mut tx), tx_seq)? {
             return Ok(false);
         }
 
         // move from ready to pending queue
-        let added = self.pending_txs.add(store.deref(), Some(&mut tx), tx_seq)?;
+        let added = self.pending_txs.add(store, Some(&mut tx), tx_seq)?;
 
         store.exec_configs(tx)?;
 
@@ -112,27 +102,27 @@ impl SyncStore {
     }
 
     pub async fn random_tx(&self) -> Result<Option<u64>> {
-        let store = self.store.get_store().read().await;
+        let store = self.store.get_store();
 
         // try to find a tx in ready queue with high priority
-        if let Some(val) = self.ready_txs.random(store.deref())? {
+        if let Some(val) = self.ready_txs.random(store)? {
             return Ok(Some(val));
         }
 
         // otherwise, find tx in pending queue
-        self.pending_txs.random(store.deref())
+        self.pending_txs.random(store)
     }
 
     pub async fn remove_tx(&self, tx_seq: u64) -> Result<bool> {
-        let store = self.store.get_store().write().await;
+        let store = self.store.get_store();
 
         // removed in ready queue
-        if self.ready_txs.remove(store.deref(), None, tx_seq)? {
+        if self.ready_txs.remove(store, None, tx_seq)? {
             return Ok(true);
         }
 
         // otherwise, try to remove in pending queue
-        self.pending_txs.remove(store.deref(), None, tx_seq)
+        self.pending_txs.remove(store, None, tx_seq)
     }
 }
 

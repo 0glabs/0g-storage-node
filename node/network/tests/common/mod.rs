@@ -24,6 +24,7 @@ type ReqId = usize;
 use tempfile::Builder as TempBuilder;
 use tokio::sync::mpsc::unbounded_channel;
 
+#[allow(unused)]
 pub struct Libp2pInstance(LibP2PService<ReqId>, exit_future::Signal);
 
 impl std::ops::Deref for Libp2pInstance {

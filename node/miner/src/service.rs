@@ -5,9 +5,9 @@ use crate::{config::MinerConfig, mine::PoraService, watcher::MineContextWatcher}
 use network::NetworkMessage;
 use std::sync::Arc;
 use storage::config::ShardConfig;
-use storage::log_store::Store;
+use storage_async::Store;
+use tokio::sync::broadcast;
 use tokio::sync::mpsc;
-use tokio::sync::{broadcast, RwLock};
 
 #[derive(Clone, Debug)]
 pub enum MinerMessage {
@@ -29,13 +29,13 @@ impl MineService {
         executor: task_executor::TaskExecutor,
         _network_send: mpsc::UnboundedSender<NetworkMessage>,
         config: MinerConfig,
-        store: Arc<RwLock<dyn Store>>,
+        store: Arc<Store>,
     ) -> Result<broadcast::Sender<MinerMessage>, String> {
         let provider = Arc::new(config.make_provider().await?);
 
         let (msg_send, msg_recv) = broadcast::channel(1024);
 
-        let miner_id = check_and_request_miner_id(&config, &store, &provider).await?;
+        let miner_id = check_and_request_miner_id(&config, store.as_ref(), &provider).await?;
         debug!("miner id setting complete.");
 
         let mine_context_receiver = MineContextWatcher::spawn(
@@ -49,7 +49,7 @@ impl MineService {
             executor.clone(),
             msg_recv.resubscribe(),
             mine_context_receiver,
-            Arc::new(store.clone()),
+            store.clone(),
             &config,
             miner_id,
         );

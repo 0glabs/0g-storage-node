@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::hash::{Algorithm, Hashable};
 use crate::merkle::MerkleTree;
 use crate::test_item::Item;
@@ -9,15 +7,15 @@ use std::iter::FromIterator;
 
 /// Custom merkle hash util test
 #[derive(Debug, Clone, Default)]
-struct CMH(DefaultHasher);
+struct Cmh(DefaultHasher);
 
-impl CMH {
-    pub fn new() -> CMH {
-        CMH(DefaultHasher::new())
+impl Cmh {
+    pub fn new() -> Cmh {
+        Cmh(DefaultHasher::new())
     }
 }
 
-impl Hasher for CMH {
+impl Hasher for Cmh {
     #[inline]
     fn write(&mut self, msg: &[u8]) {
         self.0.write(msg)
@@ -29,7 +27,7 @@ impl Hasher for CMH {
     }
 }
 
-impl Algorithm<Item> for CMH {
+impl Algorithm<Item> for Cmh {
     #[inline]
     fn hash(&mut self) -> Item {
         Item(self.finish())
@@ -37,7 +35,7 @@ impl Algorithm<Item> for CMH {
 
     #[inline]
     fn reset(&mut self) {
-        *self = CMH::default()
+        *self = Cmh::default()
     }
 
     #[inline]
@@ -57,8 +55,8 @@ impl Algorithm<Item> for CMH {
 
 #[test]
 fn test_custom_merkle_hasher() {
-    let mut a = CMH::new();
-    let mt: MerkleTree<Item, CMH> = MerkleTree::from_iter([1, 2, 3, 4, 5].iter().map(|x| {
+    let mut a = Cmh::new();
+    let mt: MerkleTree<Item, Cmh> = MerkleTree::from_iter([1, 2, 3, 4, 5].iter().map(|x| {
         a.reset();
         x.hash(&mut a);
         a.hash()

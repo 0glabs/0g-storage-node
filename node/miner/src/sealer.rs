@@ -1,16 +1,14 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use ethereum_types::H256;
-use tokio::{
-    sync::RwLock,
-    time::{sleep, Duration, Instant},
-};
+use tokio::time::{sleep, Duration, Instant};
 
 use contract_interface::{EpochRangeWithContextDigest, ZgsFlow};
 use storage::{
     error::Result,
-    log_store::{SealAnswer, SealTask, Store},
+    log_store::{SealAnswer, SealTask},
 };
+use storage_async::Store;
 use task_executor::TaskExecutor;
 use zgs_spec::SECTORS_PER_SEAL;
 
@@ -22,7 +20,7 @@ const CHAIN_STATUS_QUERY_PERIOD: u64 = 5;
 
 pub struct Sealer {
     flow_contract: ZgsFlow<MineServiceMiddleware>,
-    store: Arc<RwLock<dyn Store>>,
+    store: Arc<Store>,
     context_cache: BTreeMap<u128, EpochRangeWithContextDigest>,
     last_context_flow_length: u64,
     miner_id: H256,
@@ -32,7 +30,7 @@ impl Sealer {
     pub fn spawn(
         executor: TaskExecutor,
         provider: Arc<MineServiceMiddleware>,
-        store: Arc<RwLock<dyn Store>>,
+        store: Arc<Store>,
         config: &MinerConfig,
         miner_id: H256,
     ) {
@@ -152,19 +150,11 @@ impl Sealer {
 
     async fn fetch_task(&self) -> Result<Option<Vec<SealTask>>> {
         let seal_index_max = self.last_context_flow_length as usize / SECTORS_PER_SEAL;
-        self.store
-            .read()
-            .await
-            .flow()
-            .pull_seal_chunk(seal_index_max)
+        self.store.pull_seal_chunk(seal_index_max).await
     }
 
     async fn submit_answer(&self, answers: Vec<SealAnswer>) -> Result<()> {
-        self.store
-            .write()
-            .await
-            .flow_mut()
-            .submit_seal_result(answers)
+        self.store.submit_seal_result(answers).await
     }
 
     async fn seal_iteration(&mut self) -> Result<bool> {

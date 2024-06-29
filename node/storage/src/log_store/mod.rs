@@ -62,8 +62,7 @@ pub trait LogStoreRead: LogStoreChunkRead {
 
     fn validate_range_proof(&self, tx_seq: u64, data: &ChunkArrayWithProof) -> Result<bool>;
 
-    fn get_proof_at_root(&self, root: &DataRoot, index: u64, length: u64)
-        -> Result<FlowRangeProof>;
+    fn get_proof_at_root(&self, root: DataRoot, index: u64, length: u64) -> Result<FlowRangeProof>;
 
     /// Return flow root and length.
     fn get_context(&self) -> Result<(DataRoot, u64)>;
@@ -103,7 +102,7 @@ pub trait LogStoreChunkRead {
 
 pub trait LogStoreWrite: LogStoreChunkWrite {
     /// Store a data entry metadata.
-    fn put_tx(&mut self, tx: Transaction) -> Result<()>;
+    fn put_tx(&self, tx: Transaction) -> Result<()>;
 
     /// Finalize a transaction storage.
     /// This will compute and the merkle tree, check the data root, and persist a part of the merkle
@@ -111,8 +110,8 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
     ///
     /// This will return error if not all chunks are stored. But since this check can be expensive,
     /// the caller is supposed to track chunk statuses and call this after storing all the chunks.
-    fn finalize_tx(&mut self, tx_seq: u64) -> Result<()>;
-    fn finalize_tx_with_hash(&mut self, tx_seq: u64, tx_hash: H256) -> Result<bool>;
+    fn finalize_tx(&self, tx_seq: u64) -> Result<()>;
+    fn finalize_tx_with_hash(&self, tx_seq: u64, tx_hash: H256) -> Result<bool>;
 
     /// Store the progress of synced block number and its hash.
     fn put_sync_progress(&self, progress: (u64, H256, Option<Option<u64>>)) -> Result<()>;
@@ -121,11 +120,11 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
     /// This is needed when transactions are reverted because of chain reorg.
     ///
     /// Reverted transactions are returned in order.
-    fn revert_to(&mut self, tx_seq: u64) -> Result<Vec<Transaction>>;
+    fn revert_to(&self, tx_seq: u64) -> Result<Vec<Transaction>>;
 
     /// If the proof is valid, fill the tree nodes with the new data.
     fn validate_and_insert_range_proof(
-        &mut self,
+        &self,
         tx_seq: u64,
         data: &ChunkArrayWithProof,
     ) -> Result<bool>;
@@ -135,10 +134,10 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
 
 pub trait LogStoreChunkWrite {
     /// Store data chunks of a data entry.
-    fn put_chunks(&mut self, tx_seq: u64, chunks: ChunkArray) -> Result<()>;
+    fn put_chunks(&self, tx_seq: u64, chunks: ChunkArray) -> Result<()>;
 
     fn put_chunks_with_tx_hash(
-        &mut self,
+        &self,
         tx_seq: u64,
         tx_hash: H256,
         chunks: ChunkArray,
@@ -169,14 +168,15 @@ pub trait LogStoreInner {
 }
 
 pub struct MineLoadChunk {
-    pub loaded_chunk: [[u8; BYTES_PER_SEAL]; SEALS_PER_LOAD],
+    // Use `Vec` instead of array to avoid thread stack overflow.
+    pub loaded_chunk: Vec<[u8; BYTES_PER_SEAL]>,
     pub avalibilities: [bool; SEALS_PER_LOAD],
 }
 
 impl Default for MineLoadChunk {
     fn default() -> Self {
         Self {
-            loaded_chunk: [[0u8; BYTES_PER_SEAL]; SEALS_PER_LOAD],
+            loaded_chunk: vec![[0u8; BYTES_PER_SEAL]; SEALS_PER_LOAD],
             avalibilities: [false; SEALS_PER_LOAD],
         }
     }
@@ -206,14 +206,14 @@ pub trait FlowWrite {
     /// Append data to the flow. `start_index` is included in `ChunkArray`, so
     /// it's possible to append arrays in any place.
     /// Return the list of completed chunks.
-    fn append_entries(&mut self, data: ChunkArray) -> Result<Vec<(u64, DataRoot)>>;
+    fn append_entries(&self, data: ChunkArray) -> Result<Vec<(u64, DataRoot)>>;
 
     /// Remove all the entries after `start_index`.
     /// This is used to remove deprecated data in case of chain reorg.
-    fn truncate(&mut self, start_index: u64) -> Result<()>;
+    fn truncate(&self, start_index: u64) -> Result<()>;
 
     /// Update the shard config.
-    fn update_shard_config(&mut self, shard_config: ShardConfig);
+    fn update_shard_config(&self, shard_config: ShardConfig);
 }
 
 pub struct SealTask {
@@ -247,7 +247,7 @@ pub trait FlowSeal {
 
     /// Submit sealing result
 
-    fn submit_seal_result(&mut self, answers: Vec<SealAnswer>) -> Result<()>;
+    fn submit_seal_result(&self, answers: Vec<SealAnswer>) -> Result<()>;
 }
 
 pub trait Flow: FlowRead + FlowWrite + FlowSeal {}

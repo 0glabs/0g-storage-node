@@ -5,26 +5,26 @@ use ethereum_types::Address;
 use ethers::contract::ContractCall;
 use ethers::contract::EthEvent;
 use std::sync::Arc;
-use storage::log_store::{config::ConfigurableExt, Store};
 use storage::H256;
-use tokio::sync::RwLock;
+use storage_async::Store;
 
 const MINER_ID: &str = "mine.miner_id";
 
-pub fn load_miner_id(store: &dyn Store) -> storage::error::Result<Option<H256>> {
-    store.get_config_decoded(&MINER_ID)
+pub async fn load_miner_id(store: &Store) -> storage::error::Result<Option<H256>> {
+    store.get_config_decoded(&MINER_ID).await
 }
 
-fn set_miner_id(store: &dyn Store, miner_id: &H256) -> storage::error::Result<()> {
-    store.set_config_encoded(&MINER_ID, miner_id)
+async fn set_miner_id(store: &Store, miner_id: &H256) -> storage::error::Result<()> {
+    store.set_config_encoded(&MINER_ID, miner_id).await
 }
 
 pub(crate) async fn check_and_request_miner_id(
     config: &MinerConfig,
-    store: &RwLock<dyn Store>,
+    store: &Store,
     provider: &Arc<MineServiceMiddleware>,
 ) -> Result<H256, String> {
-    let db_miner_id = load_miner_id(&*store.read().await)
+    let db_miner_id = load_miner_id(store)
+        .await
         .map_err(|e| format!("miner_id on db corrupt: {:?}", e))?;
 
     let mine_contract = PoraMine::new(config.mine_address, provider.clone());
@@ -42,7 +42,8 @@ pub(crate) async fn check_and_request_miner_id(
         }
         (None, Some(c_id)) => {
             check_miner_id(&mine_contract, c_id).await?;
-            set_miner_id(&*store.write().await, &c_id)
+            set_miner_id(store, &c_id)
+                .await
                 .map_err(|e| format!("set miner id on db corrupt: {:?}", e))?;
             Ok(c_id)
         }
@@ -53,7 +54,8 @@ pub(crate) async fn check_and_request_miner_id(
         (None, None) => {
             let beneficiary = provider.address();
             let id = request_miner_id(&mine_contract, beneficiary).await?;
-            set_miner_id(&*store.write().await, &id)
+            set_miner_id(store, &id)
+                .await
                 .map_err(|e| format!("set miner id on db corrupt: {:?}", e))?;
             Ok(id)
         }

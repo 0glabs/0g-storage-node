@@ -40,8 +40,8 @@ class SubmissionTest(TestFramework):
             # Check if all transactions are finalized
             for tx_offset in range(same_root_tx_count + 1):
                 tx_seq = next_tx_seq - 1 - tx_offset
-                status = self.nodes[0].zgs_get_file_info_by_tx_seq(tx_seq)
-                assert status["finalized"]
+                # old txs are finalized after finalizing the new tx, so we may need to wait here.
+                wait_until(lambda: self.nodes[0].zgs_get_file_info_by_tx_seq(tx_seq)["finalized"])
 
             # Send tx after uploading data
             for _ in range(same_root_tx_count):
@@ -57,7 +57,7 @@ class SubmissionTest(TestFramework):
 
         client = self.nodes[node_idx]
         wait_until(lambda: client.zgs_get_file_info_by_tx_seq(tx_seq) is not None)
-        assert_equal(client.zgs_get_file_info_by_tx_seq(tx_seq)["finalized"], data_finalized)
+        wait_until(lambda: client.zgs_get_file_info_by_tx_seq(tx_seq)["finalized"] == data_finalized)
 
     def submit_data(self, chunk_data, node_idx=0):
         _, data_root = create_submission(chunk_data)

@@ -1,4 +1,4 @@
-use crate::rpc_proxy::ContractAddress;
+use crate::ContractAddress;
 
 pub struct LogSyncConfig {
     pub rpc_endpoint_url: String,

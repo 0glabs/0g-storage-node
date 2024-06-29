@@ -82,14 +82,14 @@ impl From<SegmentInfo> for (ChunkArray, FileProof) {
 /// and data root verified on blockchain.
 pub struct MemoryChunkPool {
     inner: Mutex<Inner>,
-    log_store: Store,
+    log_store: Arc<Store>,
     sender: UnboundedSender<ChunkPoolMessage>,
 }
 
 impl MemoryChunkPool {
     pub(crate) fn new(
         config: Config,
-        log_store: Store,
+        log_store: Arc<Store>,
         sender: UnboundedSender<ChunkPoolMessage>,
     ) -> Self {
         MemoryChunkPool {
@@ -99,7 +99,7 @@ impl MemoryChunkPool {
         }
     }
 
-    pub fn validate_segment_size(&self, segment: &Vec<u8>) -> Result<()> {
+    pub fn validate_segment_size(&self, segment: &[u8]) -> Result<()> {
         if segment.is_empty() {
             bail!("data is empty");
         }

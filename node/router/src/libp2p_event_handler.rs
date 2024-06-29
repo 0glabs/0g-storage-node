@@ -269,13 +269,7 @@ impl Libp2pEventHandler {
         };
 
         let timestamp = timestamp_now();
-        let shard_config = self
-            .store
-            .get_store()
-            .read()
-            .await
-            .flow()
-            .get_shard_config();
+        let shard_config = self.store.get_store().flow().get_shard_config();
 
         let msg = AnnounceFile {
             tx_id,
@@ -597,8 +591,8 @@ mod tests {
         sync_send: SyncSender,
         sync_recv: SyncReceiver,
         chunk_pool_send: mpsc::UnboundedSender<ChunkPoolMessage>,
-        chunk_pool_recv: mpsc::UnboundedReceiver<ChunkPoolMessage>,
-        store: Arc<RwLock<dyn Store>>,
+        // chunk_pool_recv: mpsc::UnboundedReceiver<ChunkPoolMessage>,
+        store: Arc<dyn Store>,
         file_location_cache: Arc<FileLocationCache>,
         peers: Arc<RwLock<PeerManager>>,
     }
@@ -609,7 +603,7 @@ mod tests {
             let (network_globals, keypair) = Context::new_network_globals();
             let (network_send, network_recv) = mpsc::unbounded_channel();
             let (sync_send, sync_recv) = channel::Channel::unbounded();
-            let (chunk_pool_send, chunk_pool_recv) = mpsc::unbounded_channel();
+            let (chunk_pool_send, _chunk_pool_recv) = mpsc::unbounded_channel();
             let store = LogManager::memorydb(LogConfig::default()).unwrap();
             Self {
                 runtime,
@@ -620,8 +614,8 @@ mod tests {
                 sync_send,
                 sync_recv,
                 chunk_pool_send,
-                chunk_pool_recv,
-                store: Arc::new(RwLock::new(store)),
+                // chunk_pool_recv,
+                store: Arc::new(store),
                 file_location_cache: Arc::new(FileLocationCache::default()),
                 peers: Arc::new(RwLock::new(PeerManager::new(Config::default()))),
             }
@@ -1003,7 +997,11 @@ mod tests {
                 assert_eq!(peer_id, *ctx.network_globals.peer_id.read());
                 assert_eq!(
                     addr,
-                    *ctx.network_globals.listen_multiaddrs.read().get(0).unwrap()
+                    *ctx.network_globals
+                        .listen_multiaddrs
+                        .read()
+                        .first()
+                        .unwrap()
                 );
             }
             Ok(_) => panic!("Unexpected sync message type received"),

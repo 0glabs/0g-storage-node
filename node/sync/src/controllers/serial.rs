@@ -420,8 +420,6 @@ impl SerialSyncController {
         let validation_result = self
             .store
             .get_store()
-            .write()
-            .await
             .validate_and_insert_range_proof(self.tx_seq, &response);
 
         match validation_result {
@@ -443,13 +441,7 @@ impl SerialSyncController {
 
         self.failures = 0;
 
-        let shard_config = self
-            .store
-            .get_store()
-            .read()
-            .await
-            .flow()
-            .get_shard_config();
+        let shard_config = self.store.get_store().flow().get_shard_config();
         let next_chunk = shard_config.next_segment_index(
             (from_chunk / PORA_CHUNK_SIZE as u64) as usize,
             (self.tx_start_chunk_in_flow / PORA_CHUNK_SIZE as u64) as usize,
@@ -664,7 +656,6 @@ mod tests {
     use storage::H256;
     use task_executor::{test_utils::TestRuntime, TaskExecutor};
     use tokio::sync::mpsc::{self, UnboundedReceiver};
-    use tokio::sync::RwLock;
 
     #[test]
     fn test_status() {
@@ -1112,8 +1103,6 @@ mod tests {
         );
 
         let chunks = peer_store
-            .read()
-            .await
             .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
             .unwrap()
             .unwrap();
@@ -1146,8 +1135,6 @@ mod tests {
         );
 
         let mut chunks = peer_store
-            .read()
-            .await
             .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
             .unwrap()
             .unwrap();
@@ -1215,8 +1202,6 @@ mod tests {
         );
 
         let chunks = peer_store
-            .read()
-            .await
             .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
             .unwrap()
             .unwrap();
@@ -1238,7 +1223,6 @@ mod tests {
                     source,
                     msg,
                 } => {
-                    assert_eq!(peer_id, peer_id);
                     match action {
                         PeerAction::Fatal => {}
                         _ => {
@@ -1281,8 +1265,6 @@ mod tests {
         );
 
         let chunks = peer_store
-            .read()
-            .await
             .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
             .unwrap()
             .unwrap();
@@ -1355,8 +1337,6 @@ mod tests {
         );
 
         let chunks = peer_store
-            .read()
-            .await
             .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
             .unwrap()
             .unwrap();
@@ -1400,8 +1380,6 @@ mod tests {
         );
 
         let chunks = peer_store
-            .read()
-            .await
             .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, 1024)
             .unwrap()
             .unwrap();
@@ -1448,8 +1426,6 @@ mod tests {
         );
 
         let chunks = peer_store
-            .read()
-            .await
             .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
             .unwrap()
             .unwrap();
@@ -1572,7 +1548,7 @@ mod tests {
         let num_chunks = 123;
 
         let config = LogConfig::default();
-        let store = Arc::new(RwLock::new(LogManager::memorydb(config).unwrap()));
+        let store = Arc::new(LogManager::memorydb(config).unwrap());
 
         create_controller(task_executor, peer_id, store, tx_id, num_chunks)
     }
@@ -1580,7 +1556,7 @@ mod tests {
     fn create_controller(
         task_executor: TaskExecutor,
         peer_id: Option<PeerId>,
-        store: Arc<RwLock<LogManager>>,
+        store: Arc<LogManager>,
         tx_id: TxID,
         num_chunks: usize,
     ) -> (SerialSyncController, UnboundedReceiver<NetworkMessage>) {

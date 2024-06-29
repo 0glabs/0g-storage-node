@@ -15,7 +15,7 @@ use storage::log_store::log_manager::LogConfig;
 use storage::log_store::Store;
 use storage::{LogManager, StorageConfig};
 use sync::{SyncSender, SyncService};
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{broadcast, mpsc};
 
 macro_rules! require {
     ($component:expr, $self:ident, $e:ident) => {
@@ -68,8 +68,8 @@ struct ChunkPoolComponents {
 #[derive(Default)]
 pub struct ClientBuilder {
     runtime_context: Option<RuntimeContext>,
-    store: Option<Arc<RwLock<dyn Store>>>,
-    async_store: Option<storage_async::Store>,
+    store: Option<Arc<dyn Store>>,
+    async_store: Option<Arc<storage_async::Store>>,
     file_location_cache: Option<Arc<FileLocationCache>>,
     network: Option<NetworkComponents>,
     sync: Option<SyncComponents>,
@@ -89,15 +89,18 @@ impl ClientBuilder {
     /// Initializes in-memory storage.
     pub fn with_memory_store(mut self) -> Result<Self, String> {
         // TODO(zz): Set config.
-        let store = Arc::new(RwLock::new(
+        let store = Arc::new(
             LogManager::memorydb(LogConfig::default())
                 .map_err(|e| format!("Unable to start in-memory store: {:?}", e))?,
-        ));
+        );
 
         self.store = Some(store.clone());
 
         if let Some(ctx) = self.runtime_context.as_ref() {
-            self.async_store = Some(storage_async::Store::new(store, ctx.executor.clone()));
+            self.async_store = Some(Arc::new(storage_async::Store::new(
+                store,
+                ctx.executor.clone(),
+            )));
         }
 
         Ok(self)
@@ -105,15 +108,18 @@ impl ClientBuilder {
 
     /// Initializes RocksDB storage.
     pub fn with_rocksdb_store(mut self, config: &StorageConfig) -> Result<Self, String> {
-        let store = Arc::new(RwLock::new(
+        let store = Arc::new(
             LogManager::rocksdb(LogConfig::default(), &config.db_dir)
                 .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))?,
-        ));
+        );
 
         self.store = Some(store.clone());
 
         if let Some(ctx) = self.runtime_context.as_ref() {
-            self.async_store = Some(storage_async::Store::new(store, ctx.executor.clone()));
+            self.async_store = Some(Arc::new(storage_async::Store::new(
+                store,
+                ctx.executor.clone(),
+            )));
         }
 
         Ok(self)
@@ -177,7 +183,7 @@ impl ClientBuilder {
         if let Some(config) = config {
             let executor = require!("miner", self, runtime_context).clone().executor;
             let network_send = require!("miner", self, network).send.clone();
-            let store = self.store.as_ref().unwrap().clone();
+            let store = self.async_store.as_ref().unwrap().clone();
 
             let send = MineService::spawn(executor, network_send, config, store).await?;
             self.miner = Some(MinerComponents { send });
@@ -189,7 +195,7 @@ impl ClientBuilder {
     pub async fn with_pruner(mut self, config: Option<PrunerConfig>) -> Result<Self, String> {
         if let Some(config) = config {
             let miner_send = self.miner.as_ref().map(|miner| miner.send.clone());
-            let store = require!("pruner", self, store).clone();
+            let store = require!("pruner", self, async_store).clone();
             let executor = require!("pruner", self, runtime_context).clone().executor;
             let recv = Pruner::spawn(executor, config, store, miner_send)
                 .await
