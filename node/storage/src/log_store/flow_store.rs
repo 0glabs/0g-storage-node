@@ -79,12 +79,13 @@ impl FlowStore {
         self.db.put_mpt_node_list(node_list)
     }
 
-    pub fn delete_batch_list(&mut self, batch_list: &[u64]) -> Result<()> {
+    pub fn delete_batch_list(&self, batch_list: &[u64]) -> Result<()> {
+        let mut to_seal_set = self.to_seal_set.write();
         for batch_index in batch_list {
             for seal_index in (*batch_index as usize) * SEALS_PER_LOAD
                 ..(*batch_index as usize + 1) * SEALS_PER_LOAD
             {
-                self.to_seal_set.remove(&seal_index);
+                to_seal_set.remove(&seal_index);
             }
         }
         self.db.delete_batch_list(batch_list)

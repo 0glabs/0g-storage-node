@@ -146,7 +146,7 @@ pub trait LogStoreChunkWrite {
 
     /// Delete a list of chunk batches from the db.
     /// `batch_list` is a `Vec` of entry batch index.
-    fn remove_chunks_batch(&mut self, batch_list: &[u64]) -> Result<()>;
+    fn remove_chunks_batch(&self, batch_list: &[u64]) -> Result<()>;
 }
 
 pub trait LogChunkStore: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static {}
