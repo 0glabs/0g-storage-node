@@ -561,7 +561,10 @@ impl SerialSyncController {
         while !completed {
             match self.state {
                 SyncState::Idle => {
-                    if self.peers.all_shards_available(vec![Found, Connecting, Connected]) {
+                    if self
+                        .peers
+                        .all_shards_available(vec![Found, Connecting, Connected])
+                    {
                         self.state = SyncState::FoundPeers;
                     } else {
                         self.try_find_peers();
@@ -569,7 +572,10 @@ impl SerialSyncController {
                 }
 
                 SyncState::FindingPeers { since, .. } => {
-                    if self.peers.all_shards_available(vec![Found, Connecting, Connected]) {
+                    if self
+                        .peers
+                        .all_shards_available(vec![Found, Connecting, Connected])
+                    {
                         self.state = SyncState::FoundPeers;
                     } else {
                         // storage node may not have the specific file when `FindFile`
