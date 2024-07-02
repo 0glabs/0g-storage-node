@@ -243,7 +243,7 @@ impl Libp2pEventHandler {
         id: &MessageId,
         message: PubsubMessage,
     ) -> MessageAcceptance {
-        info!(?message, %propagation_source, %source, %id, "Received pubsub message");
+        trace!(?message, %propagation_source, %source, %id, "Received pubsub message");
 
         match message {
             PubsubMessage::ExampleMessage(_) => MessageAcceptance::Ignore,
