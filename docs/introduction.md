@@ -40,7 +40,7 @@ Python test framework will launch blockchain fullnodes at local for storage node
 
 For Conflux eSpace node, the test framework will automatically compile the binary at runtime, and copy the binary to `tests/tmp` folder. For BSC node, the test framework will automatically download the latest version binary from [github](https://github.com/bnb-chain/bsc/releases) to `tests/tmp` folder.
 
-Alternatively, you could also manually copy specific versoin binaries (conflux or geth) to the `tests/tmp` folder. Note, do **NOT** copy released conflux binary on github, since block height of some CIPs are hardcoded.
+Alternatively, you could also manually copy specific version binaries (conflux or geth) to the `tests/tmp` folder. Note, do **NOT** copy released conflux binary on github, since block height of some CIPs are hardcoded.
 
 For testing, it's also dependent on the following repos:
 
@@ -51,7 +51,7 @@ For testing, it's also dependent on the following repos:
 
 ### Run Tests
 
-Go to the `tests` folder and run following command to run all tests:
+Go to the `tests` folder and run the following command to run all tests:
 
 ```
 python test_all.py

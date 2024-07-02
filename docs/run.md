@@ -70,7 +70,7 @@ Keep contracts addresses
 
 ## Run 0G Storage
 
-Update coinfig run/config.toml as required:
+Update config run/config.toml as required:
 
 ```shell
 # p2p port

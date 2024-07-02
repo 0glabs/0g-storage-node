@@ -6,7 +6,7 @@ The log layer of 0G Storage provides decentralized storage service via a permiss
 
 The storage state of 0G Storage network is maintained in a smart contract deployed on an existing blockchain. The design of 0G Storage network fully decouples data creation, reward distribution, and token circulation.
 
-The 0G Storage Contract is responsible for data storage requests processing, data entries creation, and reward distribution.
+The 0G Storage Contract is responsible for data storage request processing, data entries creation, and reward distribution.
 
 - Data storage requests are submitted by users who wish to store data in the 0G Storage network, where each request includes necessary metadata such as data size and commitments, and it comes along with the payment for storage service.
 - Data entries are created for accepted data requests, to keep record of stored data.
@@ -15,8 +15,8 @@ The 0G Storage Contract is responsible for data storage requests processing, dat
 This embedding design brings significant advantages:
 
 - Simplicity: there is no need to maintain a full-fledged consensus protocol, which reduces complexity and enables 0G Storage to focus on decentralized storage service.
-- Safety: the consensus is outsourced to the host blockchain, and hence inherits security of the host blockchain. Typically the more developed host blockchain would provide stronger safety guarantee than a newly-built blockchain.
-- Accessibility: every smart contract on the host blockchain is able to access the original state of ZeroGravity directly, without relying on some trusted off-chain notary. This difference is essential comparing to the projection of an external ledger managed by a third-party.
+- Safety: the consensus is outsourced to the host blockchain, and hence inherits security of the host blockchain. Typically the more developed host blockchain would provide a stronger safety guarantee than a newly-built blockchain.
+- Accessibility: every smart contract on the host blockchain is able to access the original state of ZeroGravity directly, without relying on some trusted off-chain notary. This difference is essential compared to the projection of an external ledger managed by a third-party.
 - Composability: 0G tokens can always be transferred directly on the host blockchain, like any other ERC20 tokens. This is much more convenient than typical layer-2 ledgers, where transactions are  first processed by layer-2 validators and then committed to the host chain after a significant latency. This feature empowers 0G Storage stronger composability as a new lego to the ecosystem.
 
 ## Storage Granularity
