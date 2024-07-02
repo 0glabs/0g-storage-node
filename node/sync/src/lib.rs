@@ -28,8 +28,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             auto_sync_enabled: false,
-            max_sync_files: 100,
-            find_peer_timeout: Duration::from_secs(30),
+            max_sync_files: 8,
+            find_peer_timeout: Duration::from_secs(10),
             sync_file_by_rpc_enabled: true,
             sync_file_on_announcement_enabled: false,
         }

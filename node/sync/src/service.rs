@@ -345,7 +345,7 @@ impl SyncService {
         request_id: PeerRequestId,
         request: GetChunksRequest,
     ) {
-        info!(?request, %peer_id, ?request_id, "Received GetChunks request");
+        debug!(?request, %peer_id, ?request_id, "Received GetChunks request");
 
         if let Err(err) = self
             .handle_chunks_request_with_db_err(peer_id, request_id, request)
@@ -459,7 +459,7 @@ impl SyncService {
         request_id: RequestId,
         response: ChunkArrayWithProof,
     ) {
-        info!(%response.chunks, %peer_id, ?request_id, "Received chunks response");
+        debug!(%response.chunks, %peer_id, ?request_id, "Received chunks response");
 
         let tx_seq = match request_id {
             RequestId::SerialSync { tx_id } => tx_id.seq,
@@ -604,7 +604,7 @@ impl SyncService {
 
     async fn on_announce_file_gossip(&mut self, tx_id: TxID, peer_id: PeerId, addr: Multiaddr) {
         let tx_seq = tx_id.seq;
-        info!(%tx_seq, %peer_id, %addr, "Received AnnounceFile gossip");
+        debug!(%tx_seq, %peer_id, %addr, "Received AnnounceFile gossip");
 
         self.manager.update_on_announcement(tx_seq).await;
 
@@ -644,7 +644,7 @@ impl SyncService {
     }
 
     async fn on_announce_chunks_gossip(&mut self, msg: AnnounceChunks) {
-        info!(?msg, "Received AnnounceChunks gossip");
+        debug!(?msg, "Received AnnounceChunks gossip");
 
         if let Some(controller) = self.controllers.get_mut(&msg.tx_id.seq) {
             let info = controller.get_sync_info();

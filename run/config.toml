@@ -230,7 +230,7 @@ miner_key = ""
 
 # Timeout to terminate a file sync when automatically sync from other peers.
 # If timeout, terminated file sync will be triggered later.
-# find_peer_timeout = "30s"
+# find_peer_timeout = "10s"
 
 # Enable to start a file sync via RPC (e.g. `admin_startSyncFile`).
 # sync_file_by_rpc_enabled = true
