@@ -130,7 +130,7 @@ log_sync_start_block_number = 512567
 # rpc_listen_address = "0.0.0.0:5678"
 
 # HTTP server address to bind for admin and debug RPC.
-# rpc_listen_address_admin = "127.0.0.1:5679"
+rpc_listen_address_admin = "0.0.0.0:5679"
 
 # Maximum data size of RPC request body (by default, 100MB).
 # max_request_body_size = 104857600
