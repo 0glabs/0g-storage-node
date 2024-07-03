@@ -1,6 +1,6 @@
 use super::tx_store::TxStore;
 use anyhow::Result;
-
+use std::fmt::Debug;
 use storage::log_store::config::{ConfigTx, ConfigurableExt};
 use storage_async::Store;
 
@@ -17,6 +17,27 @@ pub struct SyncStore {
     /// Ready transactions to sync with high priority since announcement
     /// already received from other peers.
     ready_txs: TxStore,
+}
+
+impl Debug for SyncStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let store = self.store.get_store();
+
+        let pendings = match self.pending_txs.count(store) {
+            Ok(count) => format!("{}", count),
+            Err(err) => format!("Err: {:?}", err),
+        };
+
+        let ready = match self.ready_txs.count(store) {
+            Ok(count) => format!("{}", count),
+            Err(err) => format!("Err: {:?}", err),
+        };
+
+        f.debug_struct("SyncStore")
+            .field("pending_txs", &pendings)
+            .field("ready_txs", &ready)
+            .finish()
+    }
 }
 
 impl SyncStore {

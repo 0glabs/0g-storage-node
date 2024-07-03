@@ -237,3 +237,6 @@ miner_key = ""
 
 # Enable to start a file sync automatically when a file announcement P2P message received.
 # sync_file_on_announcement_enabled = false
+
+# Maximum threads to sync files in sequence.
+# max_sequential_workers = 8

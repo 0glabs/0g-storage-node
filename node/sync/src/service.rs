@@ -23,6 +23,7 @@ use storage::config::ShardConfig;
 use storage::error::Result as StorageResult;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{broadcast, mpsc};
 
 const HEARTBEAT_INTERVAL_SEC: u64 = 5;
@@ -122,7 +123,7 @@ pub struct SyncService {
     /// Heartbeat interval for executing periodic tasks.
     heartbeat: tokio::time::Interval,
 
-    manager: AutoSyncManager,
+    file_announcement_send: Option<UnboundedSender<u64>>,
 }
 
 impl SyncService {
@@ -159,10 +160,12 @@ impl SyncService {
 
         let store = Store::new(store, executor.clone());
 
-        let manager = AutoSyncManager::new(store.clone(), sync_send.clone(), config).await?;
-        if config.auto_sync_enabled {
-            manager.spwn(&executor, event_recv);
-        }
+        let manager = AutoSyncManager::new(store.clone(), sync_send.clone(), config);
+        let file_announcement_send = if config.auto_sync_enabled {
+            Some(manager.spwn(&executor, event_recv).await?)
+        } else {
+            None
+        };
 
         let mut sync = SyncService {
             config,
@@ -172,7 +175,7 @@ impl SyncService {
             file_location_cache,
             controllers: Default::default(),
             heartbeat,
-            manager,
+            file_announcement_send,
         };
 
         info!("Starting sync service");
@@ -606,7 +609,9 @@ impl SyncService {
         let tx_seq = tx_id.seq;
         debug!(%tx_seq, %peer_id, %addr, "Received AnnounceFile gossip");
 
-        self.manager.update_on_announcement(tx_seq).await;
+        if let Some(send) = &self.file_announcement_send {
+            let _ = send.send(tx_seq);
+        }
 
         // File already in sync
         if let Some(controller) = self.controllers.get_mut(&tx_seq) {
@@ -827,12 +832,9 @@ mod tests {
             create_file_location_cache(init_peer_id, vec![txs[0].id()]);
 
         let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
-        let (sync_send, sync_recv) = channel::Channel::unbounded();
+        let (_, sync_recv) = channel::Channel::unbounded();
 
         let heartbeat = tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL_SEC));
-        let manager = AutoSyncManager::new(store.clone(), sync_send, Config::default())
-            .await
-            .unwrap();
 
         let mut sync = SyncService {
             config: Config::default(),
@@ -842,7 +844,7 @@ mod tests {
             file_location_cache,
             controllers: Default::default(),
             heartbeat,
-            manager,
+            file_announcement_send: None,
         };
 
         sync.on_peer_connected(init_peer_id);
@@ -862,12 +864,9 @@ mod tests {
             create_file_location_cache(init_peer_id, vec![txs[0].id()]);
 
         let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
-        let (sync_send, sync_recv) = channel::Channel::unbounded();
+        let (_, sync_recv) = channel::Channel::unbounded();
 
         let heartbeat = tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL_SEC));
-        let manager = AutoSyncManager::new(store.clone(), sync_send, Config::default())
-            .await
-            .unwrap();
 
         let mut sync = SyncService {
             config: Config::default(),
@@ -877,7 +876,7 @@ mod tests {
             file_location_cache,
             controllers: Default::default(),
             heartbeat,
-            manager,
+            file_announcement_send: None,
         };
 
         sync.on_peer_disconnected(init_peer_id);
