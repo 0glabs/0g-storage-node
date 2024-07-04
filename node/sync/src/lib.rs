@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate tracing;
 
-mod auto_sync;
+pub mod auto_sync;
 mod context;
 mod controllers;
 mod service;
@@ -18,10 +18,13 @@ use std::time::Duration;
 pub struct Config {
     pub auto_sync_enabled: bool,
     pub max_sync_files: usize,
-    #[serde(deserialize_with = "deserialize_duration")]
-    pub find_peer_timeout: Duration,
     pub sync_file_by_rpc_enabled: bool,
     pub sync_file_on_announcement_enabled: bool,
+
+    // auto_sync config
+    pub max_sequential_workers: usize,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub find_peer_timeout: Duration,
 }
 
 impl Default for Config {
@@ -29,9 +32,11 @@ impl Default for Config {
         Self {
             auto_sync_enabled: false,
             max_sync_files: 8,
-            find_peer_timeout: Duration::from_secs(10),
             sync_file_by_rpc_enabled: true,
             sync_file_on_announcement_enabled: false,
+
+            max_sequential_workers: 8,
+            find_peer_timeout: Duration::from_secs(10),
         }
     }
 }
