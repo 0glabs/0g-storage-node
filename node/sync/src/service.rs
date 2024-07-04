@@ -1,4 +1,5 @@
-use crate::auto_sync::AutoSyncManager;
+use crate::auto_sync::batcher_random::RandomBatcher;
+use crate::auto_sync::batcher_serial::SerialBatcher;
 use crate::context::SyncNetworkContext;
 use crate::controllers::{
     FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
@@ -23,7 +24,7 @@ use storage::config::ShardConfig;
 use storage::error::Result as StorageResult;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, mpsc};
 
 const HEARTBEAT_INTERVAL_SEC: u64 = 5;
@@ -160,9 +161,20 @@ impl SyncService {
 
         let store = Store::new(store, executor.clone());
 
-        let manager = AutoSyncManager::new(store.clone(), sync_send.clone(), config);
+        // init auto sync
         let file_announcement_send = if config.auto_sync_enabled {
-            Some(manager.spwn(&executor, event_recv).await?)
+            let (send, recv) = unbounded_channel();
+
+            // sync in sequence
+            let serial_batcher =
+                SerialBatcher::new(config, store.clone(), sync_send.clone()).await?;
+            executor.spawn(serial_batcher.start(recv, event_recv), "auto_sync_serial");
+
+            // sync randomly
+            let random_batcher = RandomBatcher::new(config, store.clone(), sync_send.clone());
+            executor.spawn(random_batcher.start(), "auto_sync_random");
+
+            Some(send)
         } else {
             None
         };

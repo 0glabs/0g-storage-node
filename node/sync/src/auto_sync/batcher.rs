@@ -36,6 +36,10 @@ impl Batcher {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.tasks.len()
+    }
+
     pub async fn add(&mut self, tx_seq: u64) -> Result<bool> {
         // limits the number of threads
         if self.tasks.len() >= self.capacity {
@@ -110,7 +114,7 @@ impl Batcher {
 
             // file sync failed
             Some(SyncState::Failed { reason }) => {
-                info!(?reason, "Failed to sync file");
+                debug!(?reason, "Failed to sync file");
                 Ok(Some(SyncResult::Failed))
             }
 
@@ -118,7 +122,7 @@ impl Batcher {
             Some(SyncState::FindingPeers { origin, .. })
                 if origin.elapsed() > self.config.find_peer_timeout =>
             {
-                info!(%tx_seq, "Terminate file sync due to finding peers timeout");
+                debug!(%tx_seq, "Terminate file sync due to finding peers timeout");
                 self.terminate_file_sync(tx_seq, false).await;
                 Ok(Some(SyncResult::Timeout))
             }
