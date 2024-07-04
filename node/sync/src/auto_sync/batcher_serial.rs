@@ -117,7 +117,7 @@ impl SerialBatcher {
             Err(_) => return false,
         };
 
-        debug!(%announced_tx_seq, "Received file announcement");
+        trace!(%announced_tx_seq, "Received file announcement");
 
         // new file announced
         if self.max_tx_seq == u64::MAX || announced_tx_seq > self.max_tx_seq {
