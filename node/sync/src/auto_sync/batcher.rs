@@ -10,10 +10,11 @@ pub enum SyncResult {
     Timeout,
 }
 
+/// Supports to sync files concurrently.
 pub struct Batcher {
     config: Config,
     capacity: usize,
-    tasks: Vec<u64>,
+    tasks: Vec<u64>, // files to sync
     store: Store,
     sync_send: SyncSender,
 }
@@ -36,10 +37,12 @@ impl Batcher {
     }
 
     pub async fn add(&mut self, tx_seq: u64) -> Result<bool> {
+        // limits the number of threads
         if self.tasks.len() >= self.capacity {
             return Ok(false);
         }
 
+        // requires log entry available before file sync
         if self.store.get_tx_by_seq_number(tx_seq).await?.is_none() {
             return Ok(false);
         }

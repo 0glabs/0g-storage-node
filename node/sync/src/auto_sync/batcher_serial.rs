@@ -172,6 +172,14 @@ impl SerialBatcher {
             .retain(|&k, _| k < reverted_tx_seq);
         if self.next_tx_seq_in_db > reverted_tx_seq {
             self.next_tx_seq_in_db = reverted_tx_seq;
+
+            if let Err(err) = self
+                .sync_store
+                .set_next_tx_seq(self.next_tx_seq_in_db)
+                .await
+            {
+                error!(%err, %reverted_tx_seq, ?self, "Failed to set next tx seq due to tx reverted");
+            }
         }
 
         true
@@ -179,7 +187,7 @@ impl SerialBatcher {
 
     async fn sync_once(&mut self) -> Result<bool> {
         // try to trigger more file sync
-        if self.next().await? {
+        if self.schedule_next().await? {
             return Ok(true);
         }
 
@@ -193,13 +201,13 @@ impl SerialBatcher {
         self.pending_completed_txs.insert(tx_seq, sync_result);
 
         // update sync db
-        self.update().await?;
+        self.update_completed_txs_in_db().await?;
 
         Ok(true)
     }
 
     /// Schedule file sync in sequence.
-    async fn next(&mut self) -> Result<bool> {
+    async fn schedule_next(&mut self) -> Result<bool> {
         if self.next_tx_seq > self.max_tx_seq {
             return Ok(false);
         }
@@ -216,7 +224,7 @@ impl SerialBatcher {
     }
 
     /// Update file sync index in db.
-    async fn update(&mut self) -> Result<()> {
+    async fn update_completed_txs_in_db(&mut self) -> Result<()> {
         while let Some(sync_result) = self.pending_completed_txs.get(&self.next_tx_seq_in_db) {
             // downgrade to random sync if file sync failed or timeout
             if matches!(sync_result, SyncResult::Failed | SyncResult::Timeout) {
@@ -225,7 +233,7 @@ impl SerialBatcher {
                     .await?;
             }
 
-            // move forward in db
+            // always move forward in db
             self.sync_store
                 .set_next_tx_seq(self.next_tx_seq_in_db + 1)
                 .await?;
