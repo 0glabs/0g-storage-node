@@ -214,7 +214,7 @@ impl SyncService {
     }
 
     async fn on_sync_msg(&mut self, msg: SyncMessage) {
-        debug!("Sync received message {:?}", msg);
+        trace!("Sync received message {:?}", msg);
 
         match msg {
             SyncMessage::DailFailed { peer_id, err } => {
@@ -619,7 +619,7 @@ impl SyncService {
 
     async fn on_announce_file_gossip(&mut self, tx_id: TxID, peer_id: PeerId, addr: Multiaddr) {
         let tx_seq = tx_id.seq;
-        debug!(%tx_seq, %peer_id, %addr, "Received AnnounceFile gossip");
+        trace!(%tx_seq, %peer_id, %addr, "Received AnnounceFile gossip");
 
         if let Some(send) = &self.file_announcement_send {
             let _ = send.send(tx_seq);

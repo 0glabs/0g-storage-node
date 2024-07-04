@@ -125,7 +125,7 @@ impl RouterService {
         ev: Libp2pEvent<RequestId>,
         shutdown_sender: &mut Sender<ShutdownReason>,
     ) {
-        debug!(?ev, "Received new event from libp2p");
+        trace!(?ev, "Received new event from libp2p");
 
         match ev {
             Libp2pEvent::Behaviour(event) => match event {
@@ -221,7 +221,7 @@ impl RouterService {
         msg: NetworkMessage,
         _shutdown_sender: &mut Sender<ShutdownReason>,
     ) {
-        debug!(?msg, "Received new message");
+        trace!(?msg, "Received new message");
 
         match msg {
             NetworkMessage::SendRequest {
