@@ -11,7 +11,10 @@ pub use controllers::FileSyncInfo;
 use duration_str::deserialize_duration;
 use serde::Deserialize;
 pub use service::{SyncMessage, SyncReceiver, SyncRequest, SyncResponse, SyncSender, SyncService};
-use std::time::Duration;
+use std::{
+    fmt::Debug,
+    time::{Duration, Instant},
+};
 
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default)]
@@ -38,5 +41,26 @@ impl Default for Config {
             max_sequential_workers: 8,
             find_peer_timeout: Duration::from_secs(10),
         }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct InstantWrapper(Instant);
+
+impl Debug for InstantWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "\"{} seconds ago\"", self.0.elapsed().as_secs())
+    }
+}
+
+impl From<Instant> for InstantWrapper {
+    fn from(value: Instant) -> Self {
+        Self(value)
+    }
+}
+
+impl InstantWrapper {
+    pub fn elapsed(&self) -> Duration {
+        self.0.elapsed()
     }
 }

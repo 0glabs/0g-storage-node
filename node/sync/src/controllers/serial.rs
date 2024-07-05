@@ -1,6 +1,7 @@
 use crate::context::SyncNetworkContext;
 use crate::controllers::peers::{PeerState, SyncPeers};
 use crate::controllers::{FileSyncGoal, FileSyncInfo};
+use crate::InstantWrapper;
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use network::types::FindChunks;
@@ -33,22 +34,22 @@ pub enum FailureReason {
 pub enum SyncState {
     Idle,
     FindingPeers {
-        origin: Instant,
-        since: Instant,
+        origin: InstantWrapper,
+        since: InstantWrapper,
     },
     FoundPeers,
     ConnectingPeers,
     AwaitingOutgoingConnection {
-        since: Instant,
+        since: InstantWrapper,
     },
     AwaitingDownload {
-        since: Instant,
+        since: InstantWrapper,
     },
     Downloading {
         peer_id: PeerId,
         from_chunk: u64,
         to_chunk: u64,
-        since: Instant,
+        since: InstantWrapper,
     },
     Completed,
     Failed {
@@ -65,7 +66,7 @@ pub struct SerialSyncController {
 
     tx_start_chunk_in_flow: u64,
 
-    since: Instant,
+    since: InstantWrapper,
 
     /// File sync goal.
     goal: FileSyncGoal,
@@ -105,7 +106,7 @@ impl SerialSyncController {
             tx_seq: tx_id.seq,
             tx_id,
             tx_start_chunk_in_flow,
-            since: Instant::now(),
+            since: Instant::now().into(),
             goal,
             next_chunk: goal.index_start,
             failures: 0,
@@ -168,7 +169,7 @@ impl SerialSyncController {
 
         self.state = SyncState::FindingPeers {
             origin: self.since,
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
     }
 
@@ -265,7 +266,7 @@ impl SerialSyncController {
             peer_id,
             from_chunk,
             to_chunk,
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
     }
 
@@ -304,7 +305,7 @@ impl SerialSyncController {
                 {
                     info!(%self.tx_seq, %peer_id, "Failed to dail peer due to outgoing connection limitation");
                     self.state = SyncState::AwaitingOutgoingConnection {
-                        since: Instant::now(),
+                        since: Instant::now().into(),
                     };
                 }
             }
@@ -424,7 +425,7 @@ impl SerialSyncController {
             Ok(false) => {
                 info!(%self.tx_seq, "Failed to validate chunks response due to no root found");
                 self.state = SyncState::AwaitingDownload {
-                    since: Instant::now() + NEXT_REQUEST_WAIT_TIME,
+                    since: (Instant::now() + NEXT_REQUEST_WAIT_TIME).into(),
                 };
                 return;
             }
@@ -521,7 +522,7 @@ impl SerialSyncController {
         if self.failures <= MAX_REQUEST_FAILURES {
             // try again
             self.state = SyncState::AwaitingDownload {
-                since: Instant::now() + NEXT_REQUEST_WAIT_TIME,
+                since: (Instant::now() + NEXT_REQUEST_WAIT_TIME).into(),
             };
         } else {
             // ban and find new peer to download
@@ -598,7 +599,7 @@ impl SerialSyncController {
                 SyncState::ConnectingPeers => {
                     if self.peers.all_shards_available(vec![Connected]) {
                         self.state = SyncState::AwaitingDownload {
-                            since: Instant::now(),
+                            since: Instant::now().into(),
                         };
                     } else if self.peers.count(&[Connecting]) == 0 {
                         debug!(%self.tx_seq, "Connecting to peers timeout and try to find other peers to dial");
@@ -619,7 +620,7 @@ impl SerialSyncController {
                 }
 
                 SyncState::AwaitingDownload { since } => {
-                    if Instant::now() < since {
+                    if Instant::now() < since.0 {
                         completed = true;
                     } else {
                         self.try_request_next();
@@ -794,7 +795,7 @@ mod tests {
         let (mut controller, mut network_recv) = create_default_controller(task_executor, None);
 
         controller.state = SyncState::AwaitingDownload {
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
         controller.try_request_next();
         assert_eq!(controller.state, SyncState::Idle);
@@ -1050,7 +1051,7 @@ mod tests {
             peer_id,
             from_chunk: 0,
             to_chunk: 1,
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
         assert!(controller.handle_on_response_mismatch(peer_id_1));
         if let Some(msg) = network_recv.recv().await {
@@ -1114,7 +1115,7 @@ mod tests {
             peer_id,
             from_chunk: 0,
             to_chunk: 0,
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
         controller.on_response(peer_id, chunks).await;
     }
@@ -1146,7 +1147,7 @@ mod tests {
             peer_id,
             from_chunk: 0,
             to_chunk: chunk_count as u64,
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
 
         chunks.chunks.data = Vec::new();
@@ -1213,7 +1214,7 @@ mod tests {
             peer_id,
             from_chunk: 1,
             to_chunk: chunk_count as u64,
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
 
         controller.on_response(peer_id, chunks).await;
@@ -1276,7 +1277,7 @@ mod tests {
             peer_id,
             from_chunk: 0,
             to_chunk: chunk_count as u64,
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
 
         controller.tx_seq = 1;
@@ -1348,7 +1349,7 @@ mod tests {
             peer_id,
             from_chunk: 0,
             to_chunk: chunk_count as u64,
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
 
         controller.on_response(peer_id, chunks).await;
@@ -1391,7 +1392,7 @@ mod tests {
             peer_id,
             from_chunk: 0,
             to_chunk: 1024,
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
 
         controller.goal.num_chunks = 1024;
@@ -1437,7 +1438,7 @@ mod tests {
             peer_id,
             from_chunk: 0,
             to_chunk: chunk_count as u64,
-            since: Instant::now(),
+            since: Instant::now().into(),
         };
 
         controller.on_response(peer_id, chunks).await;
