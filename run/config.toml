@@ -226,7 +226,7 @@ miner_key = ""
 # auto_sync_enabled = false
 
 #  Maximum number of files in sync from other peers simultaneously.
-# max_sync_files = 8
+# max_sync_files = 16
 
 # Timeout to terminate a file sync when automatically sync from other peers.
 # If timeout, terminated file sync will be triggered later.

@@ -31,7 +31,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             auto_sync_enabled: false,
-            max_sync_files: 8,
+            max_sync_files: 16,
             sync_file_by_rpc_enabled: true,
             sync_file_on_announcement_enabled: false,
 
