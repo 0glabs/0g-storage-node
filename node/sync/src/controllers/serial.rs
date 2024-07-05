@@ -144,10 +144,7 @@ impl SerialSyncController {
             self.next_chunk = start;
         } else if self.goal.is_all_chunks() {
             // retry the failed file sync at break point
-            debug!(
-                "Continue to sync failed file, tx_seq = {}, next_chunk = {}",
-                self.tx_seq, self.next_chunk
-            );
+            debug!(%self.tx_seq, %self.next_chunk, "Continue to sync failed file");
         } else {
             // Ignore the failed chunks sync, and change to file sync.
             self.goal = FileSyncGoal::new_file(self.goal.num_chunks);
@@ -229,7 +226,7 @@ impl SerialSyncController {
             };
 
             // connect to peer
-            info!(%peer_id, %address, "Attempting to connect to peer");
+            info!(%self.tx_seq, %peer_id, %address, "Attempting to connect to peer");
             self.ctx.send(NetworkMessage::DialPeer { address, peer_id });
 
             self.peers
@@ -425,14 +422,14 @@ impl SerialSyncController {
         match validation_result {
             Ok(true) => {}
             Ok(false) => {
-                info!("Failed to validate chunks response due to no root found");
+                info!(%self.tx_seq, "Failed to validate chunks response due to no root found");
                 self.state = SyncState::AwaitingDownload {
                     since: Instant::now() + NEXT_REQUEST_WAIT_TIME,
                 };
                 return;
             }
             Err(err) => {
-                warn!(%err, "Failed to validate chunks response");
+                warn!(%err, %self.tx_seq, "Failed to validate chunks response");
                 self.ban_peer(from_peer_id, "Chunk array validation failed");
                 self.state = SyncState::Idle;
                 return;
@@ -454,14 +451,14 @@ impl SerialSyncController {
         {
             Ok(true) => self.next_chunk = next_chunk as u64,
             Ok(false) => {
-                warn!(?self.tx_id, "Transaction reverted while storing chunks");
+                warn!(%self.tx_seq, ?self.tx_id, "Transaction reverted while storing chunks");
                 self.state = SyncState::Failed {
                     reason: FailureReason::TxReverted(self.tx_id),
                 };
                 return;
             }
             Err(err) => {
-                error!(%err, "Unexpected DB error while storing chunks");
+                error!(%err, %self.tx_seq, "Unexpected DB error while storing chunks");
                 self.state = SyncState::Failed {
                     reason: FailureReason::DBError(err.to_string()),
                 };
@@ -489,13 +486,13 @@ impl SerialSyncController {
         {
             Ok(true) => self.state = SyncState::Completed,
             Ok(false) => {
-                warn!(?self.tx_id, "Transaction reverted during finalize_tx");
+                warn!(?self.tx_id, %self.tx_seq, "Transaction reverted during finalize_tx");
                 self.state = SyncState::Failed {
                     reason: FailureReason::TxReverted(self.tx_id),
                 };
             }
             Err(err) => {
-                error!(%err, "Unexpected error during finalize_tx");
+                error!(%err, %self.tx_seq, "Unexpected error during finalize_tx");
                 self.state = SyncState::Failed {
                     reason: FailureReason::DBError(err.to_string()),
                 };
