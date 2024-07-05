@@ -9,6 +9,7 @@ use network::{
     multiaddr::Protocol, rpc::GetChunksRequest, types::FindFile, Multiaddr, NetworkMessage,
     PeerAction, PeerId, PubsubMessage, SyncId as RequestId,
 };
+use rand::Rng;
 use shared_types::{timestamp_now, ChunkArrayWithProof, TxID, CHUNK_SIZE};
 use std::{
     sync::Arc,
@@ -538,16 +539,20 @@ impl SerialSyncController {
     fn select_peer_for_request(&self, request: &GetChunksRequest) -> Option<PeerId> {
         let segment_index =
             (request.index_start + self.tx_start_chunk_in_flow) / PORA_CHUNK_SIZE as u64;
-        let peers = self.peers.filter_peers(vec![PeerState::Connected]);
-        // TODO: Add randomness
-        for peer in peers {
-            if let Some(shard_config) = self.peers.shard_config(&peer) {
-                if shard_config.in_range(segment_index) {
-                    return Some(peer);
-                }
-            }
+        let mut peers = self.peers.filter_peers(vec![PeerState::Connected]);
+
+        peers.retain(|peer_id| match self.peers.shard_config(peer_id) {
+            Some(v) => v.in_range(segment_index),
+            None => false,
+        });
+
+        let len = peers.len();
+        if len == 0 {
+            return None;
         }
-        None
+
+        let index = rand::thread_rng().gen_range(0..len);
+        Some(peers[index])
     }
 
     pub fn transition(&mut self) {
