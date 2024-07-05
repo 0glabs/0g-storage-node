@@ -38,7 +38,9 @@ pub enum SyncState {
         since: InstantWrapper,
     },
     FoundPeers,
-    ConnectingPeers,
+    ConnectingPeers {
+        since: InstantWrapper,
+    },
     AwaitingOutgoingConnection {
         since: InstantWrapper,
     },
@@ -233,7 +235,9 @@ impl SerialSyncController {
             self.peers
                 .update_state(&peer_id, PeerState::Found, PeerState::Connecting);
         }
-        self.state = SyncState::ConnectingPeers;
+        self.state = SyncState::ConnectingPeers {
+            since: Instant::now().into(),
+        };
     }
 
     fn try_request_next(&mut self) {
@@ -590,13 +594,15 @@ impl SerialSyncController {
 
                 SyncState::FoundPeers => {
                     if self.peers.all_shards_available(vec![Connecting, Connected]) {
-                        self.state = SyncState::ConnectingPeers;
+                        self.state = SyncState::ConnectingPeers {
+                            since: Instant::now().into(),
+                        };
                     } else {
                         self.try_connect();
                     }
                 }
 
-                SyncState::ConnectingPeers => {
+                SyncState::ConnectingPeers { .. } => {
                     if self.peers.all_shards_available(vec![Connected]) {
                         self.state = SyncState::AwaitingDownload {
                             since: Instant::now().into(),
@@ -785,7 +791,10 @@ mod tests {
             }
         }
 
-        assert_eq!(controller.state, SyncState::ConnectingPeers);
+        assert!(matches!(
+            controller.state,
+            SyncState::ConnectingPeers { .. }
+        ));
     }
 
     #[tokio::test]
