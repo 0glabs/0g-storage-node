@@ -1,9 +1,11 @@
 use file_location_cache::FileLocationCache;
 use network::{Multiaddr, PeerAction, PeerId};
 use rand::seq::IteratorRandom;
+use serde::{Deserialize, Serialize};
 use shared_types::TxID;
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
@@ -15,7 +17,7 @@ use crate::InstantWrapper;
 const PEER_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const PEER_DISCONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PeerState {
     Found,
     Connecting,
@@ -63,6 +65,17 @@ impl SyncPeers {
             ctx: Some(ctx),
             file_location_cache: Some((tx_id, file_location_cache)),
         }
+    }
+
+    pub fn states(&self) -> HashMap<PeerState, u64> {
+        let mut states: HashMap<PeerState, u64> = HashMap::new();
+
+        for info in self.peers.values() {
+            let num = states.get(&info.state).map_or(0, |x| *x);
+            states.insert(info.state, num + 1);
+        }
+
+        states
     }
 
     pub fn add_new_peer_with_config(

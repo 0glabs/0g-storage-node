@@ -124,7 +124,7 @@ impl SerialSyncController {
     pub fn get_sync_info(&self) -> FileSyncInfo {
         FileSyncInfo {
             elapsed_secs: self.since.elapsed().as_secs(),
-            peers: self.peers.count(&[PeerState::Connected]),
+            peers: self.peers.states(),
             goal: self.goal,
             next_chunks: self.next_chunk,
             state: format!("{:?}", self.state),
