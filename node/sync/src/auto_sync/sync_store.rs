@@ -68,7 +68,6 @@ impl SyncStore {
     }
 
     pub async fn set_max_tx_seq(&self, tx_seq: u64) -> Result<()> {
-        debug!(%tx_seq, "set_max_tx_seq");
         self.store
             .get_store()
             .set_config_encoded(&KEY_MAX_TX_SEQ, &tx_seq)
