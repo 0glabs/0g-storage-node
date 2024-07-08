@@ -1,16 +1,13 @@
 use super::tx_store::TxStore;
-use anyhow::{bail, Result};
-use std::{
-    fmt::Debug,
-    sync::{Arc, RwLock},
-};
+use anyhow::Result;
+use std::sync::Arc;
 use storage::log_store::config::{ConfigTx, ConfigurableExt};
 use storage_async::Store;
+use tokio::sync::RwLock;
 
 const KEY_NEXT_TX_SEQ: &str = "sync.manager.next_tx_seq";
 const KEY_MAX_TX_SEQ: &str = "sync.manager.max_tx_seq";
 
-#[derive(Clone)]
 pub struct SyncStore {
     store: Arc<RwLock<Store>>,
 
@@ -22,31 +19,6 @@ pub struct SyncStore {
     ready_txs: TxStore,
 }
 
-impl Debug for SyncStore {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let async_store = match self.store.read() {
-            Ok(v) => v,
-            Err(err) => return write!(f, "SyncStore {{ store error: {:?}}}", err),
-        };
-        let store = async_store.get_store();
-
-        let pendings = match self.pending_txs.count(store) {
-            Ok(count) => format!("{}", count),
-            Err(err) => format!("Err: {:?}", err),
-        };
-
-        let ready = match self.ready_txs.count(store) {
-            Ok(count) => format!("{}", count),
-            Err(err) => format!("Err: {:?}", err),
-        };
-
-        f.debug_struct("SyncStore")
-            .field("pending_txs", &pendings)
-            .field("ready_txs", &ready)
-            .finish()
-    }
-}
-
 impl SyncStore {
     pub fn new(store: Store) -> Self {
         Self {
@@ -56,11 +28,19 @@ impl SyncStore {
         }
     }
 
+    /// Returns the number of pending txs and ready txs.
+    pub async fn stat(&self) -> Result<(usize, usize)> {
+        let async_store = self.store.read().await;
+        let store = async_store.get_store();
+
+        let num_pending_txs = self.pending_txs.count(store)?;
+        let num_ready_txs = self.ready_txs.count(store)?;
+
+        Ok((num_pending_txs, num_ready_txs))
+    }
+
     pub async fn get_tx_seq_range(&self) -> Result<(Option<u64>, Option<u64>)> {
-        let async_store = match self.store.read() {
-            Ok(v) => v,
-            Err(err) => bail!("Failed to acquire rwlock, err = {:?}", err),
-        };
+        let async_store = self.store.read().await;
         let store = async_store.get_store();
 
         // load next_tx_seq
@@ -73,28 +53,19 @@ impl SyncStore {
     }
 
     pub async fn set_next_tx_seq(&self, tx_seq: u64) -> Result<()> {
-        match self.store.write() {
-            Ok(store) => store
-                .get_store()
-                .set_config_encoded(&KEY_NEXT_TX_SEQ, &tx_seq),
-            Err(err) => bail!("Failed to acquire rwlock, err = {:?}", err),
-        }
+        let async_store = self.store.write().await;
+        let store = async_store.get_store();
+        store.set_config_encoded(&KEY_NEXT_TX_SEQ, &tx_seq)
     }
 
     pub async fn set_max_tx_seq(&self, tx_seq: u64) -> Result<()> {
-        match self.store.write() {
-            Ok(store) => store
-                .get_store()
-                .set_config_encoded(&KEY_MAX_TX_SEQ, &tx_seq),
-            Err(err) => bail!("Failed to acquire rwlock, err = {:?}", err),
-        }
+        let async_store = self.store.write().await;
+        let store = async_store.get_store();
+        store.set_config_encoded(&KEY_MAX_TX_SEQ, &tx_seq)
     }
 
     pub async fn add_pending_tx(&self, tx_seq: u64) -> Result<bool> {
-        let async_store = match self.store.write() {
-            Ok(v) => v,
-            Err(err) => bail!("Failed to acquire rwlock, err = {:?}", err),
-        };
+        let async_store = self.store.write().await;
         let store = async_store.get_store();
 
         // already in ready queue
@@ -107,10 +78,7 @@ impl SyncStore {
     }
 
     pub async fn upgrade_tx_to_ready(&self, tx_seq: u64) -> Result<bool> {
-        let async_store = match self.store.write() {
-            Ok(v) => v,
-            Err(err) => bail!("Failed to acquire rwlock, err = {:?}", err),
-        };
+        let async_store = self.store.write().await;
         let store = async_store.get_store();
 
         let mut tx = ConfigTx::default();
@@ -129,10 +97,7 @@ impl SyncStore {
     }
 
     pub async fn downgrade_tx_to_pending(&self, tx_seq: u64) -> Result<bool> {
-        let async_store = match self.store.write() {
-            Ok(v) => v,
-            Err(err) => bail!("Failed to acquire rwlock, err = {:?}", err),
-        };
+        let async_store = self.store.write().await;
         let store = async_store.get_store();
 
         let mut tx = ConfigTx::default();
@@ -151,10 +116,7 @@ impl SyncStore {
     }
 
     pub async fn random_tx(&self) -> Result<Option<u64>> {
-        let async_store = match self.store.read() {
-            Ok(v) => v,
-            Err(err) => bail!("Failed to acquire rwlock, err = {:?}", err),
-        };
+        let async_store = self.store.read().await;
         let store = async_store.get_store();
 
         // try to find a tx in ready queue with high priority
@@ -167,10 +129,7 @@ impl SyncStore {
     }
 
     pub async fn remove_tx(&self, tx_seq: u64) -> Result<bool> {
-        let async_store: std::sync::RwLockWriteGuard<Store> = match self.store.write() {
-            Ok(v) => v,
-            Err(err) => bail!("Failed to acquire rwlock, err = {:?}", err),
-        };
+        let async_store = self.store.write().await;
         let store = async_store.get_store();
 
         // removed in ready queue
