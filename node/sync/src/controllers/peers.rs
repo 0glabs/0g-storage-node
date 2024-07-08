@@ -1,20 +1,23 @@
 use file_location_cache::FileLocationCache;
 use network::{Multiaddr, PeerAction, PeerId};
 use rand::seq::IteratorRandom;
+use serde::{Deserialize, Serialize};
 use shared_types::TxID;
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 use storage::config::ShardConfig;
 
 use crate::context::SyncNetworkContext;
+use crate::InstantWrapper;
 
 const PEER_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const PEER_DISCONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PeerState {
     Found,
     Connecting,
@@ -34,13 +37,13 @@ struct PeerInfo {
     pub shard_config: ShardConfig,
 
     /// Timestamp of the last state change.
-    pub since: Instant,
+    pub since: InstantWrapper,
 }
 
 impl PeerInfo {
     fn update_state(&mut self, new_state: PeerState) {
         self.state = new_state;
-        self.since = Instant::now();
+        self.since = Instant::now().into();
     }
 }
 
@@ -64,6 +67,17 @@ impl SyncPeers {
         }
     }
 
+    pub fn states(&self) -> HashMap<PeerState, u64> {
+        let mut states: HashMap<PeerState, u64> = HashMap::new();
+
+        for info in self.peers.values() {
+            let num = states.get(&info.state).map_or(0, |x| *x);
+            states.insert(info.state, num + 1);
+        }
+
+        states
+    }
+
     pub fn add_new_peer_with_config(
         &mut self,
         peer_id: PeerId,
@@ -82,7 +96,7 @@ impl SyncPeers {
                 addr,
                 state: PeerState::Found,
                 shard_config,
-                since: Instant::now(),
+                since: Instant::now().into(),
             },
         );
 
@@ -364,7 +378,7 @@ mod tests {
         sync_peers.add_new_peer(peer_id_connecting, addr.clone());
         sync_peers.update_state_force(&peer_id_connecting, PeerState::Connecting);
         sync_peers.peers.get_mut(&peer_id_connecting).unwrap().since =
-            Instant::now() - PEER_CONNECT_TIMEOUT;
+            (Instant::now() - PEER_CONNECT_TIMEOUT).into();
 
         let peer_id_disconnecting = identity::Keypair::generate_ed25519().public().to_peer_id();
         sync_peers.add_new_peer(peer_id_disconnecting, addr.clone());
@@ -373,7 +387,7 @@ mod tests {
             .peers
             .get_mut(&peer_id_disconnecting)
             .unwrap()
-            .since = Instant::now() - PEER_DISCONNECT_TIMEOUT;
+            .since = (Instant::now() - PEER_DISCONNECT_TIMEOUT).into();
 
         let peer_id_disconnected = identity::Keypair::generate_ed25519().public().to_peer_id();
         sync_peers.add_new_peer(peer_id_disconnected, addr);

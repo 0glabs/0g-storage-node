@@ -8,7 +8,7 @@ use crate::{
 };
 use anyhow::Result;
 use log_entry_sync::LogSyncEvent;
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use storage_async::Store;
 use tokio::{
     sync::{broadcast::Receiver, mpsc::UnboundedReceiver},
@@ -30,7 +30,7 @@ pub struct SerialBatcher {
     /// break point when program restarted.
     next_tx_seq_in_db: u64,
 
-    sync_store: SyncStore,
+    sync_store: Arc<SyncStore>,
 }
 
 impl Debug for SerialBatcher {
@@ -58,9 +58,13 @@ impl Debug for SerialBatcher {
 }
 
 impl SerialBatcher {
-    pub async fn new(config: Config, store: Store, sync_send: SyncSender) -> Result<Self> {
+    pub async fn new(
+        config: Config,
+        store: Store,
+        sync_send: SyncSender,
+        sync_store: Arc<SyncStore>,
+    ) -> Result<Self> {
         let capacity = config.max_sequential_workers;
-        let sync_store = SyncStore::new(store.clone());
 
         // continue file sync from break point in db
         let (next_tx_seq, max_tx_seq) = sync_store.get_tx_seq_range().await?;
