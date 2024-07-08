@@ -5,7 +5,7 @@ use crate::Context;
 use chunk_pool::{FileID, SegmentInfo};
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
-use shared_types::{DataRoot, Transaction, CHUNK_SIZE};
+use shared_types::{DataRoot, FlowProof, Transaction, CHUNK_SIZE};
 use std::fmt::{Debug, Formatter, Result};
 use storage::config::ShardConfig;
 use storage::try_option;
@@ -156,6 +156,20 @@ impl RpcServer for RpcServerImpl {
         debug!("zgs_getShardConfig");
         let shard_config = self.ctx.log_store.get_store().flow().get_shard_config();
         Ok(shard_config)
+    }
+
+    async fn get_sector_proof(
+        &self,
+        sector_index: u64,
+        flow_root: Option<DataRoot>,
+    ) -> RpcResult<FlowProof> {
+        let proof = self
+            .ctx
+            .log_store
+            .get_proof_at_root(flow_root, sector_index, 1)
+            .await?;
+        assert_eq!(proof.left_proof, proof.right_proof);
+        Ok(proof.right_proof)
     }
 }
 

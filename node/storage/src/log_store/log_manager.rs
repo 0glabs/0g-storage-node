@@ -540,12 +540,12 @@ impl LogStoreRead for LogManager {
 
     fn get_proof_at_root(
         &self,
-        root: DataRoot,
+        root: Option<DataRoot>,
         index: u64,
         length: u64,
     ) -> crate::error::Result<FlowRangeProof> {
-        let left_proof = self.gen_proof(index, Some(root))?;
-        let right_proof = self.gen_proof(index + length - 1, Some(root))?;
+        let left_proof = self.gen_proof(index, root)?;
+        let right_proof = self.gen_proof(index + length - 1, root)?;
         Ok(FlowRangeProof {
             left_proof,
             right_proof,

@@ -1,7 +1,7 @@
 use crate::types::{FileInfo, Segment, SegmentWithProof, Status};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use shared_types::DataRoot;
+use shared_types::{DataRoot, FlowProof};
 use storage::config::ShardConfig;
 
 #[rpc(server, client, namespace = "zgs")]
@@ -38,4 +38,11 @@ pub trait Rpc {
 
     #[method(name = "getShardConfig")]
     async fn get_shard_config(&self) -> RpcResult<ShardConfig>;
+
+    #[method(name = "getSectorProof")]
+    async fn get_sector_proof(
+        &self,
+        sector_index: u64,
+        flow_root: Option<DataRoot>,
+    ) -> RpcResult<FlowProof>;
 }
