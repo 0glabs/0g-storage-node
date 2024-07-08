@@ -194,6 +194,7 @@ impl RouterService {
                 }
             },
             Libp2pEvent::NewListenAddr(multiaddr) => {
+                info!(?multiaddr, "New listen address");
                 self.network_globals
                     .listen_multiaddrs
                     .write()
