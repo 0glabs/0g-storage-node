@@ -81,7 +81,7 @@ impl Submitter {
         let flow_proof = self
             .store
             .get_proof_at_root(
-                mine_answer.context_flow_root,
+                Some(mine_answer.context_flow_root),
                 mine_answer.recall_position,
                 SECTORS_PER_SEAL as u64,
             )
