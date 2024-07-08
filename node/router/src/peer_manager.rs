@@ -2,7 +2,7 @@ use crate::Config;
 use network::PeerId;
 use rand::seq::IteratorRandom;
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// Connected peer info.
 struct PeerInfo {
@@ -20,8 +20,8 @@ impl PeerInfo {
         }
     }
 
-    fn elapsed_secs(&self) -> u64 {
-        self.since.elapsed().as_secs()
+    fn elapsed(&self) -> Duration {
+        self.since.elapsed()
     }
 }
 
@@ -98,7 +98,7 @@ impl PeerManager {
             .peers
             .iter()
             .filter(|(_, peer)| {
-                peer.outgoing == outgoing && peer.elapsed_secs() >= self.config.idle_time_secs
+                peer.outgoing == outgoing && peer.elapsed() >= self.config.idle_time
             })
             .map(|(peer_id, _)| *peer_id)
             .collect();
@@ -116,10 +116,7 @@ impl PeerManager {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        ops::Sub,
-        time::{Duration, Instant},
-    };
+    use std::{ops::Sub, time::Instant};
 
     use network::PeerId;
 
@@ -202,10 +199,9 @@ mod tests {
         }
 
         // change timestamp for all peers
-        let idle_timeout = Duration::from_secs(config.idle_time_secs);
         for peer_id in peers.iter() {
             let peer = manager.peers.get_mut(peer_id).unwrap();
-            peer.since = Instant::now().sub(idle_timeout);
+            peer.since = Instant::now().sub(config.idle_time);
         }
 
         assert_eq!(

@@ -180,7 +180,7 @@ impl ZgsConfig {
     }
 
     pub fn router_config(&self, network_config: &NetworkConfig) -> Result<router::Config, String> {
-        let mut router_config = router::Config::default();
+        let mut router_config = self.router.clone();
         router_config.libp2p_nodes = network_config.libp2p_nodes.to_vec();
         Ok(router_config)
     }

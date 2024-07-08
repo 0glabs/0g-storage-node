@@ -87,6 +87,9 @@ build_config! {
 pub struct ZgsConfig {
     pub raw_conf: RawConfiguration,
 
+    // router config, configured by [router] section by `config` crate.
+    pub router: router::Config,
+
     // sync config, configured by [sync] section by `config` crate.
     pub sync: sync::Config,
 }
