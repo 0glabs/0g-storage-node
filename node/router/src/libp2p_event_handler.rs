@@ -2,7 +2,9 @@ use std::{ops::Neg, sync::Arc};
 
 use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
+use network::multiaddr::Protocol;
 use network::types::{AnnounceShardConfig, SignedAnnounceShardConfig};
+use network::Multiaddr;
 use network::{
     rpc::StatusMessage,
     types::{
@@ -20,6 +22,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, RwLock};
 
 use crate::peer_manager::PeerManager;
+use crate::Config;
 
 lazy_static::lazy_static! {
     pub static ref FIND_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
@@ -65,6 +68,7 @@ fn verify_signature(msg: &dyn HasSignature, peer_id: &PeerId, propagation_source
 }
 
 pub struct Libp2pEventHandler {
+    config: Config,
     /// A collection of global variables, accessible outside of the network service.
     network_globals: Arc<NetworkGlobals>,
     /// A channel to the router service.
@@ -86,6 +90,7 @@ pub struct Libp2pEventHandler {
 impl Libp2pEventHandler {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        config: Config,
         network_globals: Arc<NetworkGlobals>,
         network_send: mpsc::UnboundedSender<NetworkMessage>,
         sync_send: SyncSender,
@@ -96,6 +101,7 @@ impl Libp2pEventHandler {
         peers: Arc<RwLock<PeerManager>>,
     ) -> Self {
         Self {
+            config,
             network_globals,
             network_send,
             sync_send,
@@ -257,16 +263,47 @@ impl Libp2pEventHandler {
         }
     }
 
+    fn get_listen_addr(&self) -> Option<Multiaddr> {
+        let listen_addrs = self.network_globals.listen_multiaddrs.read();
+
+        if self.config.private_ip_enabled {
+            listen_addrs.first().cloned()
+        } else {
+            listen_addrs
+                .iter()
+                .find(|&x| Self::contains_public_ip(x))
+                .cloned()
+        }
+    }
+
+    fn contains_public_ip(addr: &Multiaddr) -> bool {
+        for c in addr.iter() {
+            match c {
+                Protocol::Ip4(ip4_addr) => {
+                    return !ip4_addr.is_broadcast()
+                        && !ip4_addr.is_documentation()
+                        && !ip4_addr.is_link_local()
+                        && !ip4_addr.is_loopback()
+                        && !ip4_addr.is_multicast()
+                        && !ip4_addr.is_private()
+                        && !ip4_addr.is_unspecified()
+                }
+                Protocol::Ip6(ip6_addr) => {
+                    return !ip6_addr.is_loopback()
+                        && !ip6_addr.is_multicast()
+                        && !ip6_addr.is_unspecified()
+                }
+                _ => {}
+            }
+        }
+
+        false
+    }
+
     pub async fn construct_announce_file_message(&self, tx_id: TxID) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
 
-        let addr = match self.network_globals.listen_multiaddrs.read().first() {
-            Some(addr) => addr.clone(),
-            None => {
-                error!("No listen address available");
-                return None;
-            }
-        };
+        let addr = self.get_listen_addr()?;
 
         let timestamp = timestamp_now();
         let shard_config = self.store.get_store().flow().get_shard_config();
@@ -298,13 +335,7 @@ impl Libp2pEventHandler {
         shard_config: ShardConfig,
     ) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
-        let addr = match self.network_globals.listen_multiaddrs.read().first() {
-            Some(addr) => addr.clone(),
-            None => {
-                error!("No listen address available");
-                return None;
-            }
-        };
+        let addr = self.get_listen_addr()?;
         let timestamp = timestamp_now();
 
         let msg = AnnounceShardConfig {
@@ -377,12 +408,7 @@ impl Libp2pEventHandler {
         index_end: u64,
     ) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
-        let addr = self
-            .network_globals
-            .listen_multiaddrs
-            .read()
-            .first()?
-            .clone();
+        let addr = self.get_listen_addr()?;
         let timestamp = timestamp_now();
 
         let msg = AnnounceChunks {
@@ -473,6 +499,12 @@ impl Libp2pEventHandler {
             return MessageAcceptance::Reject;
         }
 
+        // verify public ip address if required
+        let addr = msg.at.clone().into();
+        if !self.config.private_ip_enabled && !Self::contains_public_ip(&addr) {
+            return MessageAcceptance::Reject;
+        }
+
         // propagate gossip to peers
         let d = duration_since(msg.resend_timestamp);
         if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_FILE_TIMEOUT {
@@ -484,7 +516,7 @@ impl Libp2pEventHandler {
         self.send_to_sync(SyncMessage::AnnounceFileGossip {
             tx_id: msg.tx_id,
             peer_id: msg.peer_id.clone().into(),
-            addr: msg.at.clone().into(),
+            addr,
         });
 
         // insert message to cache
@@ -503,6 +535,12 @@ impl Libp2pEventHandler {
             return MessageAcceptance::Reject;
         }
 
+        // verify public ip address if required
+        let addr = msg.at.clone().into();
+        if !self.config.private_ip_enabled && !Self::contains_public_ip(&addr) {
+            return MessageAcceptance::Reject;
+        }
+
         // propagate gossip to peers
         let d = duration_since(msg.resend_timestamp);
         if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_SHARD_CONFIG_TIMEOUT {
@@ -518,7 +556,7 @@ impl Libp2pEventHandler {
         self.send_to_sync(SyncMessage::AnnounceShardConfig {
             shard_config,
             peer_id: msg.peer_id.clone().into(),
-            addr: msg.at.clone().into(),
+            addr,
         });
 
         // insert message to cache
@@ -535,6 +573,12 @@ impl Libp2pEventHandler {
     ) -> MessageAcceptance {
         // verify message signature
         if !verify_signature(&msg, &msg.peer_id, propagation_source) {
+            return MessageAcceptance::Reject;
+        }
+
+        // verify public ip address if required
+        let addr = msg.at.clone().into();
+        if !self.config.private_ip_enabled && !Self::contains_public_ip(&addr) {
             return MessageAcceptance::Reject;
         }
 
@@ -625,6 +669,7 @@ mod tests {
     impl Context {
         fn new_handler(&self) -> Libp2pEventHandler {
             Libp2pEventHandler::new(
+                Config::default().with_private_ip_enabled(true),
                 self.network_globals.clone(),
                 self.network_send.clone(),
                 self.sync_send.clone(),
