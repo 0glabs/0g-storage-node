@@ -15,7 +15,7 @@ use storage::log_store::log_manager::LogConfig;
 use storage::log_store::Store;
 use storage::{LogManager, StorageConfig};
 use sync::{SyncSender, SyncService};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 macro_rules! require {
     ($component:expr, $self:ident, $e:ident) => {
@@ -48,6 +48,7 @@ struct MinerComponents {
 
 struct LogSyncComponents {
     send: broadcast::Sender<LogSyncEvent>,
+    catch_up_end_send: oneshot::Receiver<()>,
 }
 
 struct PrunerComponents {
@@ -295,11 +296,14 @@ impl ClientBuilder {
     pub async fn with_log_sync(mut self, config: LogSyncConfig) -> Result<Self, String> {
         let executor = require!("log_sync", self, runtime_context).clone().executor;
         let store = require!("log_sync", self, store).clone();
-        let send = LogSyncManager::spawn(config, executor, store)
+        let (send, catch_up_end_send) = LogSyncManager::spawn(config, executor, store)
             .await
             .map_err(|e| e.to_string())?;
 
-        self.log_sync = Some(LogSyncComponents { send });
+        self.log_sync = Some(LogSyncComponents {
+            send,
+            catch_up_end_send,
+        });
         Ok(self)
     }
 

@@ -16,7 +16,7 @@ use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::{ShutdownReason, TaskExecutor};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::sync::RwLock;
+use tokio::sync::{oneshot, RwLock};
 
 const RETRY_WAIT_MS: u64 = 500;
 const BROADCAST_CHANNEL_CAPACITY: usize = 16;
@@ -51,7 +51,7 @@ impl LogSyncManager {
         config: LogSyncConfig,
         executor: TaskExecutor,
         store: Arc<dyn Store>,
-    ) -> Result<broadcast::Sender<LogSyncEvent>> {
+    ) -> Result<(broadcast::Sender<LogSyncEvent>, oneshot::Receiver<()>)> {
         let next_tx_seq = store.next_tx_seq();
 
         let executor_clone = executor.clone();
@@ -59,6 +59,7 @@ impl LogSyncManager {
 
         let (event_send, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         let event_send_cloned = event_send.clone();
+        let (catch_up_end_sender, catch_up_end_receiver) = oneshot::channel();
 
         // Spawn the task to sync log entries from the blockchain.
         executor.spawn(
@@ -215,6 +216,10 @@ impl LogSyncManager {
                         }
                     };
 
+                    catch_up_end_sender
+                        .send(())
+                        .map_err(|e| anyhow!("catch up end send err, e={:?}", e))?;
+
                     let watch_rx = log_sync_manager.log_fetcher.start_watch(
                         start_block_number,
                         parent_block_hash,
@@ -230,7 +235,7 @@ impl LogSyncManager {
             .map(|_| ()),
             "log_sync",
         );
-        Ok(event_send_cloned)
+        Ok((event_send_cloned, catch_up_end_receiver))
     }
 
     async fn put_tx(&mut self, tx: Transaction) -> bool {
