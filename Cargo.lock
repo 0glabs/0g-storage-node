@@ -8554,6 +8554,7 @@ dependencies = [
  "miner",
  "network",
  "pruner",
+ "public-ip",
  "router",
  "rpc",
  "serde",
