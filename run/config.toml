@@ -11,8 +11,9 @@
 # IP address to listen on.
 # network_listen_address = "0.0.0.0"
 
-# The address to broadcast to peers about which address we are listening on. Empty indicates that
-# no discovery address has been set. Generally, configure public IP address to enable UDP discovery.
+# The address to broadcast to peers about which address we are listening on. Generally,
+# configure public IP address for UDP discovery. If not specified, program will try to
+# detect public IP address automatically.
 # network_enr_address = ""
 
 # The tcp port to broadcast to peers in order to reach back for libp2p services.

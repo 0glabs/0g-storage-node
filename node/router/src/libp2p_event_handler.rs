@@ -263,6 +263,31 @@ impl Libp2pEventHandler {
         }
     }
 
+    async fn get_listen_addr_or_add(&self) -> Option<Multiaddr> {
+        if let Some(addr) = self.get_listen_addr() {
+            return Some(addr);
+        }
+
+        let ipv4_addr = public_ip::addr_v4().await?;
+
+        let mut addr = Multiaddr::empty();
+        addr.push(Protocol::Ip4(ipv4_addr));
+        addr.push(Protocol::Tcp(self.network_globals.listen_port_tcp()));
+        addr.push(Protocol::P2p(self.network_globals.local_peer_id().into()));
+
+        self.network_globals
+            .listen_multiaddrs
+            .write()
+            .insert(0, addr.clone());
+
+        info!(
+            ?addr,
+            "Create public ip address to broadcase file announcement"
+        );
+
+        Some(addr)
+    }
+
     fn get_listen_addr(&self) -> Option<Multiaddr> {
         let listen_addrs = self.network_globals.listen_multiaddrs.read();
 
@@ -303,7 +328,7 @@ impl Libp2pEventHandler {
     pub async fn construct_announce_file_message(&self, tx_id: TxID) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
 
-        let addr = self.get_listen_addr()?;
+        let addr = self.get_listen_addr_or_add().await?;
 
         let timestamp = timestamp_now();
         let shard_config = self.store.get_store().flow().get_shard_config();
@@ -335,7 +360,7 @@ impl Libp2pEventHandler {
         shard_config: ShardConfig,
     ) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
-        let addr = self.get_listen_addr()?;
+        let addr = self.get_listen_addr_or_add().await?;
         let timestamp = timestamp_now();
 
         let msg = AnnounceShardConfig {
@@ -401,14 +426,14 @@ impl Libp2pEventHandler {
         MessageAcceptance::Accept
     }
 
-    pub fn construct_announce_chunks_message(
+    pub async fn construct_announce_chunks_message(
         &self,
         tx_id: TxID,
         index_start: u64,
         index_end: u64,
     ) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
-        let addr = self.get_listen_addr()?;
+        let addr = self.get_listen_addr_or_add().await?;
         let timestamp = timestamp_now();
 
         let msg = AnnounceChunks {
@@ -479,7 +504,10 @@ impl Libp2pEventHandler {
 
         debug!(?msg, "Found chunks to respond FindChunks message");
 
-        match self.construct_announce_chunks_message(msg.tx_id, msg.index_start, msg.index_end) {
+        match self
+            .construct_announce_chunks_message(msg.tx_id, msg.index_start, msg.index_end)
+            .await
+        {
             Some(msg) => {
                 self.publish(msg);
                 MessageAcceptance::Ignore

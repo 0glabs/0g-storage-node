@@ -7,12 +7,13 @@ use miner::MinerConfig;
 use network::NetworkConfig;
 use pruner::PrunerConfig;
 use rpc::RPCConfig;
+use std::net::IpAddr;
 use std::time::Duration;
 use storage::config::ShardConfig;
 use storage::StorageConfig;
 
 impl ZgsConfig {
-    pub fn network_config(&self) -> Result<NetworkConfig, String> {
+    pub async fn network_config(&self) -> Result<NetworkConfig, String> {
         let mut network_config = NetworkConfig::default();
 
         network_config.listen_address = self
@@ -25,10 +26,24 @@ impl ZgsConfig {
         network_config.disable_discovery = self.network_disable_discovery;
         network_config.discovery_port = self.network_discovery_port;
 
-        if let Some(addr) = &self.network_enr_address {
+        if !self.network_disable_discovery {
             network_config.enr_tcp_port = Some(self.network_enr_tcp_port);
             network_config.enr_udp_port = Some(self.network_enr_udp_port);
-            network_config.enr_address = Some(addr.parse().unwrap());
+            network_config.enr_address = match &self.network_enr_address {
+                Some(addr) => Some(addr.parse().unwrap()),
+                None => match public_ip::addr_v4().await {
+                    Some(ipv4_addr) => {
+                        info!(?ipv4_addr, "Auto detect public IP as ENR address");
+                        Some(IpAddr::V4(ipv4_addr))
+                    }
+                    None => {
+                        return Err(
+                            "ENR address not configured and failed to detect public IP address"
+                                .into(),
+                        )
+                    }
+                },
+            };
         }
 
         network_config.boot_nodes_multiaddr = self
