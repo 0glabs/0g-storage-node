@@ -48,7 +48,7 @@ struct MinerComponents {
 
 struct LogSyncComponents {
     send: broadcast::Sender<LogSyncEvent>,
-    catch_up_end_send: oneshot::Receiver<()>,
+    catch_up_end_recv: oneshot::Receiver<()>,
 }
 
 struct PrunerComponents {
@@ -296,13 +296,13 @@ impl ClientBuilder {
     pub async fn with_log_sync(mut self, config: LogSyncConfig) -> Result<Self, String> {
         let executor = require!("log_sync", self, runtime_context).clone().executor;
         let store = require!("log_sync", self, store).clone();
-        let (send, catch_up_end_send) = LogSyncManager::spawn(config, executor, store)
+        let (send, catch_up_end_recv) = LogSyncManager::spawn(config, executor, store)
             .await
             .map_err(|e| e.to_string())?;
 
         self.log_sync = Some(LogSyncComponents {
             send,
-            catch_up_end_send,
+            catch_up_end_recv,
         });
         Ok(self)
     }
