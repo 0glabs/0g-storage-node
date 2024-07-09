@@ -32,7 +32,10 @@ impl ZgsConfig {
             network_config.enr_address = match &self.network_enr_address {
                 Some(addr) => Some(addr.parse().unwrap()),
                 None => match public_ip::addr_v4().await {
-                    Some(ipv4_addr) => Some(IpAddr::V4(ipv4_addr)),
+                    Some(ipv4_addr) => {
+                        info!(?ipv4_addr, "Auto detect public IP as ENR address");
+                        Some(IpAddr::V4(ipv4_addr))
+                    }
                     None => {
                         return Err(
                             "ENR address not configured and failed to detect public IP address"
