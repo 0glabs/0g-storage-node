@@ -112,9 +112,8 @@ impl ZgsConfig {
         let mut config = config::Config::builder()
             .add_source(config::File::with_name(config_file))
             .add_source(
-                config::Environment::with_prefix("ZGSNODE")
-                    .try_parsing(true)
-                    .separator("_")
+                config::Environment::with_prefix("ZGS_NODE")
+                    .separator("__")
                     .list_separator(" "),
             )
             .build()
