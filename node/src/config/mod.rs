@@ -111,6 +111,11 @@ impl ZgsConfig {
 
         let mut config = config::Config::builder()
             .add_source(config::File::with_name(config_file))
+            .add_source(
+                config::Environment::with_prefix("ZGS_NODE")
+                    .separator("__")
+                    .list_separator(" "),
+            )
             .build()
             .map_err(|e| format!("Failed to build config: {:?}", e))?
             .try_deserialize::<ZgsConfig>()
