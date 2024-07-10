@@ -25,7 +25,7 @@ use storage::error::Result as StorageResult;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 const HEARTBEAT_INTERVAL_SEC: u64 = 5;
 
@@ -134,6 +134,7 @@ impl SyncService {
         store: Arc<dyn LogStore>,
         file_location_cache: Arc<FileLocationCache>,
         event_recv: broadcast::Receiver<LogSyncEvent>,
+        catch_up_end_recv: oneshot::Receiver<()>,
     ) -> Result<SyncSender> {
         Self::spawn_with_config(
             Config::default(),
@@ -142,6 +143,7 @@ impl SyncService {
             store,
             file_location_cache,
             event_recv,
+            catch_up_end_recv,
         )
         .await
     }
@@ -153,6 +155,7 @@ impl SyncService {
         store: Arc<dyn LogStore>,
         file_location_cache: Arc<FileLocationCache>,
         event_recv: broadcast::Receiver<LogSyncEvent>,
+        catch_up_end_recv: oneshot::Receiver<()>,
     ) -> Result<SyncSender> {
         let (sync_send, sync_recv) = channel::Channel::unbounded();
 
@@ -168,7 +171,10 @@ impl SyncService {
             // sync in sequence
             let serial_batcher =
                 SerialBatcher::new(config, store.clone(), sync_send.clone()).await?;
-            executor.spawn(serial_batcher.start(recv, event_recv), "auto_sync_serial");
+            executor.spawn(
+                serial_batcher.start(recv, event_recv, catch_up_end_recv),
+                "auto_sync_serial",
+            );
 
             // sync randomly
             let random_batcher = RandomBatcher::new(config, store.clone(), sync_send.clone());

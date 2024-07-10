@@ -216,9 +216,9 @@ impl LogSyncManager {
                         }
                     };
 
-                    catch_up_end_sender
-                        .send(())
-                        .map_err(|e| anyhow!("catch up end send err, e={:?}", e))?;
+                    if catch_up_end_sender.send(()).is_err() {
+                        warn!("catch_up_end send fails, possibly auto_sync is not enabled");
+                    }
 
                     let watch_rx = log_sync_manager.log_fetcher.start_watch(
                         start_block_number,

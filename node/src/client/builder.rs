@@ -48,7 +48,7 @@ struct MinerComponents {
 
 struct LogSyncComponents {
     send: broadcast::Sender<LogSyncEvent>,
-    catch_up_end_recv: oneshot::Receiver<()>,
+    catch_up_end_recv: Option<oneshot::Receiver<()>>,
 }
 
 struct PrunerComponents {
@@ -164,6 +164,13 @@ impl ClientBuilder {
         let file_location_cache = require!("sync", self, file_location_cache).clone();
         let network_send = require!("sync", self, network).send.clone();
         let event_recv = require!("sync", self, log_sync).send.subscribe();
+        let catch_up_end_recv = self
+            .log_sync
+            .as_mut()
+            .expect("checked in event_recv")
+            .catch_up_end_recv
+            .take()
+            .ok_or("sync requires a catch_up_end_recv")?;
 
         let send = SyncService::spawn_with_config(
             config,
@@ -172,6 +179,7 @@ impl ClientBuilder {
             store,
             file_location_cache,
             event_recv,
+            catch_up_end_recv,
         )
         .await
         .map_err(|e| format!("Failed to start sync service: {:?}", e))?;
@@ -302,7 +310,7 @@ impl ClientBuilder {
 
         self.log_sync = Some(LogSyncComponents {
             send,
-            catch_up_end_recv,
+            catch_up_end_recv: Some(catch_up_end_recv),
         });
         Ok(self)
     }
