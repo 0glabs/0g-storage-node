@@ -21,6 +21,9 @@ chunk_pool = { path = "../chunk_pool" }
 tokio = { version = "1.19.2", features = ["full"] }
 tracing = "0.1.35"
 rand = "0.8.5"
+serde = { version = "1.0.137", features = ["derive"] }
+duration-str = "0.5.1"
+public-ip = "0.2"
 
 [dev-dependencies]
 channel = { path = "../../common/channel" }

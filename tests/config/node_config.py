@@ -3,6 +3,9 @@ from web3 import Web3
 ZGS_CONFIG = {
     "log_config_file": "log_config",
     "confirmation_block_count": 1,
+    "router": {
+        "private_ip_enabled": True,
+    }
 }
 
 BSC_CONFIG = dict(

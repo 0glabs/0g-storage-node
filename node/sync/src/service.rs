@@ -1,5 +1,6 @@
 use crate::auto_sync::batcher_random::RandomBatcher;
 use crate::auto_sync::batcher_serial::SerialBatcher;
+use crate::auto_sync::sync_store::SyncStore;
 use crate::context::SyncNetworkContext;
 use crate::controllers::{
     FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
@@ -167,17 +168,20 @@ impl SyncService {
         // init auto sync
         let file_announcement_send = if config.auto_sync_enabled {
             let (send, recv) = unbounded_channel();
+            let sync_store = Arc::new(SyncStore::new(store.clone()));
 
             // sync in sequence
             let serial_batcher =
-                SerialBatcher::new(config, store.clone(), sync_send.clone()).await?;
+                SerialBatcher::new(config, store.clone(), sync_send.clone(), sync_store.clone())
+                    .await?;
             executor.spawn(
                 serial_batcher.start(recv, event_recv, catch_up_end_recv),
                 "auto_sync_serial",
             );
 
             // sync randomly
-            let random_batcher = RandomBatcher::new(config, store.clone(), sync_send.clone());
+            let random_batcher =
+                RandomBatcher::new(config, store.clone(), sync_send.clone(), sync_store);
             executor.spawn(random_batcher.start(), "auto_sync_random");
 
             Some(send)

@@ -4,19 +4,22 @@ use crate::{
     Config, SyncSender,
 };
 use anyhow::Result;
+use std::sync::Arc;
 use storage_async::Store;
 use tokio::time::sleep;
 
-#[derive(Debug)]
 pub struct RandomBatcher {
     batcher: Batcher,
-    sync_store: SyncStore,
+    sync_store: Arc<SyncStore>,
 }
 
 impl RandomBatcher {
-    pub fn new(config: Config, store: Store, sync_send: SyncSender) -> Self {
-        let sync_store = SyncStore::new(store.clone());
-
+    pub fn new(
+        config: Config,
+        store: Store,
+        sync_send: SyncSender,
+        sync_store: Arc<SyncStore>,
+    ) -> Self {
         Self {
             // now, only 1 thread to sync file randomly
             batcher: Batcher::new(config, 1, store, sync_send),
@@ -31,11 +34,14 @@ impl RandomBatcher {
             match self.sync_once().await {
                 Ok(true) => {}
                 Ok(false) => {
-                    trace!(?self, "File sync still in progress or idle");
+                    trace!(
+                        "File sync still in progress or idle, {:?}",
+                        self.stat().await
+                    );
                     sleep(INTERVAL_IDLE).await;
                 }
                 Err(err) => {
-                    warn!(%err, ?self, "Failed to sync file once");
+                    warn!(%err, "Failed to sync file once, {:?}", self.stat().await);
                     sleep(INTERVAL_ERROR).await;
                 }
             }
@@ -53,7 +59,7 @@ impl RandomBatcher {
             None => return Ok(false),
         };
 
-        debug!(%tx_seq, ?sync_result, ?self, "Completed to sync file");
+        debug!(%tx_seq, ?sync_result, "Completed to sync file, {:?}", self.stat().await);
 
         match sync_result {
             SyncResult::Completed => self.sync_store.remove_tx(tx_seq).await?,
@@ -77,8 +83,21 @@ impl RandomBatcher {
             return Ok(false);
         }
 
-        debug!(?self, "Pick a file to sync");
+        debug!("Pick a file to sync, {:?}", self.stat().await);
 
         Ok(true)
+    }
+
+    async fn stat(&self) -> String {
+        match self.sync_store.stat().await {
+            Ok((num_pending_txs, num_ready_txs)) => format!(
+                "RandomBatcher {{ batcher = {:?}, pending_txs = {}, ready_txs = {}}}",
+                self.batcher, num_pending_txs, num_ready_txs
+            ),
+            Err(err) => format!(
+                "RandomBatcher {{ batcher = {:?}, pending_txs/ready_txs = Error({:?})}}",
+                self.batcher, err
+            ),
+        }
     }
 }

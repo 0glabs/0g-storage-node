@@ -33,7 +33,7 @@
 
 # List of nodes to bootstrap UDP discovery. Note, `network_enr_address` should be
 # configured as well to enable UDP discovery.
-# network_boot_nodes = []
+network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmTVDGNhkHD98zDnJxQWu3i1FL1aFYeh9wiQTNu4pDCgps","/ip4/52.52.127.117/udp/1234/p2p/16Uiu2HAkzRjxK2gorngB1Xq84qDrT4hSVznYDHj6BkbaE4SGx9oS","/ip4/18.167.69.68/udp/1234/p2p/16Uiu2HAm2k6ua2mGgvZ8rTMV8GhpW71aVzkQWy7D37TTDuLCpgmX"]
 
 # List of libp2p nodes to initially connect to.
 # network_libp2p_nodes = []
@@ -80,11 +80,11 @@
 # blockchain_rpc_endpoint = "http://127.0.0.1:8545"
 
 # Flow contract address to sync event logs.
-# log_contract_address = ""
+log_contract_address = "0x8873cc79c5b3b5666535C825205C9a128B1D75F1"
 
 # Block number to sync event logs from blockchain. Generally, this is
 # the block number when flow contract deployed.
-# log_sync_start_block_number = 0
+log_sync_start_block_number = 802
 
 # Number of blocks to confirm a transaction.
 # confirmation_block_count = 12
@@ -180,7 +180,7 @@
 #######################################################################
 
 # Mine contract address for incentive.
-# mine_contract_address = ""
+mine_contract_address = "0x85F6722319538A805ED5733c5F4882d96F1C7384"
 
 # Miner key is used to sign blockchain transaction for incentive.
 # The value should be a hex string of length 64 without 0x prefix.
@@ -220,11 +220,11 @@
 #######################################################################
 ###                   File Sync Config Options                      ###
 #######################################################################
-# [sync]
+[sync]
 
 # Enable file sync among peers automatically. When enabled, each node will store
 # all files, and sufficient disk space is required.
-# auto_sync_enabled = false
+auto_sync_enabled = true
 
 #  Maximum number of files in sync from other peers simultaneously.
 # max_sync_files = 16

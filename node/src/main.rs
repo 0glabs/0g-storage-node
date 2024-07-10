@@ -11,7 +11,7 @@ use client::{Client, ClientBuilder, RuntimeContext};
 use std::error::Error;
 
 async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client, String> {
-    let network_config = config.network_config()?;
+    let network_config = config.network_config().await?;
     let storage_config = config.storage_config()?;
     let rpc_config = config.rpc_config()?;
     let log_sync_config = config.log_sync_config()?;
