@@ -33,7 +33,7 @@
 
 # List of nodes to bootstrap UDP discovery. Note, `network_enr_address` should be
 # configured as well to enable UDP discovery.
-network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79J32pTJLKGcpjRMb4Qb8xxKkyuG1","/ip4/52.52.127.117/udp/1234/p2p/16Uiu2HAm93Hd5azfhkGBbkx1zero3nYHvfjQYM2NtiW4R3r5bE2g"]
+# network_boot_nodes = []
 
 # List of libp2p nodes to initially connect to.
 # network_libp2p_nodes = []
@@ -77,14 +77,14 @@ network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmPxGNWu9eVAQPJww79
 #######################################################################
 
 # RPC endpoint to sync event logs on EVM compatible blockchain.
-blockchain_rpc_endpoint = "https://rpc-testnet.0g.ai"
+# blockchain_rpc_endpoint = "http://127.0.0.1:8545"
 
 # Flow contract address to sync event logs.
-log_contract_address = "0x22C1CaF8cbb671F220789184fda68BfD7eaA2eE1"
+# log_contract_address = ""
 
 # Block number to sync event logs from blockchain. Generally, this is
 # the block number when flow contract deployed.
-log_sync_start_block_number = 512567
+# log_sync_start_block_number = 0
 
 # Number of blocks to confirm a transaction.
 # confirmation_block_count = 12
@@ -180,14 +180,14 @@ log_sync_start_block_number = 512567
 #######################################################################
 
 # Mine contract address for incentive.
-mine_contract_address = "0x8B9221eE2287aFBb34A7a1Ef72eB00fdD853FFC2"
+# mine_contract_address = ""
 
 # Miner key is used to sign blockchain transaction for incentive.
 # The value should be a hex string of length 64 without 0x prefix.
 #
 # Note, the corresponding address should have enough tokens to pay
 # transaction gas fee.
-miner_key = ""
+# miner_key = ""
 
 #######################################################################
 ###                   Sharding Config Options                       ###
