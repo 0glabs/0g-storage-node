@@ -4,7 +4,13 @@ pub fn cli_app<'a>() -> Command<'a> {
     command!()
         .arg(arg!(-c --config [FILE] "Sets a custom config file").default_value("config.toml"))
         .arg(arg!(--"miner-key" [KEY] "Sets miner private key").default_value("None"))
-        .arg(arg!(--"blockchain-rpc-endpoint" [URL] "Sets blockchain RPC endpoint").default_value("http://127.0.0.1:8545"))
-        .arg(arg!(--"db-max-num-chunks" [NUM] "Sets the max number of chunks to store in db").default_value("None"))
+        .arg(
+            arg!(--"blockchain-rpc-endpoint" [URL] "Sets blockchain RPC endpoint")
+                .default_value("http://127.0.0.1:8545"),
+        )
+        .arg(
+            arg!(--"db-max-num-chunks" [NUM] "Sets the max number of chunks to store in db")
+                .default_value("None"),
+        )
         .allow_external_subcommands(true)
 }
