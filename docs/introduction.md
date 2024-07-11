@@ -51,7 +51,7 @@ For testing, it's also dependent on the following repos:
 
 ### Run Tests
 
-Go to the `tests` folder and run following command to run all tests:
+Go to the `tests` folder and run the following command to run all tests:
 
 ```
 python test_all.py
