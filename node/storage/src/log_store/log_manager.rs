@@ -941,6 +941,9 @@ impl LogManager {
                     .last_chunk_merkle
                     .fill_leaf(chunk_start_index + local_index, Sha3Algorithm::leaf(entry));
             }
+            merkle
+                .pora_chunks_merkle
+                .update_last(*merkle.last_chunk_merkle.root());
         }
         let chunk_roots = self.flow_store.append_entries(flow_entry_array)?;
         for (chunk_index, chunk_root) in chunk_roots {
