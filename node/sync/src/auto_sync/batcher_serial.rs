@@ -10,6 +10,7 @@ use anyhow::Result;
 use log_entry_sync::LogSyncEvent;
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use storage_async::Store;
+use tokio::sync::oneshot;
 use tokio::{
     sync::{broadcast::Receiver, mpsc::UnboundedReceiver},
     time::sleep,
@@ -83,8 +84,11 @@ impl SerialBatcher {
         mut self,
         mut file_announcement_recv: UnboundedReceiver<u64>,
         mut log_sync_recv: Receiver<LogSyncEvent>,
+        catch_up_end_recv: oneshot::Receiver<()>,
     ) {
         info!(?self, "Start to sync files");
+
+        catch_up_end_recv.await.expect("log sync sender dropped");
 
         loop {
             // handle all pending file announcements
