@@ -1,5 +1,5 @@
 use crate::{controllers::SyncState, Config, SyncRequest, SyncResponse, SyncSender};
-use anyhow::{bail, Ok, Result};
+use anyhow::{bail, Result};
 use std::fmt::Debug;
 use storage_async::Store;
 
@@ -83,6 +83,13 @@ impl Batcher {
     async fn poll_tx(&self, tx_seq: u64) -> Result<Option<SyncResult>> {
         // file already exists
         if self.store.check_tx_completed(tx_seq).await? {
+            // File may be finalized during file sync, e.g. user uploaded file via RPC.
+            // In this case, just terminate the file sync.
+            let num_terminated = self.terminate_file_sync(tx_seq, false).await;
+            if num_terminated > 0 {
+                info!(%tx_seq, %num_terminated, "Terminate file sync due to file already finalized in db");
+            }
+
             return Ok(Some(SyncResult::Completed));
         }
 
@@ -114,7 +121,8 @@ impl Batcher {
 
             // file sync failed
             Some(SyncState::Failed { reason }) => {
-                debug!(?reason, "Failed to sync file");
+                debug!(?reason, "Failed to sync file and terminate the failed file sync");
+                self.terminate_file_sync(tx_seq, false).await;
                 Ok(Some(SyncResult::Failed))
             }
 
@@ -132,8 +140,8 @@ impl Batcher {
         }
     }
 
-    pub async fn terminate_file_sync(&self, tx_seq: u64, is_reverted: bool) {
-        if let Err(err) = self
+    pub async fn terminate_file_sync(&self, tx_seq: u64, is_reverted: bool) -> usize {
+        match self
             .sync_send
             .request(SyncRequest::TerminateFileSync {
                 tx_seq,
@@ -141,8 +149,16 @@ impl Batcher {
             })
             .await
         {
-            // just log and go ahead for any error, e.g. timeout
-            error!(%err, %tx_seq, %is_reverted, "Failed to terminate file sync");
+            Ok(SyncResponse::TerminateFileSync { count }) => count,
+            Ok(resp) => {
+                error!(?resp, %tx_seq, %is_reverted, "Invalid sync response type to terminate file sync");
+                0
+            }
+            Err(err) => {
+                // just log and go ahead for any error, e.g. timeout
+                error!(%err, %tx_seq, %is_reverted, "Failed to terminate file sync");
+                0
+            }
         }
     }
 }

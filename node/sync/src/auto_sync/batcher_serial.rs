@@ -162,7 +162,7 @@ impl SerialBatcher {
             return true;
         }
 
-        info!(%reverted_tx_seq, ?self, "Handle reorg");
+        info!(%reverted_tx_seq, ?self, "Handle reorg started");
 
         // terminate all files in progress
         self.batcher
@@ -185,6 +185,8 @@ impl SerialBatcher {
                 error!(%err, %reverted_tx_seq, ?self, "Failed to set next tx seq due to tx reverted");
             }
         }
+
+        info!(%reverted_tx_seq, ?self, "Handle reorg ended");
 
         true
     }
@@ -229,6 +231,8 @@ impl SerialBatcher {
 
     /// Update file sync index in db.
     async fn update_completed_txs_in_db(&mut self) -> Result<()> {
+        let origin = self.next_tx_seq_in_db;
+
         while let Some(sync_result) = self.pending_completed_txs.get(&self.next_tx_seq_in_db) {
             // downgrade to random sync if file sync failed or timeout
             if matches!(sync_result, SyncResult::Failed | SyncResult::Timeout) {
@@ -245,6 +249,12 @@ impl SerialBatcher {
             // update in memory after db updated
             self.pending_completed_txs.remove(&self.next_tx_seq_in_db);
             self.next_tx_seq_in_db += 1;
+        }
+
+
+
+        if self.next_tx_seq_in_db > origin {
+            info!(%origin, %self.next_tx_seq_in_db, "Move forward in db");
         }
 
         Ok(())
