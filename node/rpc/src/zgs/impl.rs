@@ -121,7 +121,7 @@ impl RpcServer for RpcServerImpl {
         let segment = try_option!(
             self.ctx
                 .log_store
-                .get_chunks_with_proof_by_tx_and_index_range(tx.seq, start_index, end_index)
+                .get_chunks_with_proof_by_tx_and_index_range(tx.seq, start_index, end_index, None)
                 .await?
         );
 

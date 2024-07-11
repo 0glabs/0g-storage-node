@@ -452,6 +452,7 @@ impl SyncService {
                 request.tx_id.seq,
                 request.index_start as usize,
                 request.index_end as usize,
+                Some(request.merkle_tx_seq),
             )
             .await?;
 
@@ -918,6 +919,7 @@ mod tests {
             tx_id: runtime.txs[0].id(),
             index_start: 0,
             index_end: runtime.chunk_count as u64,
+            merkle_tx_seq: 0,
         };
 
         sync_send
@@ -978,6 +980,7 @@ mod tests {
             tx_id: runtime.txs[0].id(),
             index_start: 0,
             index_end: 0_u64,
+            merkle_tx_seq: 0,
         };
 
         sync_send
@@ -1031,6 +1034,7 @@ mod tests {
             },
             index_start: 0,
             index_end: runtime.chunk_count as u64,
+            merkle_tx_seq: 1,
         };
 
         sync_send
@@ -1081,6 +1085,7 @@ mod tests {
             tx_id: runtime.txs[0].id(),
             index_start: 0,
             index_end: runtime.chunk_count as u64 + 1,
+            merkle_tx_seq: 0,
         };
 
         sync_send
@@ -1133,6 +1138,7 @@ mod tests {
             tx_id: runtime.txs[0].id(),
             index_start: 0,
             index_end: runtime.chunk_count as u64,
+            merkle_tx_seq: 0,
         };
 
         sync_send
@@ -1664,6 +1670,7 @@ mod tests {
                             tx_seq,
                             req.index_start as usize,
                             req.index_end as usize,
+                            None,
                         )
                         .unwrap()
                         .unwrap();

@@ -246,10 +246,16 @@ impl SerialSyncController {
         let from_chunk = self.next_chunk;
         let to_chunk = std::cmp::min(from_chunk + PORA_CHUNK_SIZE as u64, self.goal.index_end);
         let request_id = network::RequestId::Sync(RequestId::SerialSync { tx_id: self.tx_id });
+        // TODO: It's possible that we read it while `nex_tx_seq - 1` is still being committed.
+        // We can wait for its commitment, but this will slow down this state machine.
+        // Or we can use `next_tx_seq - 2`, but for a restarted node without receiving new
+        // files, this tx seq is also unavailable.
+        let committed_tx_seq = self.store.get_store().next_tx_seq().saturating_sub(1);
         let request = GetChunksRequest {
             tx_id: self.tx_id,
             index_start: from_chunk,
             index_end: to_chunk,
+            merkle_tx_seq: committed_tx_seq,
         };
 
         // select a random peer
@@ -838,6 +844,7 @@ mod tests {
                             tx_id: controller.tx_id,
                             index_start: 0,
                             index_end: 123,
+                            merkle_tx_seq: controller.tx_id.seq,
                         })
                     );
 
@@ -1121,7 +1128,7 @@ mod tests {
         );
 
         let chunks = peer_store
-            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
+            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count, None)
             .unwrap()
             .unwrap();
 
@@ -1153,7 +1160,7 @@ mod tests {
         );
 
         let mut chunks = peer_store
-            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
+            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count, None)
             .unwrap()
             .unwrap();
 
@@ -1220,7 +1227,7 @@ mod tests {
         );
 
         let chunks = peer_store
-            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
+            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count, None)
             .unwrap()
             .unwrap();
 
@@ -1283,7 +1290,7 @@ mod tests {
         );
 
         let chunks = peer_store
-            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
+            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count, None)
             .unwrap()
             .unwrap();
 
@@ -1355,7 +1362,7 @@ mod tests {
         );
 
         let chunks = peer_store
-            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
+            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count, None)
             .unwrap()
             .unwrap();
 
@@ -1398,7 +1405,7 @@ mod tests {
         );
 
         let chunks = peer_store
-            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, 1024)
+            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, 1024, None)
             .unwrap()
             .unwrap();
 
@@ -1444,7 +1451,7 @@ mod tests {
         );
 
         let chunks = peer_store
-            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count)
+            .get_chunks_with_proof_by_tx_and_index_range(tx_seq, 0, chunk_count, None)
             .unwrap()
             .unwrap();
 

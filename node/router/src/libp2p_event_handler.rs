@@ -856,6 +856,7 @@ mod tests {
             tx_id: TxID::random_hash(7),
             index_start: 66,
             index_end: 99,
+            merkle_tx_seq: 7,
         };
         handler
             .on_rpc_request(alice, id, Request::GetChunks(raw_request.clone()))

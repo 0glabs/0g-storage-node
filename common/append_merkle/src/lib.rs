@@ -4,7 +4,7 @@ mod sha3;
 
 use anyhow::{anyhow, bail, Result};
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::{trace, warn};
@@ -20,7 +20,7 @@ pub struct AppendMerkleTree<E: HashElement, A: Algorithm<E>> {
     layers: Vec<Vec<E>>,
     /// Keep the delta nodes that can be used to construct a history tree.
     /// The key is the root node of that version.
-    delta_nodes_map: HashMap<u64, DeltaNodes<E>>,
+    delta_nodes_map: BTreeMap<u64, DeltaNodes<E>>,
     root_to_tx_seq_map: HashMap<E, u64>,
 
     /// For `last_chunk_merkle` after the first chunk, this is set to `Some(10)` so that
@@ -36,7 +36,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     pub fn new(leaves: Vec<E>, leaf_height: usize, start_tx_seq: Option<u64>) -> Self {
         let mut merkle = Self {
             layers: vec![leaves],
-            delta_nodes_map: HashMap::new(),
+            delta_nodes_map: BTreeMap::new(),
             root_to_tx_seq_map: HashMap::new(),
             min_depth: None,
             leaf_height,
@@ -68,7 +68,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     ) -> Result<Self> {
         let mut merkle = Self {
             layers: vec![vec![]],
-            delta_nodes_map: HashMap::new(),
+            delta_nodes_map: BTreeMap::new(),
             root_to_tx_seq_map: HashMap::new(),
             min_depth: None,
             leaf_height,
@@ -103,7 +103,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // Create an empty merkle tree with `depth`.
             let mut merkle = Self {
                 layers: vec![vec![]; depth],
-                delta_nodes_map: HashMap::new(),
+                delta_nodes_map: BTreeMap::new(),
                 root_to_tx_seq_map: HashMap::new(),
                 min_depth: Some(depth),
                 leaf_height: 0,
@@ -123,7 +123,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             layers[0] = leaves;
             let mut merkle = Self {
                 layers,
-                delta_nodes_map: HashMap::new(),
+                delta_nodes_map: BTreeMap::new(),
                 root_to_tx_seq_map: HashMap::new(),
                 min_depth: Some(depth),
                 leaf_height: 0,
@@ -531,14 +531,17 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         Ok(())
     }
 
-    pub fn at_root_version(&self, root_hash: &E) -> Result<HistoryTree<E>> {
-        let tx_seq = self
-            .root_to_tx_seq_map
+    pub fn tx_seq_at_root(&self, root_hash: &E) -> Result<u64> {
+        self.root_to_tx_seq_map
             .get(root_hash)
-            .ok_or_else(|| anyhow!("old root unavailable, root={:?}", root_hash))?;
+            .cloned()
+            .ok_or_else(|| anyhow!("old root unavailable, root={:?}", root_hash))
+    }
+
+    pub fn at_version(&self, tx_seq: u64) -> Result<HistoryTree<E>> {
         let delta_nodes = self
             .delta_nodes_map
-            .get(tx_seq)
+            .get(&tx_seq)
             .ok_or_else(|| anyhow!("tx_seq unavailable, tx_seq={:?}", tx_seq))?;
         if delta_nodes.height() == 0 {
             bail!("empty tree");

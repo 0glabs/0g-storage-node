@@ -174,7 +174,7 @@ fn read_performance(c: &mut Criterion) {
             store
                 .read()
                 .unwrap()
-                .get_chunks_with_proof_by_tx_and_index_range(tx_seq, index_start, index_end)
+                .get_chunks_with_proof_by_tx_and_index_range(tx_seq, index_start, index_end, None)
                 .unwrap();
         })
     });

@@ -48,6 +48,7 @@ pub trait LogStoreRead: LogStoreChunkRead {
         tx_seq: u64,
         index_start: usize,
         index_end: usize,
+        merkle_tx_seq: Option<u64>,
     ) -> Result<Option<ChunkArrayWithProof>>;
 
     fn check_tx_completed(&self, tx_seq: u64) -> Result<bool>;
