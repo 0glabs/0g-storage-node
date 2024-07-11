@@ -78,7 +78,7 @@ impl RpcServer for RpcServerImpl {
     }
 
     #[tracing::instrument(skip(self), err)]
-    async fn terminate_sync(&self, tx_seq: u64) -> RpcResult<()> {
+    async fn terminate_sync(&self, tx_seq: u64) -> RpcResult<bool> {
         info!("admin_terminateSync({tx_seq})");
 
         let response = self
@@ -90,7 +90,7 @@ impl RpcServer for RpcServerImpl {
             .await?;
 
         match response {
-            SyncResponse::TerminateFileSync { .. } => Ok(()),
+            SyncResponse::TerminateFileSync { count } => Ok(count > 0),
             _ => Err(error::internal_error("unexpected response type")),
         }
     }

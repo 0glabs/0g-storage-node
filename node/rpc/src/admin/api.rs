@@ -22,7 +22,7 @@ pub trait Rpc {
 
     /// Terminate file or chunks sync for specified tx_seq.
     #[method(name = "terminateSync")]
-    async fn terminate_sync(&self, tx_seq: u64) -> RpcResult<()>;
+    async fn terminate_sync(&self, tx_seq: u64) -> RpcResult<bool>;
 
     #[method(name = "getSyncStatus")]
     async fn get_sync_status(&self, tx_seq: u64) -> RpcResult<String>;
