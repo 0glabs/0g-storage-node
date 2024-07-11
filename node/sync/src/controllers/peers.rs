@@ -160,6 +160,7 @@ impl SyncPeers {
             .collect()
     }
 
+    #[cfg(test)]
     pub fn count(&self, states: &[PeerState]) -> usize {
         self.peers
             .values()

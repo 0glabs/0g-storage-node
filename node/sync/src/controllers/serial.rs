@@ -520,7 +520,7 @@ impl SerialSyncController {
             Ok(true) => {
                 info!(%self.tx_seq, "Succeeded to finalize file");
                 self.state = SyncState::Completed;
-            },
+            }
             Ok(false) => {
                 warn!(?self.tx_id, %self.tx_seq, "Transaction reverted during finalize_tx");
                 self.state = SyncState::Failed {
