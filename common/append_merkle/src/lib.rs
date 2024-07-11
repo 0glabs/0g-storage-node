@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use tracing::warn;
+use tracing::{trace, warn};
 
 pub use crate::merkle_tree::{
     Algorithm, HashElement, MerkleTreeInitialData, MerkleTreeRead, ZERO_HASHES,
@@ -275,7 +275,8 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                 layer[position] = data.clone();
                 updated_nodes.push((i, position, data))
             } else if layer[position] != data {
-                bail!(
+                // The last node in each layer may have changed in the tree.
+                trace!(
                     "conflict data layer={} position={} tree_data={:?} proof_data={:?}",
                     i,
                     position,
@@ -721,6 +722,35 @@ mod tests {
             merkle.append_list(data[data.len() - 6..].to_vec());
             merkle.commit(Some(2));
             verify(&data, &mut merkle);
+        }
+    }
+
+    #[test]
+    fn test_proof_against_modified_merkle() {
+        let n = [1, 2, 6, 1025];
+        for entry_len in n {
+            let mut data = Vec::new();
+            for _ in 0..entry_len {
+                data.push(H256::random());
+            }
+            let mut merkle =
+                AppendMerkleTree::<H256, Sha3Algorithm>::new(vec![H256::zero()], 0, None);
+            merkle.append_list(data.clone());
+            merkle.commit(Some(0));
+
+            for i in (0..data.len()).step_by(6) {
+                let end = std::cmp::min(i + 3, data.len());
+                let range_proof = merkle.gen_range_proof(i + 1, end + 1).unwrap();
+                let mut new_data = Vec::new();
+                for _ in 0..3 {
+                    new_data.push(H256::random());
+                }
+                merkle.append_list(new_data);
+                merkle.commit(Some(i as u64 / 6 + 1));
+                let r = range_proof.validate::<Sha3Algorithm>(&data[i..end], i + 1);
+                assert!(r.is_ok(), "{:?}", r);
+                merkle.fill_with_range_proof(range_proof).unwrap();
+            }
         }
     }
 
