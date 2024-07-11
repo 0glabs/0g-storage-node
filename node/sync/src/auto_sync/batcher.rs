@@ -86,10 +86,7 @@ impl Batcher {
             // File may be finalized during file sync, e.g. user uploaded file via RPC.
             // In this case, just terminate the file sync.
             let num_terminated = self.terminate_file_sync(tx_seq, false).await;
-            if num_terminated > 0 {
-                info!(%tx_seq, %num_terminated, "Terminate file sync due to file already finalized in db");
-            }
-
+            info!(%tx_seq, %num_terminated, "Terminate file sync due to file already finalized in db");
             return Ok(Some(SyncResult::Completed));
         }
 
