@@ -6,6 +6,7 @@ extern crate lazy_static;
 
 mod config;
 mod loader;
+mod metrics;
 mod mine;
 mod miner_id;
 pub mod pora;

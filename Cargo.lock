@@ -4527,6 +4527,7 @@ dependencies = [
  "ethers",
  "hex",
  "lazy_static",
+ "lighthouse_metrics",
  "network",
  "rand 0.8.5",
  "shared_types",

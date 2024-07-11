@@ -1,8 +1,10 @@
+use super::metrics::*;
 use crate::recall_range::RecallRange;
 use crate::{MineRangeConfig, PoraLoader};
 use blake2::{Blake2b512, Digest};
 use contract_interface::zgs_flow::MineContext;
 use ethereum_types::{H256, U256};
+use lighthouse_metrics::inc_counter;
 use storage::log_store::MineLoadChunk;
 use tiny_keccak::{Hasher, Keccak};
 use zgs_spec::{BYTES_PER_SCRATCHPAD, BYTES_PER_SEAL, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
@@ -58,15 +60,12 @@ impl<'a> Miner<'a> {
     }
 
     pub async fn iteration(&self, nonce: H256) -> Option<AnswerWithoutProof> {
+        inc_counter(&SCRATCH_PAD_ITER_COUNT);
         let ScratchPad {
             scratch_pad,
             recall_seed,
             pad_seed,
         } = self.make_scratch_pad(&nonce);
-
-        if self.range.mining_length == 0 {
-            return None;
-        }
 
         let recall_position = self.range.load_position(recall_seed)?;
         if !self.mine_range_config.is_covered(recall_position).unwrap() {
@@ -77,6 +76,7 @@ impl<'a> Miner<'a> {
             return None;
         }
 
+        inc_counter(&LOADING_COUNT);
         let MineLoadChunk {
             loaded_chunk,
             avalibilities,
@@ -95,6 +95,7 @@ impl<'a> Miner<'a> {
             .zip(avalibilities.into_iter())
             .filter_map(|(data, avaliable)| avaliable.then_some(data))
         {
+            inc_counter(&PAD_MIX_COUNT);
             // Rust can optimize this loop well.
             for (x, y) in sealed_data.iter_mut().zip(scratch_pad.iter()) {
                 *x ^= y;
@@ -111,6 +112,7 @@ impl<'a> Miner<'a> {
                     U256::MAX / self.target_quality,
                     quality_scale
                 );
+                inc_counter(&HIT_COUNT);
                 // Undo mix data when find a valid solition
                 for (x, y) in sealed_data.iter_mut().zip(scratch_pad.iter()) {
                     *x ^= y;
