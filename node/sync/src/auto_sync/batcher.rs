@@ -121,7 +121,10 @@ impl Batcher {
 
             // file sync failed
             Some(SyncState::Failed { reason }) => {
-                debug!(?reason, "Failed to sync file and terminate the failed file sync");
+                debug!(
+                    ?reason,
+                    "Failed to sync file and terminate the failed file sync"
+                );
                 self.terminate_file_sync(tx_seq, false).await;
                 Ok(Some(SyncResult::Failed))
             }

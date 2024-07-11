@@ -251,8 +251,6 @@ impl SerialBatcher {
             self.next_tx_seq_in_db += 1;
         }
 
-
-
         if self.next_tx_seq_in_db > origin {
             info!(%origin, %self.next_tx_seq_in_db, "Move forward in db");
         }
