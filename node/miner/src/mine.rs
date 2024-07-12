@@ -6,15 +6,16 @@ use task_executor::TaskExecutor;
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration, Instant};
 
+use storage::config::ShardConfig;
 use zgs_spec::{SECTORS_PER_LOAD, SECTORS_PER_MAX_MINING_RANGE, SECTORS_PER_PRICING};
 
+use super::metrics;
 use crate::recall_range::RecallRange;
 use crate::{
     pora::{AnswerWithoutProof, Miner},
     watcher::MineContextMessage,
     MinerConfig, MinerMessage, PoraLoader,
 };
-use storage::config::ShardConfig;
 
 use std::sync::Arc;
 
@@ -122,7 +123,6 @@ impl PoraService {
         let cpu_percent: u64 = self.cpu_percentage;
         let diastole = sleep(Duration::from_secs(0));
         tokio::pin!(diastole);
-        // info!("CPU percent {}", cpu_percent);
 
         loop {
             tokio::select! {
@@ -157,19 +157,21 @@ impl PoraService {
                 }
 
                 maybe_msg = self.mine_context_receiver.recv() => {
-                    trace!("PoraService receives context={:?}", maybe_msg);
                     if let Some(msg) = maybe_msg {
-                        debug!("Update mine service: {:?}", msg);
+                        info!("Update mine service: {:?}", msg);
+                        info!("Mine iterations statistics: {}", metrics::report());
                         self.puzzle = msg.map(|(context, target_quality)| PoraPuzzle {
                             context, target_quality
                         });
+                    } else {
+                        warn!("Mine context channel closed.");
                     }
                 }
 
                 () = &mut diastole, if !diastole.is_elapsed() => {
                 }
 
-                _ = async {}, if mining_enabled && cpu_percent > 0 && self.as_miner().is_some() && diastole.is_elapsed()  => {
+                _ = async {}, if mining_enabled && cpu_percent > 0 && self.as_miner().map_or(false, |miner| miner.range.mining_length > 0) && diastole.is_elapsed() => {
                     let nonce = H256(rand::thread_rng().gen());
                     let miner = self.as_miner().unwrap();
 

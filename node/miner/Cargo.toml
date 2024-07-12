@@ -10,6 +10,7 @@ zgs_spec = { path = "../../common/spec" }
 zgs_seal = { path = "../../common/zgs_seal" }
 task_executor = { path = "../../common/task_executor" }
 contract-interface = { path = "../../common/contract-interface" }
+lighthouse_metrics = { path = "../../common/lighthouse_metrics" }
 ethereum-types = "0.14"
 tokio = { version = "1.19.2", features = ["full"] }
 tracing = "0.1.35"

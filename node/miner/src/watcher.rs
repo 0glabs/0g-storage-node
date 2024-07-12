@@ -106,13 +106,13 @@ impl MineContextWatcher {
 
     async fn query_recent_context(&mut self) -> Result<(), String> {
         let context_call = self.flow_contract.make_context_with_result();
-        let epoch_call = self.mine_contract.last_mined_epoch();
-        let quality_call = self.mine_contract.target_quality();
+        let valid_call = self.mine_contract.can_submit();
+        let quality_call = self.mine_contract.pora_target();
 
-        let (context, epoch, quality) =
-            try_join!(context_call.call(), epoch_call.call(), quality_call.call())
+        let (context, can_submit, quality) =
+            try_join!(context_call.call(), valid_call.call(), quality_call.call())
                 .map_err(|e| format!("Failed to query mining context: {:?}", e))?;
-        let report = if context.epoch > epoch && context.digest != EMPTY_HASH.0 {
+        let report = if can_submit && context.digest != EMPTY_HASH.0 {
             Some((context, quality))
         } else {
             None

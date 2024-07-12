@@ -45,8 +45,8 @@ class MineTest(TestFramework):
         self.log.info("flow address: %s", self.contract.address())
         self.log.info("mine address: %s", self.mine_contract.address())
 
-        quality = int(2**256 / 5 / estimate_st_performance())
-        self.mine_contract.set_quality(quality)
+        difficulty = int(2**256 / 5 / estimate_st_performance())
+        self.mine_contract.set_quality(difficulty)
 
         SECTORS_PER_PRICING = int(8 * ( 2 ** 30 ) / 256)
 
@@ -67,10 +67,10 @@ class MineTest(TestFramework):
         self.contract.update_context()
 
         self.log.info("Wait for mine answer")
-        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 1, timeout=120)
+        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 1 and not self.mine_contract.can_submit(), timeout=120)
 
         rewards = self.reward_contract.reward_distributes()
-        assert_equal(len(self.reward_contract.reward_distributes()), start_epoch + 1)
+        assert_equal(len(rewards), 2)
         firstReward = rewards[0].args.amount
         self.log.info("Received reward %d Gwei", firstReward / (10**9))
 
@@ -87,10 +87,12 @@ class MineTest(TestFramework):
         self.contract.update_context()
 
         self.log.info("Wait for mine answer")
-        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 2)
+        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 2 and not self.mine_contract.can_submit())
+        assert_equal(self.contract.epoch(), start_epoch + 2)
+
         rewards = self.reward_contract.reward_distributes()
-        assert_equal(len(self.reward_contract.reward_distributes()), start_epoch + 2)
-        secondReward = rewards[1].args.amount
+        assert_equal(len(rewards), 4)
+        secondReward = rewards[2].args.amount
         self.log.info("Received reward %d Gwei", secondReward / (10**9))
 
         assert_greater_than(secondReward, 100 * firstReward / (start_epoch + 1))
