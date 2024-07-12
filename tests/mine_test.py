@@ -35,7 +35,7 @@ class MineTest(TestFramework):
         self.log.info("flow address: %s", self.contract.address())
         self.log.info("mine address: %s", self.mine_contract.address())
 
-        quality = int(2**256 / 400 / estimate_st_performance())
+        quality = int(2**256 / 100 / estimate_st_performance())
         self.mine_contract.set_quality(quality)
 
         self.log.info("Submit the first data chunk")
