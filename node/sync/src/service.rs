@@ -17,6 +17,7 @@ use network::{
     PeerRequestId, SyncId as RequestId,
 };
 use shared_types::{bytes_to_chunks, ChunkArrayWithProof, TxID};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
@@ -169,20 +170,30 @@ impl SyncService {
         let file_announcement_send = if config.auto_sync_enabled {
             let (send, recv) = unbounded_channel();
             let sync_store = Arc::new(SyncStore::new(store.clone()));
+            let catched_up = Arc::new(AtomicBool::new(false));
 
             // sync in sequence
             let serial_batcher =
                 SerialBatcher::new(config, store.clone(), sync_send.clone(), sync_store.clone())
                     .await?;
             executor.spawn(
-                serial_batcher.start(recv, event_recv, catch_up_end_recv),
+                serial_batcher.start(recv, event_recv, catched_up.clone()),
                 "auto_sync_serial",
             );
 
             // sync randomly
             let random_batcher =
                 RandomBatcher::new(config, store.clone(), sync_send.clone(), sync_store);
-            executor.spawn(random_batcher.start(), "auto_sync_random");
+            executor.spawn(random_batcher.start(catched_up.clone()), "auto_sync_random");
+
+            // handle on catched up notification
+            executor.spawn(
+                async move {
+                    catch_up_end_recv.await.expect("Catch up sender dropped");
+                    catched_up.store(true, Ordering::Relaxed);
+                },
+                "auto_sync_wait_for_catchup",
+            );
 
             Some(send)
         } else {

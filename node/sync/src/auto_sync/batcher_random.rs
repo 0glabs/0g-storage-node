@@ -4,7 +4,10 @@ use crate::{
     Config, SyncSender,
 };
 use anyhow::Result;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use storage_async::Store;
 use tokio::time::sleep;
 
@@ -27,10 +30,17 @@ impl RandomBatcher {
         }
     }
 
-    pub async fn start(mut self) {
+    pub async fn start(mut self, catched_up: Arc<AtomicBool>) {
         info!("Start to sync files");
 
         loop {
+            // disable file sync until catched up
+            if !catched_up.load(Ordering::Relaxed) {
+                trace!("Cannot sync file in catch-up phase");
+                sleep(INTERVAL_IDLE).await;
+                continue;
+            }
+
             match self.sync_once().await {
                 Ok(true) => {}
                 Ok(false) => {

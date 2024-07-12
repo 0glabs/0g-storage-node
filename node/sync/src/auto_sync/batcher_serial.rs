@@ -8,9 +8,15 @@ use crate::{
 };
 use anyhow::Result;
 use log_entry_sync::LogSyncEvent;
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 use storage_async::Store;
-use tokio::sync::oneshot;
 use tokio::{
     sync::{broadcast::Receiver, mpsc::UnboundedReceiver},
     time::sleep,
@@ -84,11 +90,9 @@ impl SerialBatcher {
         mut self,
         mut file_announcement_recv: UnboundedReceiver<u64>,
         mut log_sync_recv: Receiver<LogSyncEvent>,
-        catch_up_end_recv: oneshot::Receiver<()>,
+        catched_up: Arc<AtomicBool>,
     ) {
         info!(?self, "Start to sync files");
-
-        catch_up_end_recv.await.expect("log sync sender dropped");
 
         loop {
             // handle all pending file announcements
@@ -101,6 +105,13 @@ impl SerialBatcher {
 
             // handle all reorg events
             if self.handle_reorg(&mut log_sync_recv).await {
+                continue;
+            }
+
+            // disable file sync until catched up
+            if !catched_up.load(Ordering::Relaxed) {
+                trace!("Cannot sync file in catch-up phase");
+                sleep(INTERVAL_IDLE).await;
                 continue;
             }
 
