@@ -245,7 +245,7 @@ impl LogStoreWrite for LogManager {
     fn put_tx(&self, tx: Transaction) -> Result<()> {
         let mut merkle = self.merkle.write();
         debug!("put_tx: tx={:?}", tx);
-        let expected_seq = self.next_tx_seq();
+        let expected_seq = self.tx_store.next_tx_seq();
         if tx.seq != expected_seq {
             if tx.seq + 1 == expected_seq && !self.check_tx_completed(tx.seq)? {
                 // special case for rerun the last tx during recovery.
@@ -474,7 +474,8 @@ impl LogStoreRead for LogManager {
         let single_chunk_array = try_option!(self.get_chunks_with_proof_by_tx_and_index_range(
             tx_seq,
             index,
-            index + 1
+            index + 1,
+            None
         )?);
         Ok(Some(ChunkWithProof {
             chunk: Chunk(single_chunk_array.chunks.data.as_slice().try_into()?),
@@ -487,12 +488,15 @@ impl LogStoreRead for LogManager {
         tx_seq: u64,
         index_start: usize,
         index_end: usize,
+        merkle_tx_seq: Option<u64>,
     ) -> crate::error::Result<Option<ChunkArrayWithProof>> {
         let tx = try_option!(self.tx_store.get_tx_by_seq_number(tx_seq)?);
         let chunks =
             try_option!(self.get_chunks_by_tx_and_index_range(tx_seq, index_start, index_end)?);
-        let left_proof = self.gen_proof(tx.start_entry_index + index_start as u64, None)?;
-        let right_proof = self.gen_proof(tx.start_entry_index + index_end as u64 - 1, None)?;
+        let left_proof =
+            self.gen_proof_at_version(tx.start_entry_index + index_start as u64, merkle_tx_seq)?;
+        let right_proof =
+            self.gen_proof_at_version(tx.start_entry_index + index_end as u64 - 1, merkle_tx_seq)?;
         Ok(Some(ChunkArrayWithProof {
             chunks,
             proof: FlowRangeProof {
@@ -709,13 +713,28 @@ impl LogManager {
     }
 
     fn gen_proof(&self, flow_index: u64, maybe_root: Option<DataRoot>) -> Result<FlowProof> {
+        match maybe_root {
+            None => self.gen_proof_at_version(flow_index, None),
+            Some(root) => {
+                let merkle = self.merkle.read_recursive();
+                let tx_seq = merkle.pora_chunks_merkle.tx_seq_at_root(&root)?;
+                self.gen_proof_at_version(flow_index, Some(tx_seq))
+            }
+        }
+    }
+
+    fn gen_proof_at_version(
+        &self,
+        flow_index: u64,
+        maybe_tx_seq: Option<u64>,
+    ) -> Result<FlowProof> {
         let merkle = self.merkle.read_recursive();
         let chunk_index = flow_index / PORA_CHUNK_SIZE as u64;
-        let top_proof = match maybe_root {
+        let top_proof = match maybe_tx_seq {
             None => merkle.pora_chunks_merkle.gen_proof(chunk_index as usize)?,
-            Some(root) => merkle
+            Some(tx_seq) => merkle
                 .pora_chunks_merkle
-                .at_root_version(&root)?
+                .at_version(tx_seq)?
                 .gen_proof(chunk_index as usize)?,
         };
 
@@ -732,13 +751,13 @@ impl LogManager {
             self.flow_store
                 .gen_proof_in_batch(chunk_index as usize, flow_index as usize % PORA_CHUNK_SIZE)?
         } else {
-            match maybe_root {
+            match maybe_tx_seq {
                 None => merkle
                     .last_chunk_merkle
                     .gen_proof(flow_index as usize % PORA_CHUNK_SIZE)?,
-                Some(root) => merkle
+                Some(tx_version) => merkle
                     .last_chunk_merkle
-                    .at_root_version(&root)?
+                    .at_version(tx_version)?
                     .gen_proof(flow_index as usize % PORA_CHUNK_SIZE)?,
             }
         };
@@ -922,6 +941,9 @@ impl LogManager {
                     .last_chunk_merkle
                     .fill_leaf(chunk_start_index + local_index, Sha3Algorithm::leaf(entry));
             }
+            merkle
+                .pora_chunks_merkle
+                .update_last(*merkle.last_chunk_merkle.root());
         }
         let chunk_roots = self.flow_store.append_entries(flow_entry_array)?;
         for (chunk_index, chunk_root) in chunk_roots {

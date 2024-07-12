@@ -1,5 +1,5 @@
 use crate::sha3::Sha3Algorithm;
-use crate::Proof;
+use crate::{Proof, RangeProof};
 use anyhow::{bail, Result};
 use ethereum_types::H256;
 use once_cell::sync::Lazy;
@@ -113,6 +113,23 @@ pub trait MerkleTreeRead {
             );
         }
         Ok(Proof::new(lemma, path))
+    }
+
+    fn gen_range_proof(&self, start_index: usize, end_index: usize) -> Result<RangeProof<Self::E>> {
+        if end_index <= start_index {
+            bail!(
+                "invalid proof range: start={} end={}",
+                start_index,
+                end_index
+            );
+        }
+        // TODO(zz): Optimize range proof.
+        let left_proof = self.gen_proof(start_index)?;
+        let right_proof = self.gen_proof(end_index - 1)?;
+        Ok(RangeProof {
+            left_proof,
+            right_proof,
+        })
     }
 }
 

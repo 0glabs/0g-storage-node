@@ -4,7 +4,7 @@ mod sha3;
 
 use anyhow::{anyhow, bail, Result};
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::{trace, warn};
@@ -20,7 +20,7 @@ pub struct AppendMerkleTree<E: HashElement, A: Algorithm<E>> {
     layers: Vec<Vec<E>>,
     /// Keep the delta nodes that can be used to construct a history tree.
     /// The key is the root node of that version.
-    delta_nodes_map: HashMap<u64, DeltaNodes<E>>,
+    delta_nodes_map: BTreeMap<u64, DeltaNodes<E>>,
     root_to_tx_seq_map: HashMap<E, u64>,
 
     /// For `last_chunk_merkle` after the first chunk, this is set to `Some(10)` so that
@@ -36,7 +36,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     pub fn new(leaves: Vec<E>, leaf_height: usize, start_tx_seq: Option<u64>) -> Self {
         let mut merkle = Self {
             layers: vec![leaves],
-            delta_nodes_map: HashMap::new(),
+            delta_nodes_map: BTreeMap::new(),
             root_to_tx_seq_map: HashMap::new(),
             min_depth: None,
             leaf_height,
@@ -68,7 +68,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     ) -> Result<Self> {
         let mut merkle = Self {
             layers: vec![vec![]],
-            delta_nodes_map: HashMap::new(),
+            delta_nodes_map: BTreeMap::new(),
             root_to_tx_seq_map: HashMap::new(),
             min_depth: None,
             leaf_height,
@@ -103,7 +103,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // Create an empty merkle tree with `depth`.
             let mut merkle = Self {
                 layers: vec![vec![]; depth],
-                delta_nodes_map: HashMap::new(),
+                delta_nodes_map: BTreeMap::new(),
                 root_to_tx_seq_map: HashMap::new(),
                 min_depth: Some(depth),
                 leaf_height: 0,
@@ -123,7 +123,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             layers[0] = leaves;
             let mut merkle = Self {
                 layers,
-                delta_nodes_map: HashMap::new(),
+                delta_nodes_map: BTreeMap::new(),
                 root_to_tx_seq_map: HashMap::new(),
                 min_depth: Some(depth),
                 leaf_height: 0,
@@ -286,23 +286,6 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             }
         }
         Ok(updated_nodes)
-    }
-
-    pub fn gen_range_proof(&self, start_index: usize, end_index: usize) -> Result<RangeProof<E>> {
-        if end_index <= start_index {
-            bail!(
-                "invalid proof range: start={} end={}",
-                start_index,
-                end_index
-            );
-        }
-        // TODO(zz): Optimize range proof.
-        let left_proof = self.gen_proof(start_index)?;
-        let right_proof = self.gen_proof(end_index - 1)?;
-        Ok(RangeProof {
-            left_proof,
-            right_proof,
-        })
     }
 
     pub fn check_root(&self, root: &E) -> bool {
@@ -531,14 +514,17 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         Ok(())
     }
 
-    pub fn at_root_version(&self, root_hash: &E) -> Result<HistoryTree<E>> {
-        let tx_seq = self
-            .root_to_tx_seq_map
+    pub fn tx_seq_at_root(&self, root_hash: &E) -> Result<u64> {
+        self.root_to_tx_seq_map
             .get(root_hash)
-            .ok_or_else(|| anyhow!("old root unavailable, root={:?}", root_hash))?;
+            .cloned()
+            .ok_or_else(|| anyhow!("old root unavailable, root={:?}", root_hash))
+    }
+
+    pub fn at_version(&self, tx_seq: u64) -> Result<HistoryTree<E>> {
         let delta_nodes = self
             .delta_nodes_map
-            .get(tx_seq)
+            .get(&tx_seq)
             .ok_or_else(|| anyhow!("tx_seq unavailable, tx_seq={:?}", tx_seq))?;
         if delta_nodes.height() == 0 {
             bail!("empty tree");
@@ -654,8 +640,8 @@ impl<'a, E: HashElement> MerkleTreeRead for HistoryTree<'a, E> {
     type E = E;
     fn node(&self, layer: usize, index: usize) -> &Self::E {
         match self.delta_nodes.get(layer, index).expect("range checked") {
-            Some(node) => node,
-            None => &self.layers[layer][index],
+            Some(node) if *node != E::null() => node,
+            _ => &self.layers[layer][index],
         }
     }
 
@@ -746,11 +732,41 @@ mod tests {
                     new_data.push(H256::random());
                 }
                 merkle.append_list(new_data);
-                merkle.commit(Some(i as u64 / 6 + 1));
+                let seq = i as u64 / 6 + 1;
+                merkle.commit(Some(seq));
                 let r = range_proof.validate::<Sha3Algorithm>(&data[i..end], i + 1);
                 assert!(r.is_ok(), "{:?}", r);
                 merkle.fill_with_range_proof(range_proof).unwrap();
             }
+        }
+    }
+
+    #[test]
+    fn test_proof_at_version() {
+        let n = [2, 255, 256, 257];
+        let mut merkle = AppendMerkleTree::<H256, Sha3Algorithm>::new(vec![H256::zero()], 0, None);
+        let mut start_pos = 0;
+
+        for (tx_seq, &entry_len) in n.iter().enumerate() {
+            let mut data = Vec::new();
+            for _ in 0..entry_len {
+                data.push(H256::random());
+            }
+            merkle.append_list(data.clone());
+            merkle.commit(Some(tx_seq as u64));
+            for i in (0..data.len()).step_by(6) {
+                let end = std::cmp::min(start_pos + i + 3, data.len());
+                let range_proof = merkle
+                    .at_version(tx_seq as u64)
+                    .unwrap()
+                    .gen_range_proof(start_pos + i + 1, start_pos + end + 1)
+                    .unwrap();
+                let r = range_proof.validate::<Sha3Algorithm>(&data[i..end], start_pos + i + 1);
+                assert!(r.is_ok(), "{:?}", r);
+                merkle.fill_with_range_proof(range_proof).unwrap();
+            }
+
+            start_pos += entry_len;
         }
     }
 

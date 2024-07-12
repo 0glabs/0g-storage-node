@@ -184,6 +184,7 @@ pub struct GetChunksRequest {
     pub tx_id: TxID,
     pub index_start: u64,
     pub index_end: u64,
+    pub merkle_tx_seq: u64,
 }
 
 /* RPC Handling and Grouping */

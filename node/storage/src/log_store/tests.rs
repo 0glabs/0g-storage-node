@@ -92,7 +92,7 @@ fn test_put_get() {
     for i in (0..chunk_count).step_by(PORA_CHUNK_SIZE / 3) {
         let end = std::cmp::min(i + PORA_CHUNK_SIZE, chunk_count);
         let chunk_array_with_proof = store
-            .get_chunks_with_proof_by_tx_and_index_range(tx.seq, i, end)
+            .get_chunks_with_proof_by_tx_and_index_range(tx.seq, i, end, None)
             .unwrap()
             .unwrap();
         assert_eq!(
