@@ -13,7 +13,7 @@ class MineTest(TestFramework):
         self.zgs_node_configs[0] = {
             "miner_key": GENESIS_PRIV_KEY,
         }
-        self.mine_period = int(20 / self.block_time)
+        self.mine_period = int(40 / self.block_time)
         self.launch_wait_seconds = 15
         self.log.info("Contract Info: Est. block time %.2f, Mine period %d", self.block_time, self.mine_period)
 
