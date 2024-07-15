@@ -34,5 +34,5 @@ pub trait Rpc {
     async fn get_network_info(&self) -> RpcResult<NetworkInfo>;
 
     #[method(name = "dumpPeers")]
-    async fn dump_peers(&self) -> RpcResult<usize>;
+    async fn dump_peers(&self, file: Option<String>) -> RpcResult<usize>;
 }

@@ -149,7 +149,7 @@ impl RpcServer for RpcServerImpl {
         })
     }
 
-    async fn dump_peers(&self) -> RpcResult<usize> {
+    async fn dump_peers(&self, file: Option<String>) -> RpcResult<usize> {
         info!("admin_dumpPeers()");
 
         let db = self.ctx.network_globals.peers.read();
@@ -159,7 +159,7 @@ impl RpcServer for RpcServerImpl {
             .map(|(peer_id, info)| (peer_id.to_base58(), info.clone()))
             .collect();
 
-        let file = File::create("peers.json")?;
+        let file = File::create(file.unwrap_or("peers.json".into()))?;
         serde_json::to_writer_pretty(&file, &peers)?;
 
         Ok(peers.len())
