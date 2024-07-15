@@ -12,6 +12,7 @@ futures = "0.3.21"
 jsonrpsee = { version = "0.14.0", features = ["full"] }
 network = { path = "../network" }
 serde = { version = "1.0.137", features = ["derive"] }
+serde_json = "1.0.82"
 base64 = "0.13.0"
 shared_types = { path = "../shared_types" }
 sync = { path = "../sync" }
@@ -24,6 +25,3 @@ storage-async = { path = "../storage-async" }
 merkle_light = { path = "../../common/merkle_light" }
 merkle_tree = { path = "../../common/merkle_tree"}
 futures-channel = "^0.3"
-
-[dev-dependencies]
-serde_json = "1.0.82"

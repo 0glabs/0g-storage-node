@@ -32,4 +32,7 @@ pub trait Rpc {
 
     #[method(name = "getNetworkInfo")]
     async fn get_network_info(&self) -> RpcResult<NetworkInfo>;
+
+    #[method(name = "dumpPeers")]
+    async fn dump_peers(&self) -> RpcResult<usize>;
 }

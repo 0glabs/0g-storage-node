@@ -4,7 +4,9 @@ use crate::{error, Context};
 use futures::prelude::*;
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
+use network::PeerInfo;
 use std::collections::HashMap;
+use std::fs::File;
 use sync::{FileSyncInfo, SyncRequest, SyncResponse};
 use task_executor::ShutdownReason;
 
@@ -145,5 +147,21 @@ impl RpcServer for RpcServerImpl {
             connected_outgoing_peers,
             connected_incoming_peers: connected_peers - connected_outgoing_peers,
         })
+    }
+
+    async fn dump_peers(&self) -> RpcResult<usize> {
+        info!("admin_dumpPeers()");
+
+        let db = self.ctx.network_globals.peers.read();
+
+        let peers: HashMap<String, PeerInfo> = db
+            .peers()
+            .map(|(peer_id, info)| (peer_id.to_base58(), info.clone()))
+            .collect();
+
+        let file = File::create("peers.json")?;
+        serde_json::to_writer_pretty(&file, &peers)?;
+
+        Ok(peers.len())
     }
 }
