@@ -265,12 +265,17 @@ impl MemoryChunkPool {
                 Ok(LogSyncEvent::ReorgDetected { .. }) => {}
                 Ok(LogSyncEvent::Reverted { .. }) => {}
                 Ok(LogSyncEvent::TxSynced { tx }) => {
-                    if let Err(e) = chunk_pool.update_file_info(&tx).await {
-                        error!(
-                            "Failed to update file info. tx seq={}, tx_root={}, error={}",
-                            tx.seq, tx.data_merkle_root, e
-                        );
-                    }
+                    // This may take a while, so execute it asynchronously to ensure the
+                    // channel will not be saturated.
+                    let chunk_pool_cloned = chunk_pool.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = chunk_pool_cloned.update_file_info(&tx).await {
+                            error!(
+                                "Failed to update file info. tx seq={}, tx_root={}, error={}",
+                                tx.seq, tx.data_merkle_root, e
+                            );
+                        }
+                    });
                 }
                 Err(RecvError::Closed) => {
                     // program terminated
