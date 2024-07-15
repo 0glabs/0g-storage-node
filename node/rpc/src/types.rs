@@ -4,6 +4,7 @@ use jsonrpsee::core::RpcResult;
 use merkle_light::hash::Algorithm;
 use merkle_light::merkle::{log2_pow2, next_pow2, MerkleTree};
 use merkle_tree::RawLeafSha3Algorithm;
+use network::Multiaddr;
 use serde::{Deserialize, Serialize};
 use shared_types::{
     compute_padded_chunk_size, compute_segment_size, DataRoot, FileProof, Transaction, CHUNK_SIZE,
@@ -29,6 +30,7 @@ pub struct Status {
 #[serde(rename_all = "camelCase")]
 pub struct NetworkInfo {
     pub peer_id: String,
+    pub listen_addresses: Vec<Multiaddr>,
     pub total_peers: usize,
     pub banned_peers: usize,
     pub disconnected_peers: usize,

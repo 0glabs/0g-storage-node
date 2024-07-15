@@ -140,6 +140,7 @@ impl RpcServer for RpcServerImpl {
 
         Ok(NetworkInfo {
             peer_id: self.ctx.network_globals.local_peer_id().to_base58(),
+            listen_addresses: self.ctx.network_globals.listen_multiaddrs(),
             total_peers: db.peers().count(),
             banned_peers: db.banned_peers().count(),
             disconnected_peers: db.disconnected_peers().count(),
