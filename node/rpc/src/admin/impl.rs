@@ -150,6 +150,7 @@ impl RpcServer for RpcServerImpl {
         })
     }
 
+    #[tracing::instrument(skip(self), err)]
     async fn dump_peers(&self, file: Option<String>) -> RpcResult<usize> {
         info!("admin_dumpPeers()");
 
