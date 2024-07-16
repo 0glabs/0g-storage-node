@@ -9,7 +9,10 @@ use serde::{Deserialize, Serialize};
 use shared_types::{
     compute_padded_chunk_size, compute_segment_size, DataRoot, FileProof, Transaction, CHUNK_SIZE,
 };
+use std::collections::HashSet;
 use std::hash::Hasher;
+use std::net::IpAddr;
+use std::time::Instant;
 use storage::log_store::log_manager::bytes_to_entries;
 use storage::H256;
 
@@ -252,6 +255,98 @@ impl SegmentWithProof {
     #[allow(dead_code)]
     pub fn chunk_index(&self, chunks_per_segment: usize) -> usize {
         self.index * chunks_per_segment
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerInfo {
+    pub client: Client,
+    pub connection_status: PeerConnectionStatus,
+    pub listening_addresses: Vec<Multiaddr>,
+    pub seen_ips: HashSet<IpAddr>,
+    pub is_trusted: bool,
+    pub connection_direction: Option<String>, // Incoming/Outgoing
+    pub enr: Option<String>,
+}
+
+impl From<&network::PeerInfo> for PeerInfo {
+    fn from(value: &network::PeerInfo) -> Self {
+        Self {
+            client: value.client().clone().into(),
+            connection_status: value.connection_status().clone().into(),
+            listening_addresses: value.listening_addresses().clone(),
+            seen_ips: value.seen_ip_addresses().collect(),
+            is_trusted: value.is_trusted(),
+            connection_direction: value.connection_direction().map(|x| match x {
+                network::ConnectionDirection::Incoming => "Incoming".into(),
+                network::ConnectionDirection::Outgoing => "Outgoing".into(),
+            }),
+            enr: value.enr().map(|x| x.to_base64()),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Client {
+    pub version: String,
+    pub os: String,
+    pub protocol: String,
+    pub agent: Option<String>,
+}
+
+impl From<network::Client> for Client {
+    fn from(value: network::Client) -> Self {
+        Self {
+            version: value.version,
+            os: value.os_version,
+            protocol: value.protocol_version,
+            agent: value.agent_string,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerConnectionStatus {
+    pub status: String,
+    pub connections_in: u8,
+    pub connections_out: u8,
+    pub last_seen_secs: u64,
+}
+
+impl PeerConnectionStatus {
+    fn new(status: &str, n_in: u8, n_out: u8, last_seen: Option<Instant>) -> Self {
+        Self {
+            status: status.into(),
+            connections_in: n_in,
+            connections_out: n_out,
+            last_seen_secs: last_seen.map_or(0, |x| x.elapsed().as_secs()),
+        }
+    }
+}
+
+impl From<network::PeerConnectionStatus> for PeerConnectionStatus {
+    fn from(value: network::PeerConnectionStatus) -> Self {
+        match value {
+            network::PeerConnectionStatus::Connected { n_in, n_out } => {
+                Self::new("connected", n_in, n_out, None)
+            }
+            network::PeerConnectionStatus::Disconnecting { .. } => {
+                Self::new("disconnecting", 0, 0, None)
+            }
+            network::PeerConnectionStatus::Disconnected { since } => {
+                Self::new("disconnected", 0, 0, Some(since))
+            }
+            network::PeerConnectionStatus::Banned { since } => {
+                Self::new("banned", 0, 0, Some(since))
+            }
+            network::PeerConnectionStatus::Dialing { since } => {
+                Self::new("dialing", 0, 0, Some(since))
+            }
+            network::PeerConnectionStatus::Unknown => Self::new("unknown", 0, 0, None),
+        }
     }
 }
 

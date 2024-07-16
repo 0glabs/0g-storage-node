@@ -1,12 +1,10 @@
 use super::api::RpcServer;
-use crate::types::NetworkInfo;
+use crate::types::{NetworkInfo, PeerInfo};
 use crate::{error, Context};
 use futures::prelude::*;
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
-use network::PeerInfo;
 use std::collections::HashMap;
-use std::fs::File;
 use sync::{FileSyncInfo, SyncRequest, SyncResponse};
 use task_executor::ShutdownReason;
 
@@ -150,20 +148,16 @@ impl RpcServer for RpcServerImpl {
         })
     }
 
-    #[tracing::instrument(skip(self), err)]
-    async fn dump_peers(&self, file: Option<String>) -> RpcResult<usize> {
-        info!("admin_dumpPeers()");
+    async fn get_peers(&self) -> RpcResult<HashMap<String, PeerInfo>> {
+        info!("admin_getPeers()");
 
-        let db = self.ctx.network_globals.peers.read();
-
-        let peers: HashMap<String, PeerInfo> = db
+        Ok(self
+            .ctx
+            .network_globals
+            .peers
+            .read()
             .peers()
-            .map(|(peer_id, info)| (peer_id.to_base58(), info.clone()))
-            .collect();
-
-        let file = File::create(file.unwrap_or("peers.json".into()))?;
-        serde_json::to_writer_pretty(&file, &peers)?;
-
-        Ok(peers.len())
+            .map(|(peer_id, info)| (peer_id.to_base58(), info.into()))
+            .collect())
     }
 }

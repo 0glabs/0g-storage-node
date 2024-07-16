@@ -1,4 +1,4 @@
-use crate::types::NetworkInfo;
+use crate::types::{NetworkInfo, PeerInfo};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use std::collections::HashMap;
@@ -33,6 +33,6 @@ pub trait Rpc {
     #[method(name = "getNetworkInfo")]
     async fn get_network_info(&self) -> RpcResult<NetworkInfo>;
 
-    #[method(name = "dumpPeers")]
-    async fn dump_peers(&self, file: Option<String>) -> RpcResult<usize>;
+    #[method(name = "getPeers")]
+    async fn get_peers(&self) -> RpcResult<HashMap<String, PeerInfo>>;
 }
