@@ -567,8 +567,8 @@ impl Libp2pEventHandler {
             return MessageAcceptance::Reject;
         }
 
-        // verify announced ip address
-        if !self.verify_announced_address(&msg.peer_id, &addr) {
+        // verify announced ip address if required
+        if !self.config.private_ip_enabled && !self.verify_announced_address(&msg.peer_id, &addr) {
             return MessageAcceptance::Reject;
         }
 
@@ -608,8 +608,8 @@ impl Libp2pEventHandler {
             return MessageAcceptance::Reject;
         }
 
-        // verify announced ip address
-        if !self.verify_announced_address(&msg.peer_id, &addr) {
+        // verify announced ip address if required
+        if !self.config.private_ip_enabled && !self.verify_announced_address(&msg.peer_id, &addr) {
             return MessageAcceptance::Reject;
         }
 
@@ -654,8 +654,8 @@ impl Libp2pEventHandler {
             return MessageAcceptance::Reject;
         }
 
-        // verify announced ip address
-        if !self.verify_announced_address(&msg.peer_id, &addr) {
+        // verify announced ip address if required
+        if !self.config.private_ip_enabled && !self.verify_announced_address(&msg.peer_id, &addr) {
             return MessageAcceptance::Reject;
         }
 
