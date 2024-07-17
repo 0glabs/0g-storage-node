@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::{ops::Neg, sync::Arc};
 
 use chunk_pool::ChunkPoolMessage;
@@ -517,6 +518,39 @@ impl Libp2pEventHandler {
         }
     }
 
+    /// Verify the announced IP address and `libp2p` seen IP address to prevent DDOS attack.
+    fn verify_announced_address(&self, peer_id: &PeerId, addr: &Multiaddr) -> bool {
+        let mut announced_ip = None;
+
+        for c in addr.iter() {
+            match c {
+                Protocol::Ip4(addr) => announced_ip = Some(IpAddr::V4(addr)),
+                Protocol::Ip6(addr) => announced_ip = Some(IpAddr::V6(addr)),
+                _ => {}
+            }
+        }
+
+        let announced_ip = match announced_ip {
+            Some(v) => v,
+            None => return false,
+        };
+
+        let seen_ips: Vec<IpAddr> = match self.network_globals.peers.read().peer_info(peer_id) {
+            Some(v) => v.seen_ip_addresses().collect(),
+            None => {
+                debug!(%announced_ip, "Failed to verify announced IP address, no peer info found");
+                return false;
+            }
+        };
+
+        if seen_ips.iter().any(|x| *x == announced_ip) {
+            true
+        } else {
+            debug!(%announced_ip, ?seen_ips, "Failed to verify announced IP address, mismatch with seen ips");
+            false
+        }
+    }
+
     fn on_announce_file(
         &self,
         propagation_source: PeerId,
@@ -530,6 +564,11 @@ impl Libp2pEventHandler {
         // verify public ip address if required
         let addr = msg.at.clone().into();
         if !self.config.private_ip_enabled && !Self::contains_public_ip(&addr) {
+            return MessageAcceptance::Reject;
+        }
+
+        // verify announced ip address if required
+        if !self.config.private_ip_enabled && !self.verify_announced_address(&msg.peer_id, &addr) {
             return MessageAcceptance::Reject;
         }
 
@@ -566,6 +605,11 @@ impl Libp2pEventHandler {
         // verify public ip address if required
         let addr = msg.at.clone().into();
         if !self.config.private_ip_enabled && !Self::contains_public_ip(&addr) {
+            return MessageAcceptance::Reject;
+        }
+
+        // verify announced ip address if required
+        if !self.config.private_ip_enabled && !self.verify_announced_address(&msg.peer_id, &addr) {
             return MessageAcceptance::Reject;
         }
 
@@ -607,6 +651,11 @@ impl Libp2pEventHandler {
         // verify public ip address if required
         let addr = msg.at.clone().into();
         if !self.config.private_ip_enabled && !Self::contains_public_ip(&addr) {
+            return MessageAcceptance::Reject;
+        }
+
+        // verify announced ip address if required
+        if !self.config.private_ip_enabled && !self.verify_announced_address(&msg.peer_id, &addr) {
             return MessageAcceptance::Reject;
         }
 
