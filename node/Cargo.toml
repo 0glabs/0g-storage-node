@@ -1,6 +1,6 @@
 [package]
 name = "zgs_node"
-version = "0.3.0"
+version = "0.3.4"
 edition = "2021"
 
 [dependencies]
