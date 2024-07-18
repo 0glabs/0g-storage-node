@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
-use std::{cmp::Ordering, collections::BTreeSet, path::PathBuf};
-use tracing::trace;
+use std::{
+    cell::{RefCell},
+    path::PathBuf,
+    rc::Rc,
+};
+
 
 pub const SHARD_CONFIG_KEY: &str = "shard_config";
 
@@ -61,6 +65,12 @@ impl ShardConfig {
         self.shard_id as u64
     }
 
+    pub fn is_valid(&self) -> bool {
+        self.num_shard > 0
+            && self.num_shard.is_power_of_two()
+            && self.shard_id < self.num_shard
+    }
+
     pub fn in_range(&self, segment_index: u64) -> bool {
         segment_index as usize % self.num_shard == self.shard_id
     }
@@ -89,37 +99,93 @@ impl ShardConfig {
     }
 }
 
-pub fn all_shards_available(shard_configs: &Vec<ShardConfig>) -> bool {
-    let mut missing_shards = BTreeSet::new();
-    missing_shards.insert(0);
-    let mut num_shards = 1usize;
-    for shard_config in shard_configs.iter() {
-        match shard_config.num_shard.cmp(&num_shards) {
-            Ordering::Equal => {
-                missing_shards.remove(&shard_config.shard_id);
-            }
-            Ordering::Less => {
-                let multi = num_shards / shard_config.num_shard;
-                for i in 0..multi {
-                    let shard_id = shard_config.shard_id + i * shard_config.num_shard;
-                    missing_shards.remove(&shard_id);
-                }
-            }
-            Ordering::Greater => {
-                let multi = shard_config.num_shard / num_shards;
-                let mut new_missing_shards = BTreeSet::new();
-                for shard_id in &missing_shards {
-                    for i in 0..multi {
-                        new_missing_shards.insert(*shard_id + i * num_shards);
-                    }
-                }
-                new_missing_shards.remove(&shard_config.shard_id);
+struct ShardSegmentTreeNode {
+    pub num_shard: usize,
+    pub covered: bool,
+    pub childs: [Option<Rc<RefCell<ShardSegmentTreeNode>>>; 2],
+}
 
-                missing_shards = new_missing_shards;
-                num_shards = shard_config.num_shard;
+impl ShardSegmentTreeNode {
+    pub fn new(num_shard: usize) -> Self {
+        ShardSegmentTreeNode {
+            num_shard,
+            covered: false,
+            childs: [None, None],
+        }
+    }
+
+    fn push_down(&mut self) {
+        if self.childs[0].is_none() {
+            for i in 0..2 {
+                self.childs[i] = Some(Rc::new(RefCell::new(ShardSegmentTreeNode::new(
+                    self.num_shard << 1,
+                ))));
             }
         }
     }
-    trace!("all_shards_available: {} {:?}", num_shards, missing_shards);
-    missing_shards.is_empty()
+
+    fn update(&mut self) {
+        let mut covered = true;
+        for i in 0..2 {
+            if let Some(child) = &self.childs[i] {
+                covered = covered && child.borrow().covered;
+            }
+        }
+        self.covered = covered;
+    }
+
+    pub fn insert(&mut self, num_shard: usize, shard_id: usize) {
+        if self.covered {
+            return;
+        }
+        if num_shard == self.num_shard {
+            self.covered = true;
+            return;
+        }
+        self.push_down();
+        if let Some(child) = &self.childs[shard_id % 2] {
+            child.borrow_mut().insert(num_shard, shard_id >> 1)
+        }
+        self.update();
+    }
+}
+
+pub fn all_shards_available(shard_configs: Vec<ShardConfig>) -> bool {
+    let mut root = ShardSegmentTreeNode::new(1);
+    for shard_config in shard_configs.iter() {
+        if !shard_config.is_valid() {
+            continue;
+        }
+        root.insert(shard_config.num_shard, shard_config.shard_id);
+        if root.covered {
+            return true;
+        }
+    }
+    false
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::config::all_shards_available;
+
+    use super::ShardConfig;
+
+    #[test]
+    fn test_all_shards_available() {
+        assert!(all_shards_available(vec![
+            ShardConfig{ shard_id: 3, num_shard: 8 },
+            ShardConfig{ shard_id: 7, num_shard: 8 },
+            ShardConfig{ shard_id: 0, num_shard: 4 },
+            ShardConfig{ shard_id: 1, num_shard: 4 },
+            ShardConfig{ shard_id: 0, num_shard: 2 },
+            ShardConfig{ shard_id: 0, num_shard: 1 << 25 },
+        ]));
+        assert!(!all_shards_available(vec![
+            ShardConfig{ shard_id: 0, num_shard: 4 },
+            ShardConfig{ shard_id: 1, num_shard: 4 },
+            ShardConfig{ shard_id: 3, num_shard: 8 },
+            ShardConfig{ shard_id: 0, num_shard: 2 },
+        ]));
+    }
 }

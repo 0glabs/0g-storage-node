@@ -3,8 +3,8 @@ use network::{Multiaddr, PeerAction, PeerId};
 use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
 use shared_types::TxID;
-use std::cmp::Ordering;
-use std::collections::{BTreeSet, HashMap};
+
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -174,7 +174,7 @@ impl SyncPeers {
             .iter()
             .map(|peer_id| self.peers.get(peer_id).unwrap().shard_config)
             .collect();
-        all_shards_available(&shard_configs)
+        all_shards_available(shard_configs)
     }
 
     pub fn transition(&mut self) {

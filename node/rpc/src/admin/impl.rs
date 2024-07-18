@@ -207,7 +207,7 @@ impl RpcServer for RpcServerImpl {
                         .fold(None, |found_ip, protocol| match protocol {
                             Protocol::Ip4(ip) => Some(ip.into()),
                             Protocol::Ip6(ip) => Some(ip.into()),
-                            Protocol::Tcp(port) => found_ip,
+                            Protocol::Tcp(_port) => found_ip,
                             _ => found_ip,
                         });
                 (
@@ -223,7 +223,7 @@ impl RpcServer for RpcServerImpl {
                 shard_config: shard_config.unwrap(),
             })
             .collect();
-        if all_shards_available(&info.iter().map(|info| info.shard_config).collect()) {
+        if all_shards_available(info.iter().map(|info| info.shard_config).collect()) {
             Ok(Some(info))
         } else {
             Ok(None)
