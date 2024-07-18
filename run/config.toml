@@ -241,3 +241,24 @@
 
 # Maximum threads to sync files in sequence.
 # max_sequential_workers = 8
+
+#######################################################################
+###                File Location Cache Options                      ###
+#######################################################################
+
+# [file_location_cache]
+
+# File location cache is a cache that maintains storage positions of files. 
+# Storage location information is represented by the IP address of the storage node and the timestamp indicating when the node declared that it stores the corresponding file.
+# It has both a global capacity limit and a limit on the capacity for location information of each individual file.
+# When the cache is full, the storage position information with oldest timestamp will be replaced.
+
+# Global cache capacity.
+# max_entries_total = 4096
+
+# Location information capacity for each file.
+# max_entries_per_file = 4
+
+# Validity period of location information.
+# If the timestamp in the storage location information exceeds this duration from the current time, it will be removed from the cache.
+# entry_expiration_time_secs = 3600

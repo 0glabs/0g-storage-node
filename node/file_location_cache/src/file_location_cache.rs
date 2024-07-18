@@ -276,6 +276,13 @@ impl Default for FileLocationCache {
 }
 
 impl FileLocationCache {
+    pub fn new(config: Config) -> Self {
+        FileLocationCache {
+            cache: Mutex::new(FileCache::new(config)),
+            peer_cache: Mutex::new(Default::default()),
+        }
+    }
+
     pub fn insert(&self, announcement: SignedAnnounceFile) {
         let peer_id = *announcement.peer_id;
         // FIXME: Check validity.

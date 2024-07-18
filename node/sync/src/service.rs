@@ -11,12 +11,13 @@ use anyhow::{bail, Result};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
-use network::types::AnnounceChunks;
+use network::types::{AnnounceChunks, FindFile};
+use network::PubsubMessage;
 use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, PeerId,
     PeerRequestId, SyncId as RequestId,
 };
-use shared_types::{bytes_to_chunks, ChunkArrayWithProof, TxID};
+use shared_types::{bytes_to_chunks, timestamp_now, ChunkArrayWithProof, TxID};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -91,6 +92,9 @@ pub enum SyncRequest {
     FileSyncInfo {
         tx_seq: Option<u64>,
     },
+    FindFile {
+        tx_seq: u64,
+    },
     TerminateFileSync {
         tx_seq: u64,
         is_reverted: bool,
@@ -102,6 +106,7 @@ pub enum SyncResponse {
     SyncStatus { status: Option<SyncState> },
     SyncFile { err: String },
     FileSyncInfo { result: HashMap<u64, FileSyncInfo> },
+    FindFile { err: String },
     TerminateFileSync { count: usize },
 }
 
@@ -345,6 +350,10 @@ impl SyncService {
                 let count = self.on_terminate_file_sync(tx_seq, is_reverted);
                 let _ = sender.send(SyncResponse::TerminateFileSync { count });
             }
+            SyncRequest::FindFile { tx_seq } => {
+                let result = self.on_find_file_request(tx_seq).await;
+                let _ = sender.send(SyncResponse::FindFile { err: result });
+            }
         }
     }
 
@@ -553,6 +562,30 @@ impl SyncService {
             Ok(()) => "".into(),
             Err(e) => e.to_string(),
         }
+    }
+
+    async fn on_find_file_request(&mut self, tx_seq: u64) -> String {
+        match self.on_find_file(tx_seq).await {
+            Ok(()) => "".into(),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    async fn on_find_file(&mut self, tx_seq: u64) -> Result<()> {
+        // file already exists
+        if self.store.check_tx_completed(tx_seq).await? {
+            return Ok(());
+        }
+        // broadcast find file
+        let tx = match self.store.get_tx_by_seq_number(tx_seq).await? {
+            Some(tx) => tx,
+            None => bail!("Transaction not found"),
+        };
+        self.ctx.publish(PubsubMessage::FindFile(FindFile {
+            tx_id: tx.id(),
+            timestamp: timestamp_now(),
+        }));
+        Ok(())
     }
 
     async fn on_start_sync_file(

@@ -126,8 +126,8 @@ impl ClientBuilder {
         Ok(self)
     }
 
-    pub fn with_file_location_cache(mut self) -> Self {
-        let file_location_cache = Default::default();
+    pub fn with_file_location_cache(mut self, config: file_location_cache::Config) -> Self {
+        let file_location_cache = FileLocationCache::new(config);
         self.file_location_cache = Some(Arc::new(file_location_cache));
         self
     }
@@ -263,6 +263,7 @@ impl ClientBuilder {
         let network_send = require!("rpc", self, network).send.clone();
         let mine_send = self.miner.as_ref().map(|x| x.send.clone());
         let synced_tx_recv = require!("rpc", self, log_sync).send.subscribe();
+        let file_location_cache = require!("rpc", self, file_location_cache).clone();
 
         let (chunk_pool, chunk_pool_handler) =
             chunk_pool::unbounded(chunk_pool_config, async_store.clone(), network_send.clone());
@@ -273,6 +274,7 @@ impl ClientBuilder {
         let chunk_pool_clone = chunk_pool.clone();
         let ctx = rpc::Context {
             config: rpc_config,
+            file_location_cache,
             network_globals: require!("rpc", self, network).globals.clone(),
             network_send,
             sync_send: require!("rpc", self, sync).send.clone(),

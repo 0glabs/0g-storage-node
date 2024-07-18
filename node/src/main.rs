@@ -24,7 +24,7 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
         .with_rocksdb_store(&storage_config)?
         .with_log_sync(log_sync_config)
         .await?
-        .with_file_location_cache()
+        .with_file_location_cache(config.file_location_cache)
         .with_network(&network_config)
         .await?
         .with_sync(config.sync)

@@ -1,8 +1,12 @@
 mod file_location_cache;
 pub mod test_util;
 
+use serde::Deserialize;
+
 pub use crate::file_location_cache::FileLocationCache;
 
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub max_entries_total: usize,
     pub max_entries_per_file: usize,

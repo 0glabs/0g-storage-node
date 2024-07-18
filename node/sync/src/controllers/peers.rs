@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
-use storage::config::ShardConfig;
+use storage::config::{all_shards_available, ShardConfig};
 
 use crate::context::SyncNetworkContext;
 use crate::InstantWrapper;
@@ -169,39 +169,12 @@ impl SyncPeers {
     }
 
     pub fn all_shards_available(&self, state: Vec<PeerState>) -> bool {
-        let mut missing_shards = BTreeSet::new();
-        missing_shards.insert(0);
-        let mut num_shards = 1usize;
-        for peer_id in &self.filter_peers(state) {
-            let shard_config = self.peers.get(peer_id).unwrap().shard_config;
-            match shard_config.num_shard.cmp(&num_shards) {
-                Ordering::Equal => {
-                    missing_shards.remove(&shard_config.shard_id);
-                }
-                Ordering::Less => {
-                    let multi = num_shards / shard_config.num_shard;
-                    for i in 0..multi {
-                        let shard_id = shard_config.shard_id + i * shard_config.num_shard;
-                        missing_shards.remove(&shard_id);
-                    }
-                }
-                Ordering::Greater => {
-                    let multi = shard_config.num_shard / num_shards;
-                    let mut new_missing_shards = BTreeSet::new();
-                    for shard_id in &missing_shards {
-                        for i in 0..multi {
-                            new_missing_shards.insert(*shard_id + i * num_shards);
-                        }
-                    }
-                    new_missing_shards.remove(&shard_config.shard_id);
-
-                    missing_shards = new_missing_shards;
-                    num_shards = shard_config.num_shard;
-                }
-            }
-        }
-        trace!("all_shards_available: {} {:?}", num_shards, missing_shards);
-        missing_shards.is_empty()
+        let shard_configs = self
+            .filter_peers(state)
+            .iter()
+            .map(|peer_id| self.peers.get(peer_id).unwrap().shard_config)
+            .collect();
+        all_shards_available(&shard_configs)
     }
 
     pub fn transition(&mut self) {
