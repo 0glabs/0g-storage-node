@@ -1,11 +1,6 @@
 use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
-use std::{
-    cell::{RefCell},
-    path::PathBuf,
-    rc::Rc,
-};
-
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
 pub const SHARD_CONFIG_KEY: &str = "shard_config";
 
@@ -66,9 +61,7 @@ impl ShardConfig {
     }
 
     pub fn is_valid(&self) -> bool {
-        self.num_shard > 0
-            && self.num_shard.is_power_of_two()
-            && self.shard_id < self.num_shard
+        self.num_shard > 0 && self.num_shard.is_power_of_two() && self.shard_id < self.num_shard
     }
 
     pub fn in_range(&self, segment_index: u64) -> bool {
@@ -144,7 +137,7 @@ impl ShardSegmentTreeNode {
         }
         self.push_down();
         if let Some(child) = &self.childs[shard_id % 2] {
-            child.borrow_mut().insert(num_shard, shard_id >> 1)
+            child.borrow_mut().insert(num_shard, shard_id >> 1);
         }
         self.update();
     }
@@ -164,7 +157,6 @@ pub fn all_shards_available(shard_configs: Vec<ShardConfig>) -> bool {
     false
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::config::all_shards_available;
@@ -174,18 +166,48 @@ mod tests {
     #[test]
     fn test_all_shards_available() {
         assert!(all_shards_available(vec![
-            ShardConfig{ shard_id: 3, num_shard: 8 },
-            ShardConfig{ shard_id: 7, num_shard: 8 },
-            ShardConfig{ shard_id: 0, num_shard: 4 },
-            ShardConfig{ shard_id: 1, num_shard: 4 },
-            ShardConfig{ shard_id: 0, num_shard: 2 },
-            ShardConfig{ shard_id: 0, num_shard: 1 << 25 },
+            ShardConfig {
+                shard_id: 3,
+                num_shard: 8
+            },
+            ShardConfig {
+                shard_id: 7,
+                num_shard: 8
+            },
+            ShardConfig {
+                shard_id: 0,
+                num_shard: 4
+            },
+            ShardConfig {
+                shard_id: 1,
+                num_shard: 4
+            },
+            ShardConfig {
+                shard_id: 0,
+                num_shard: 2
+            },
+            ShardConfig {
+                shard_id: 0,
+                num_shard: 1 << 25
+            },
         ]));
         assert!(!all_shards_available(vec![
-            ShardConfig{ shard_id: 0, num_shard: 4 },
-            ShardConfig{ shard_id: 1, num_shard: 4 },
-            ShardConfig{ shard_id: 3, num_shard: 8 },
-            ShardConfig{ shard_id: 0, num_shard: 2 },
+            ShardConfig {
+                shard_id: 0,
+                num_shard: 4
+            },
+            ShardConfig {
+                shard_id: 1,
+                num_shard: 4
+            },
+            ShardConfig {
+                shard_id: 3,
+                num_shard: 8
+            },
+            ShardConfig {
+                shard_id: 0,
+                num_shard: 2
+            },
         ]));
     }
 }
