@@ -172,7 +172,6 @@ impl RpcServer for RpcServerImpl {
         })
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn get_peers(&self) -> RpcResult<HashMap<String, PeerInfo>> {
         info!("admin_getPeers()");
 
@@ -186,7 +185,6 @@ impl RpcServer for RpcServerImpl {
             .collect())
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn get_file_location(&self, tx_seq: u64) -> RpcResult<Option<Vec<LocationInfo>>> {
         let tx = match self.ctx.log_store.get_tx_by_seq_number(tx_seq).await? {
             Some(tx) => tx,
