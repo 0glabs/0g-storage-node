@@ -92,6 +92,9 @@ pub struct ZgsConfig {
 
     // sync config, configured by [sync] section by `config` crate.
     pub sync: sync::Config,
+
+    // file location cache config, configured by [file_location_cache] section by `config` crate.
+    pub file_location_cache: file_location_cache::Config,
 }
 
 impl Deref for ZgsConfig {

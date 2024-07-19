@@ -1,10 +1,13 @@
 use super::api::RpcServer;
-use crate::types::{NetworkInfo, PeerInfo};
+use crate::types::{LocationInfo, NetworkInfo, PeerInfo};
 use crate::{error, Context};
 use futures::prelude::*;
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
+use network::{multiaddr::Protocol, Multiaddr};
 use std::collections::HashMap;
+use std::net::IpAddr;
+use storage::config::all_shards_available;
 use sync::{FileSyncInfo, SyncRequest, SyncResponse};
 use task_executor::ShutdownReason;
 
@@ -14,6 +17,27 @@ pub struct RpcServerImpl {
 
 #[async_trait]
 impl RpcServer for RpcServerImpl {
+    #[tracing::instrument(skip(self), err)]
+    async fn find_file(&self, tx_seq: u64) -> RpcResult<()> {
+        info!("admin_findFile({tx_seq})");
+
+        let response = self
+            .ctx
+            .request_sync(SyncRequest::FindFile { tx_seq })
+            .await?;
+
+        match response {
+            SyncResponse::FindFile { err } => {
+                if err.is_empty() {
+                    Ok(())
+                } else {
+                    Err(error::internal_error(err))
+                }
+            }
+            _ => Err(error::internal_error("unexpected response type")),
+        }
+    }
+
     #[tracing::instrument(skip(self), err)]
     async fn shutdown(&self) -> RpcResult<()> {
         info!("admin_shutdown()");
@@ -159,5 +183,48 @@ impl RpcServer for RpcServerImpl {
             .peers()
             .map(|(peer_id, info)| (peer_id.to_base58(), info.into()))
             .collect())
+    }
+
+    async fn get_file_location(&self, tx_seq: u64) -> RpcResult<Option<Vec<LocationInfo>>> {
+        let tx = match self.ctx.log_store.get_tx_by_seq_number(tx_seq).await? {
+            Some(tx) => tx,
+            None => {
+                return Err(error::internal_error("tx not found"));
+            }
+        };
+        let info: Vec<LocationInfo> = self
+            .ctx
+            .file_location_cache
+            .get_all(tx.id())
+            .iter()
+            .map(|announcement| {
+                let multiaddr: Multiaddr = announcement.at.clone().into();
+                let found_ip: Option<IpAddr> =
+                    multiaddr
+                        .iter()
+                        .fold(None, |found_ip, protocol| match protocol {
+                            Protocol::Ip4(ip) => Some(ip.into()),
+                            Protocol::Ip6(ip) => Some(ip.into()),
+                            Protocol::Tcp(_port) => found_ip,
+                            _ => found_ip,
+                        });
+                (
+                    found_ip,
+                    self.ctx
+                        .file_location_cache
+                        .get_peer_config(&announcement.peer_id.clone().into()),
+                )
+            })
+            .filter(|(found_ip, shard_config)| shard_config.is_some() && found_ip.is_some())
+            .map(|(found_ip, shard_config)| LocationInfo {
+                ip: found_ip.unwrap(),
+                shard_config: shard_config.unwrap(),
+            })
+            .collect();
+        if all_shards_available(info.iter().map(|info| info.shard_config).collect()) {
+            Ok(Some(info))
+        } else {
+            Ok(None)
+        }
     }
 }

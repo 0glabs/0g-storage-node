@@ -13,6 +13,7 @@ use std::collections::HashSet;
 use std::hash::Hasher;
 use std::net::IpAddr;
 use std::time::Instant;
+use storage::config::ShardConfig;
 use storage::log_store::log_manager::bytes_to_entries;
 use storage::H256;
 
@@ -285,6 +286,13 @@ impl From<&network::PeerInfo> for PeerInfo {
             enr: value.enr().map(|x| x.to_base64()),
         }
     }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocationInfo {
+    pub ip: IpAddr,
+    pub shard_config: ShardConfig,
 }
 
 #[derive(Serialize, Deserialize)]

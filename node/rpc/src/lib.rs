@@ -13,6 +13,7 @@ mod zgs;
 use crate::miner::RpcServer as MinerRpcServer;
 use admin::RpcServer as AdminRpcServer;
 use chunk_pool::MemoryChunkPool;
+use file_location_cache::FileLocationCache;
 use futures::channel::mpsc::Sender;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
@@ -40,6 +41,7 @@ pub use zgs::RpcClient as ZgsRPCClient;
 #[derive(Clone)]
 pub struct Context {
     pub config: RPCConfig,
+    pub file_location_cache: Arc<FileLocationCache>,
     pub network_globals: Arc<NetworkGlobals>,
     pub network_send: UnboundedSender<NetworkMessage>,
     pub sync_send: SyncSender,
