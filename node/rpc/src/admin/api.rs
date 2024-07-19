@@ -40,5 +40,9 @@ pub trait Rpc {
     async fn get_peers(&self) -> RpcResult<HashMap<String, PeerInfo>>;
 
     #[method(name = "getFileLocation")]
-    async fn get_file_location(&self, tx_seq: u64) -> RpcResult<Option<Vec<LocationInfo>>>;
+    async fn get_file_location(
+        &self,
+        tx_seq: u64,
+        all_shards: bool,
+    ) -> RpcResult<Option<Vec<LocationInfo>>>;
 }
