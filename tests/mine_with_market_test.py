@@ -16,7 +16,7 @@ class MineTest(TestFramework):
         self.num_blockchain_nodes = 1
         self.num_nodes = 1
         self.zgs_node_configs[0] = {
-            "db_max_num_chunks": 2**30,
+            "db_max_num_sectors": 2**30,
             "miner_key": GENESIS_PRIV_KEY,
             "shard_position": "3 / 8",
         }
