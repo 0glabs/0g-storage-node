@@ -63,7 +63,7 @@ build_config! {
 
     // db
     (db_dir, (String), "db".to_string())
-    (db_max_num_chunks, (Option<usize>), None)
+    (db_max_num_sectors, (Option<usize>), None)
     (prune_check_time_s, (u64), 60)
     (prune_batch_size, (usize), 1024)
     (prune_batch_wait_time_ms, (u64), 1000)
