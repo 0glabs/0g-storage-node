@@ -29,6 +29,9 @@ class SyncTest(TestFramework):
         client1 = self.nodes[0]
         client2 = self.nodes[1]
 
+        # stop client2, preventing it from receiving AnnounceFile
+        client2.shutdown()
+
         # Create submission
         chunk_data = random.randbytes(256 * 1024)
         data_root = self.__create_submission(chunk_data)
@@ -41,16 +44,22 @@ class SyncTest(TestFramework):
         segments = submit_data(client1, chunk_data)
         self.log.info("segments: %s", [(s["root"], s["index"], s["proof"]) for s in segments])
         wait_until(lambda: client1.zgs_get_file_info(data_root)["finalized"])
-
-        # File should not be auto sync on node 2
+        
+        # restart client2
+        client2.start()
+        client2.wait_for_rpc_connection()
+        
+        # File should not be auto sync on node 2 and there is no cached file locations
         wait_until(lambda: client2.zgs_get_file_info(data_root) is not None)
         time.sleep(3)
         assert_equal(client2.zgs_get_file_info(data_root)["finalized"], False)
+        assert(client2.admin_get_file_location(0) is None)
 
         # Trigger file sync by rpc
         assert(client2.admin_start_sync_file(0) is None)
         wait_until(lambda: client2.sync_status_is_completed_or_unknown(0))
         wait_until(lambda: client2.zgs_get_file_info(data_root)["finalized"])
+        assert(client2.admin_get_file_location(0) is not None)
 
         # Validate data
         assert_equal(

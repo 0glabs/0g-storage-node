@@ -113,6 +113,9 @@ class ZgsNode(TestNode):
     def sync_status_is_completed_or_unknown(self, tx_seq):
         status = self.rpc.admin_getSyncStatus([tx_seq])
         return status == "Completed" or status == "unknown"
+    
+    def admin_get_file_location(self, tx_seq, all_shards = True):
+        return self.rpc.admin_getFileLocation([tx_seq, all_shards])
 
     def clean_data(self):
         shutil.rmtree(os.path.join(self.data_dir, "db"))
