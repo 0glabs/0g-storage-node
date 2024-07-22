@@ -1,0 +1,48 @@
+name: abi-consistent-check
+
+on:
+  push:
+    branches: [ "main"]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-compare:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Clone current repository
+      uses: actions/checkout@v3
+
+    - name: Get the Git revision from the current repository
+      id: get-rev
+      run: echo "rev=$(cat ./storage-contracts-abis/0g-storage-contracts-rev)" >> $GITHUB_OUTPUT
+
+    - name: Clone another repository
+      uses: actions/checkout@v3
+      with:
+        repository: '0glabs/0g-storage-contracts'
+        path: '0g-storage-contracts'
+    
+    - name: Checkout specific revision
+      working-directory: ./0g-storage-contracts
+      run: |
+        git fetch --depth=1 origin ${{ steps.get-rev.outputs.rev }}
+        git checkout ${{ steps.get-rev.outputs.rev }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.17'
+        cache: 'yarn'
+        cache-dependency-path: ./0g-storage-contracts
+
+    - name: Run yarn in the cloned repository
+      working-directory: ./0g-storage-contracts
+      run: |
+        yarn
+        yarn build
+
+    - name: Compare files
+      run: |
+        ./scripts/check_abis.sh ./0g-storage-contracts/artifacts/

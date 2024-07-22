@@ -256,7 +256,7 @@ class TestFramework:
             dest="contract",
             default=os.path.join(
                 __file_path__,
-                "../../0g-storage-contracts/",
+                "../../storage-contracts-abis/",
             ),
             type=str,
         )
