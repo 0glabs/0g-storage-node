@@ -267,7 +267,7 @@ class BlockchainNode(TestNode):
         def deploy_contract(name, args=None):
             if args is None:
                 args = []
-            contract_interface = load_contract_metadata(base_path=self.contract_path, name=name)
+            contract_interface = load_contract_metadata(path=self.contract_path, name=name)
             contract = w3.eth.contract(
                 abi=contract_interface["abi"],
                 bytecode=contract_interface["bytecode"],
