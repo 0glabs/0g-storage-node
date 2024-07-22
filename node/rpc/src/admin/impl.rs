@@ -190,6 +190,8 @@ impl RpcServer for RpcServerImpl {
         tx_seq: u64,
         all_shards: bool,
     ) -> RpcResult<Option<Vec<LocationInfo>>> {
+        info!("admin_getFileLocation()");
+
         let tx = match self.ctx.log_store.get_tx_by_seq_number(tx_seq).await? {
             Some(tx) => tx,
             None => {
@@ -225,7 +227,8 @@ impl RpcServer for RpcServerImpl {
                 shard_config: shard_config.unwrap(),
             })
             .collect();
-        if all_shards && all_shards_available(info.iter().map(|info| info.shard_config).collect()) {
+        
+        if !all_shards || all_shards_available(info.iter().map(|info| info.shard_config).collect()) {
             Ok(Some(info))
         } else {
             Ok(None)
