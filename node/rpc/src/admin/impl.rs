@@ -227,8 +227,9 @@ impl RpcServer for RpcServerImpl {
                 shard_config: shard_config.unwrap(),
             })
             .collect();
-        
-        if !all_shards || all_shards_available(info.iter().map(|info| info.shard_config).collect()) {
+
+        if !all_shards || all_shards_available(info.iter().map(|info| info.shard_config).collect())
+        {
             Ok(Some(info))
         } else {
             Ok(None)
