@@ -1,0 +1,34 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "DummyMarket",
+  "sourceName": "contracts/test/DummyMarket.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "beforeLength",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "uploadSectors",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "paddingSectors",
+          "type": "uint256"
+        }
+      ],
+      "name": "chargeFee",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052348015600f57600080fd5b5060a08061001e6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c8063da6eb36a14602d575b600080fd5b603d6038366004603f565b505050565b005b600080600060608486031215605357600080fd5b50508135936020830135935060409092013591905056fea264697066735822122054eb84b374e7eb5c57b284f82f977fe19500436ef4128d3e147969cefdd4cbcd64736f6c63430008100033",
+  "deployedBytecode": "0x6080604052348015600f57600080fd5b506004361060285760003560e01c8063da6eb36a14602d575b600080fd5b603d6038366004603f565b505050565b005b600080600060608486031215605357600080fd5b50508135936020830135935060409092013591905056fea264697066735822122054eb84b374e7eb5c57b284f82f977fe19500436ef4128d3e147969cefdd4cbcd64736f6c63430008100033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
