@@ -50,6 +50,7 @@ class MineTest(TestFramework):
 
         SECTORS_PER_PRICING = int(8 * ( 2 ** 30 ) / 256)
 
+
         self.log.info("Submit the actual data chunk (256 MB)")
         self.submit_data(b"\x11", int(SECTORS_PER_PRICING / 32))
 
@@ -74,7 +75,7 @@ class MineTest(TestFramework):
         firstReward = rewards[0].args.amount
         self.log.info("Received reward %d Gwei", firstReward / (10**9))
 
-        self.reward_contract.transfer(10000 * 10 ** 18)
+        self.reward_contract.donate(10000 * 10 ** 18)
         self.log.info("Donation Done")
         self.log.info("Submit the data hash only (8 GB)")
         self.submit_data(b"\x11", int(SECTORS_PER_PRICING), no_submit=True)

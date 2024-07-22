@@ -9,7 +9,6 @@ use tokio::time::{sleep, Duration, Instant};
 use storage::config::ShardConfig;
 use zgs_spec::{SECTORS_PER_LOAD, SECTORS_PER_MAX_MINING_RANGE, SECTORS_PER_PRICING};
 
-use super::metrics;
 use crate::recall_range::RecallRange;
 use crate::{
     pora::{AnswerWithoutProof, Miner},
@@ -20,7 +19,7 @@ use crate::{
 use std::sync::Arc;
 
 pub struct PoraService {
-    mine_context_receiver: mpsc::UnboundedReceiver<MineContextMessage>,
+    mine_context_receiver: broadcast::Receiver<MineContextMessage>,
     mine_answer_sender: mpsc::UnboundedSender<AnswerWithoutProof>,
     msg_recv: broadcast::Receiver<MinerMessage>,
     loader: Arc<dyn PoraLoader>,
@@ -33,9 +32,29 @@ pub struct PoraService {
     iter_batch: usize,
 }
 
-struct PoraPuzzle {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PoraPuzzle {
     context: MineContext,
     target_quality: U256,
+    max_shards: u64,
+}
+
+impl PoraPuzzle {
+    pub fn new(context: MineContext, target_quality: U256, max_shards: u64) -> Self {
+        Self {
+            context,
+            target_quality,
+            max_shards,
+        }
+    }
+
+    pub fn max_shards(&self) -> u64 {
+        self.max_shards
+    }
+
+    pub fn context_digest(&self) -> H256 {
+        H256(self.context.digest)
+    }
 }
 #[derive(Clone, Debug, Default)]
 pub struct MineRangeConfig {
@@ -89,7 +108,7 @@ impl PoraService {
     pub fn spawn(
         executor: TaskExecutor,
         msg_recv: broadcast::Receiver<MinerMessage>,
-        mine_context_receiver: mpsc::UnboundedReceiver<MineContextMessage>,
+        mine_context_receiver: broadcast::Receiver<MineContextMessage>,
         loader: Arc<dyn PoraLoader>,
         config: &MinerConfig,
         miner_id: H256,
@@ -138,15 +157,19 @@ impl PoraService {
                         Ok(MinerMessage::SetStartPosition(pos)) => {
                             info!("Change start position to: {:?}", pos);
                             self.mine_range.start_position = pos;
+                            self.report_reason_if_mine_stop("update mine range");
+
                         }
                         Ok(MinerMessage::SetEndPosition(pos)) => {
                             info!("Change end position to: {:?}", pos);
                             self.mine_range.end_position = pos;
+                            self.report_reason_if_mine_stop("update mine range");
                         }
                         Ok(MinerMessage::SetShardConfig(shard_config)) => {
                             self.mine_range.shard_config = shard_config;
+                            self.report_reason_if_mine_stop("update shard");
                         }
-                        Err(broadcast::error::RecvError::Closed)=>{
+                        Err(broadcast::error::RecvError::Closed) => {
                             warn!("Unexpected: Mine service config channel closed.");
                             channel_opened = false;
                         }
@@ -157,21 +180,26 @@ impl PoraService {
                 }
 
                 maybe_msg = self.mine_context_receiver.recv() => {
-                    if let Some(msg) = maybe_msg {
-                        info!("Update mine service: {:?}", msg);
-                        info!("Mine iterations statistics: {}", metrics::report());
-                        self.puzzle = msg.map(|(context, target_quality)| PoraPuzzle {
-                            context, target_quality
-                        });
-                    } else {
-                        warn!("Mine context channel closed.");
+                    match maybe_msg {
+                        Ok(msg) => {
+                            info!("Update mine service: {:?}", msg);
+                            self.puzzle = msg;
+                            self.report_reason_if_mine_stop("update mine context");
+                        },
+                        Err(broadcast::error::RecvError::Closed) => {
+                            warn!("Mine context channel closed.");
+                        },
+                        Err(_) => {}
                     }
                 }
 
                 () = &mut diastole, if !diastole.is_elapsed() => {
                 }
 
-                _ = async {}, if mining_enabled && cpu_percent > 0 && self.as_miner().map_or(false, |miner| miner.range.mining_length > 0) && diastole.is_elapsed() => {
+                _ = async {}, if mining_enabled
+                                && cpu_percent > 0
+                                && self.as_miner().is_ok()
+                                && diastole.is_elapsed() => {
                     let nonce = H256(rand::thread_rng().gen());
                     let miner = self.as_miner().unwrap();
 
@@ -194,13 +222,27 @@ impl PoraService {
     }
 
     #[inline]
-    fn as_miner(&self) -> Option<Miner> {
-        let puzzle = self.puzzle.as_ref()?;
+    fn as_miner(&self) -> Result<Miner, &'static str> {
+        let puzzle = self.puzzle.as_ref().ok_or("no mine context")?;
 
-        let range = self.mine_range.to_valid_range(&puzzle.context)?;
-        (range.mining_length > 0).then_some(())?;
+        let range = self
+            .mine_range
+            .to_valid_range(&puzzle.context)
+            .ok_or("no mine range")?;
 
-        Some(Miner {
+        if range.mining_length == 0 {
+            return Err("mine range is zero");
+        }
+
+        if puzzle.max_shards() < self.mine_range.shard_config.num_shard as u64 {
+            return Err("too many mine range");
+        }
+
+        if self.mine_range.shard_config.num_shard as u64 > puzzle.context.flow_length.as_u64() {
+            return Err("Not enough flow length to shard");
+        }
+
+        Ok(Miner {
             range,
             miner_id: &self.miner_id,
             mine_range_config: &self.mine_range,
@@ -208,5 +250,11 @@ impl PoraService {
             target_quality: &puzzle.target_quality,
             loader: &*self.loader,
         })
+    }
+
+    fn report_reason_if_mine_stop(&self, event: &'static str) {
+        if let Err(reason) = self.as_miner() {
+            info!(reason, "Mine stopped on {}", event);
+        }
     }
 }
