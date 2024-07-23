@@ -235,7 +235,7 @@ impl PoraService {
         }
 
         if puzzle.max_shards() < self.mine_range.shard_config.num_shard as u64 {
-            return Err("too many mine range");
+            return Err("too many mine shards");
         }
 
         if self.mine_range.shard_config.num_shard as u64 > puzzle.context.flow_length.as_u64() {
