@@ -14,6 +14,12 @@ abigen!(
     "../../0g-storage-contracts/artifacts/contracts/miner/Mine.sol/PoraMine.json"
 );
 
+#[cfg(not(feature = "dev"))]
+abigen!(
+    ChunkLinearReward,
+    "../../0g-storage-contracts/artifacts/contracts/reward/ChunkLinearReward.sol/ChunkLinearReward.json"
+);
+
 #[cfg(feature = "dev")]
 abigen!(
     ZgsFlow,
@@ -24,4 +30,10 @@ abigen!(
 abigen!(
     PoraMine,
     "../../0g-storage-contracts-dev/artifacts/contracts/miner/Mine.sol/PoraMine.json"
+);
+
+#[cfg(feature = "dev")]
+abigen!(
+    ChunkLinearReward,
+    "../../0g-storage-contracts/artifacts/contracts/reward/ChunkLinearReward.sol/ChunkLinearReward.json"
 );
