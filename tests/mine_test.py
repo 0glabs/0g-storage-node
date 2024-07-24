@@ -45,14 +45,14 @@ class MineTest(TestFramework):
         self.log.info("Submission done, current epoch is %d", start_epoch)
 
         self.log.info("Wait for the first mine context release")
-        wait_until(lambda: int(blockchain.eth_blockNumber(), 16) >= start_epoch + 1, timeout=180)
+        wait_until(lambda: self.contract.epoch() >= start_epoch + 1, timeout=180)
         self.contract.update_context()
 
         self.log.info("Wait for the first mine answer")
         wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 1 and not self.mine_contract.can_submit(), timeout=180)
 
         self.log.info("Wait for the second mine context release")
-        wait_until(lambda: int(blockchain.eth_blockNumber(), 16) >= start_epoch + 2, timeout=180)
+        wait_until(lambda: self.contract.epoch() >= start_epoch + 2, timeout=180)
         self.contract.update_context()
 
         self.log.info("Wait for the second mine answer")
@@ -60,7 +60,7 @@ class MineTest(TestFramework):
 
         self.nodes[0].miner_stop()
         self.log.info("Wait for the third mine context release")
-        wait_until(lambda: int(blockchain.eth_blockNumber(), 16) >= start_epoch + 3, timeout=180)
+        wait_until(lambda: self.contract.epoch() >= start_epoch + 3, timeout=180)
         self.contract.update_context()
         
         self.log.info("Submit the second data chunk")

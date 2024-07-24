@@ -9,6 +9,7 @@ mod loader;
 mod metrics;
 mod mine;
 mod miner_id;
+mod monitor;
 pub mod pora;
 mod recall_range;
 mod sealer;

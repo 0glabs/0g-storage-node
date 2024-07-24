@@ -303,7 +303,7 @@ class BlockchainNode(TestNode):
             mine_contract.functions.setTargetSubmissions(2).transact(TX_PARAMS)
             self.log.debug("Mine Initialized")
 
-            flow_initialize_hash = (flow_contract.get_function_by_signature('initialize(address)'))(dummy_market_contract.address).transact(TX_PARAMS)
+            flow_initialize_hash = flow_contract.functions.initialize(dummy_market_contract.address).transact(TX_PARAMS)
             self.log.debug("Flow Initialized")
 
             self.wait_for_transaction_receipt(w3, flow_initialize_hash)
@@ -325,7 +325,7 @@ class BlockchainNode(TestNode):
             market_contract, _ = deploy_contract("FixedPrice", [])
             self.log.debug("Market deployed")
             
-            reward_contract, _ =deploy_contract("OnePoolReward", [LIFETIME_MONTH])
+            reward_contract, _ =deploy_contract("ChunkLinearReward", [LIFETIME_MONTH * 31 * 86400])
             self.log.debug("Reward deployed")
             
             flow_contract, _ = deploy_contract("FixedPriceFlow", [mine_period, 0])
@@ -336,13 +336,15 @@ class BlockchainNode(TestNode):
             mine_contract.functions.setTargetSubmissions(2).transact(TX_PARAMS)
             self.log.debug("Mine Initialized")
             
-            market_contract.functions.initialize(LIFETIME_MONTH, flow_contract.address, reward_contract.address).transact(TX_PARAMS)
+            price_per_sector = int(LIFETIME_MONTH * 256 * 10 * 1_000_000_000_000_000_000 / 1024 / 1024 / 1024 / 12)
+            market_contract.functions.initialize(price_per_sector, flow_contract.address, reward_contract.address).transact(TX_PARAMS)
             self.log.debug("Market Initialized")
             
             reward_contract.functions.initialize(market_contract.address, mine_contract.address).transact(TX_PARAMS)
+            reward_contract.functions.setBaseReward(10 ** 18).transact(TX_PARAMS)
             self.log.debug("Reward Initialized")
             
-            flow_initialize_hash = (flow_contract.get_function_by_signature('initialize(address)'))(market_contract.address).transact(TX_PARAMS)
+            flow_initialize_hash = flow_contract.functions.initialize(market_contract.address).transact(TX_PARAMS)
             self.log.debug("Flow Initialized")
             
             self.wait_for_transaction_receipt(w3, flow_initialize_hash)

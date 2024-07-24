@@ -54,7 +54,7 @@ copy_abis() {
     done
 }
 
-copy_abis DummyMarket DummyReward Flow PoraMine PoraMineTest FixedPrice OnePoolReward FixedPriceFlow
+copy_abis DummyMarket DummyReward Flow PoraMine PoraMineTest FixedPrice ChunkLinearReward FixedPriceFlow
 
 
 # Step 4: Get the current Git revision and write it to a specified file

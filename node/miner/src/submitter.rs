@@ -6,19 +6,23 @@ use ethers::providers::PendingTransaction;
 use hex::ToHex;
 use shared_types::FlowRangeProof;
 use std::sync::Arc;
+use std::time::Duration;
+use storage::H256;
 use storage_async::Store;
 use task_executor::TaskExecutor;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 
 use crate::config::{MineServiceMiddleware, MinerConfig};
 use crate::pora::AnswerWithoutProof;
+use crate::watcher::MineContextMessage;
 
 use zgs_spec::{BYTES_PER_SEAL, SECTORS_PER_SEAL};
 
-const SUBMISSION_RETIES: usize = 3;
+const SUBMISSION_RETIES: usize = 15;
 
 pub struct Submitter {
     mine_answer_receiver: mpsc::UnboundedReceiver<AnswerWithoutProof>,
+    mine_context_receiver: broadcast::Receiver<MineContextMessage>,
     mine_contract: PoraMine<MineServiceMiddleware>,
     flow_contract: ZgsFlow<MineServiceMiddleware>,
     default_gas_limit: Option<U256>,
@@ -29,6 +33,7 @@ impl Submitter {
     pub fn spawn(
         executor: TaskExecutor,
         mine_answer_receiver: mpsc::UnboundedReceiver<AnswerWithoutProof>,
+        mine_context_receiver: broadcast::Receiver<MineContextMessage>,
         provider: Arc<MineServiceMiddleware>,
         store: Arc<Store>,
         config: &MinerConfig,
@@ -39,6 +44,7 @@ impl Submitter {
 
         let submitter = Submitter {
             mine_answer_receiver,
+            mine_context_receiver,
             mine_contract,
             flow_contract,
             store,
@@ -51,18 +57,39 @@ impl Submitter {
     }
 
     async fn start(mut self) {
+        let mut current_context_digest: Option<H256> = None;
         loop {
-            match self.mine_answer_receiver.recv().await {
-                Some(answer) => {
-                    if let Err(e) = self.submit_answer(answer).await {
-                        warn!(e)
+            tokio::select! {
+                answer_msg = self.mine_answer_receiver.recv() => {
+                    match answer_msg {
+                        Some(answer) => {
+                            if Some(answer.context_digest) != current_context_digest {
+                                info!("Skip submission because of inconsistent context digest");
+                                continue;
+                            }
+                            if let Err(e) = self.submit_answer(answer).await {
+                                warn!(e);
+                            }
+                        }
+                        None => {
+                            warn!("Mine submitter stopped because mine answer channel is closed.");
+                            return;
+                        }
                     }
                 }
-                None => {
-                    warn!("Mine submitter stopped because mine answer channel is closed.");
-                    break;
+
+                context_msg = self.mine_context_receiver.recv() => {
+                    match context_msg {
+                        Ok(puzzle) => {
+                            current_context_digest = puzzle.map(|p| p.context_digest());
+                        }
+                        Err(broadcast::error::RecvError::Closed) => {
+                            warn!("Mine context channel closed.");
+                        },
+                        Err(_) => {}
+                    }
                 }
-            };
+            }
         }
     }
 
@@ -136,6 +163,7 @@ impl Submitter {
 
         let receipt = pending_transaction
             .retries(SUBMISSION_RETIES)
+            .interval(Duration::from_secs(2))
             .await
             .map_err(|e| format!("Fail to execute mine answer transaction: {:?}", e))?
             .ok_or(format!(

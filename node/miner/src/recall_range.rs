@@ -1,6 +1,6 @@
 use ethereum_types::U256;
 use tiny_keccak::{Hasher, Keccak};
-use zgs_spec::SECTORS_PER_LOAD;
+use zgs_spec::{SECTORS_PER_LOAD, SECTORS_PER_MAX_MINING_RANGE};
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct RecallRange {
@@ -37,6 +37,16 @@ impl RecallRange {
         let recall_offset = (origin_recall_offset & self.shard_mask) | self.shard_id;
 
         Some(self.start_position + recall_offset * SECTORS_PER_LOAD as u64)
+    }
+
+    pub fn difficulty_scale_x64(&self, flow_length: u64) -> U256 {
+        let no_shard_mine_length = std::cmp::min(flow_length, SECTORS_PER_MAX_MINING_RANGE as u64);
+        let sharded_mine_length = std::cmp::min(
+            flow_length >> self.shard_mask.count_zeros(),
+            SECTORS_PER_MAX_MINING_RANGE as u64,
+        );
+
+        (U256::from(no_shard_mine_length) << 64) / sharded_mine_length
     }
 }
 
