@@ -126,11 +126,20 @@ impl Batcher {
                 Ok(Some(SyncResult::Failed))
             }
 
-            // file sync timeout
+            // finding peers timeout
             Some(SyncState::FindingPeers { origin, .. })
                 if origin.elapsed() > self.config.find_peer_timeout =>
             {
                 debug!(%tx_seq, "Terminate file sync due to finding peers timeout");
+                self.terminate_file_sync(tx_seq, false).await;
+                Ok(Some(SyncResult::Timeout))
+            }
+
+            // connecting peers timeout
+            Some(SyncState::ConnectingPeers { origin, .. })
+                if origin.elapsed() > self.config.find_peer_timeout =>
+            {
+                debug!(%tx_seq, "Terminate file sync due to connecting peers timeout");
                 self.terminate_file_sync(tx_seq, false).await;
                 Ok(Some(SyncResult::Timeout))
             }
