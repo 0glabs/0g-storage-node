@@ -103,6 +103,10 @@ impl Pruner {
                 .maybe_forward_first_rewardable(new_first_rewardable)
                 .await?
             {
+                info!(
+                    ?new_first_rewardable,
+                    "first rewardable chunk moves forward, start pruning"
+                );
                 self.prune_in_batch(no_reward_list).await?;
                 self.put_first_rewardable_chunk_index(new_first_rewardable)
                     .await?;
