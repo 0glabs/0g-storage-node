@@ -8,15 +8,19 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
+use storage::log_store::log_manager::PORA_CHUNK_SIZE;
 use storage_async::Store;
 use task_executor::TaskExecutor;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info};
+use zgs_spec::SECTORS_PER_PRICING;
 
 // Start pruning when the db directory size exceeds 0.9 * limit.
 const PRUNE_THRESHOLD: f32 = 0.9;
 
 const FIRST_REWARDABLE_CHUNK_KEY: &str = "first_rewardable_chunk";
+
+const CHUNKS_PER_PRICING: u64 = (SECTORS_PER_PRICING / PORA_CHUNK_SIZE) as u64;
 
 #[derive(Debug)]
 pub struct PrunerConfig {
@@ -110,6 +114,7 @@ impl Pruner {
                 self.prune_in_batch(no_reward_list).await?;
                 self.put_first_rewardable_chunk_index(new_first_rewardable)
                     .await?;
+                self.first_rewardable_chunk = new_first_rewardable;
             }
             tokio::time::sleep(self.config.check_time).await;
         }
@@ -140,7 +145,12 @@ impl Pruner {
             config.num_shard *= 2;
 
             // Generate delete list
-            let flow_len = self.store.get_context().await?.1;
+            let flow_len = self
+                .store
+                .get_context()
+                .await?
+                .1
+                .div_ceil(PORA_CHUNK_SIZE as u64);
             let start_index = old_shard_id + (!rand_bit) as usize * old_num_shard;
             Ok(Some(Box::new(
                 (start_index as u64..flow_len).step_by(config.num_shard),
@@ -162,7 +172,8 @@ impl Pruner {
             );
         } else {
             Ok(Some(Box::new(
-                self.first_rewardable_chunk..new_first_rewardable,
+                self.first_rewardable_chunk * CHUNKS_PER_PRICING
+                    ..new_first_rewardable * CHUNKS_PER_PRICING,
             )))
         }
     }

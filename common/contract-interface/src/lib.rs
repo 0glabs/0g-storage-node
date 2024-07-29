@@ -11,7 +11,7 @@ abigen!(PoraMine, "../../storage-contracts-abis/PoraMine.json");
 #[cfg(not(feature = "dev"))]
 abigen!(
     ChunkLinearReward,
-    "../../0g-storage-contracts/artifacts/contracts/reward/ChunkLinearReward.sol/ChunkLinearReward.json"
+    "../../storage-contracts-abis/ChunkLinearReward.json"
 );
 
 #[cfg(feature = "dev")]
@@ -29,5 +29,5 @@ abigen!(
 #[cfg(feature = "dev")]
 abigen!(
     ChunkLinearReward,
-    "../../0g-storage-contracts/artifacts/contracts/reward/ChunkLinearReward.sol/ChunkLinearReward.json"
+    "../../0g-storage-contracts-dev/artifacts/contracts/reward/ChunkLinearReward.sol/ChunkLinearReward.json"
 );

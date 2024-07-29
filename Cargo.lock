@@ -5834,6 +5834,7 @@ dependencies = [
  "task_executor",
  "tokio",
  "tracing",
+ "zgs_spec",
 ]
 
 [[package]]
