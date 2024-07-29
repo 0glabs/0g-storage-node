@@ -267,7 +267,7 @@ class BlockchainNode(TestNode):
         def deploy_contract(name, args=None):
             if args is None:
                 args = []
-            contract_interface = load_contract_metadata(base_path=self.contract_path, name=name)
+            contract_interface = load_contract_metadata(path=self.contract_path, name=name)
             contract = w3.eth.contract(
                 abi=contract_interface["abi"],
                 bytecode=contract_interface["bytecode"],
@@ -303,7 +303,7 @@ class BlockchainNode(TestNode):
             mine_contract.functions.setTargetSubmissions(2).transact(TX_PARAMS)
             self.log.debug("Mine Initialized")
 
-            flow_initialize_hash = (flow_contract.get_function_by_signature('initialize(address)'))(dummy_market_contract.address).transact(TX_PARAMS)
+            flow_initialize_hash = flow_contract.functions.initialize(dummy_market_contract.address).transact(TX_PARAMS)
             self.log.debug("Flow Initialized")
 
             self.wait_for_transaction_receipt(w3, flow_initialize_hash)
@@ -340,9 +340,10 @@ class BlockchainNode(TestNode):
             self.log.debug("Market Initialized")
             
             reward_contract.functions.initialize(market_contract.address, mine_contract.address).transact(TX_PARAMS)
+            reward_contract.functions.setBaseReward(10 ** 18).transact(TX_PARAMS)
             self.log.debug("Reward Initialized")
             
-            flow_initialize_hash = (flow_contract.get_function_by_signature('initialize(address)'))(market_contract.address).transact(TX_PARAMS)
+            flow_initialize_hash = flow_contract.functions.initialize(market_contract.address).transact(TX_PARAMS)
             self.log.debug("Flow Initialized")
             
             self.wait_for_transaction_receipt(w3, flow_initialize_hash)

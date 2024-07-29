@@ -19,9 +19,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{ops::DerefMut, str::FromStr};
 
-use crate::{config::MineServiceMiddleware, MinerConfig, MinerMessage};
+use crate::{config::MineServiceMiddleware, mine::PoraPuzzle, MinerConfig, MinerMessage};
 
-pub type MineContextMessage = Option<(MineContext, U256)>;
+pub type MineContextMessage = Option<PoraPuzzle>;
 
 lazy_static! {
     pub static ref EMPTY_HASH: H256 =
@@ -33,7 +33,7 @@ pub struct MineContextWatcher {
     flow_contract: ZgsFlow<MineServiceMiddleware>,
     mine_contract: PoraMine<MineServiceMiddleware>,
 
-    mine_context_sender: mpsc::UnboundedSender<MineContextMessage>,
+    mine_context_sender: broadcast::Sender<MineContextMessage>,
     last_report: MineContextMessage,
 
     msg_recv: broadcast::Receiver<MinerMessage>,
@@ -45,14 +45,14 @@ impl MineContextWatcher {
         msg_recv: broadcast::Receiver<MinerMessage>,
         provider: Arc<MineServiceMiddleware>,
         config: &MinerConfig,
-    ) -> mpsc::UnboundedReceiver<MineContextMessage> {
+    ) -> broadcast::Receiver<MineContextMessage> {
         let provider = provider;
 
         let mine_contract = PoraMine::new(config.mine_address, provider.clone());
         let flow_contract = ZgsFlow::new(config.flow_address, provider.clone());
 
         let (mine_context_sender, mine_context_receiver) =
-            mpsc::unbounded_channel::<MineContextMessage>();
+            broadcast::channel::<MineContextMessage>(4096);
         let watcher = MineContextWatcher {
             provider,
             flow_contract,
@@ -108,12 +108,17 @@ impl MineContextWatcher {
         let context_call = self.flow_contract.make_context_with_result();
         let valid_call = self.mine_contract.can_submit();
         let quality_call = self.mine_contract.pora_target();
+        let shards_call = self.mine_contract.max_shards();
 
-        let (context, can_submit, quality) =
-            try_join!(context_call.call(), valid_call.call(), quality_call.call())
-                .map_err(|e| format!("Failed to query mining context: {:?}", e))?;
+        let (context, can_submit, quality, max_shards) = try_join!(
+            context_call.call(),
+            valid_call.call(),
+            quality_call.call(),
+            shards_call.call()
+        )
+        .map_err(|e| format!("Failed to query mining context: {:?}", e))?;
         let report = if can_submit && context.digest != EMPTY_HASH.0 {
-            Some((context, quality))
+            Some(PoraPuzzle::new(context, quality, max_shards))
         } else {
             None
         };

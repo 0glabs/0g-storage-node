@@ -102,15 +102,16 @@ impl<'a> Miner<'a> {
             }
 
             let quality = self.pora(idx, &sealed_data, pad_seed);
-            let quality_scale = self.range.shard_mask.count_zeros();
-            if quality <= U256::MAX >> quality_scale
-                && quality << quality_scale <= *self.target_quality
-            {
+            let difficulty_scale_x64 = self
+                .range
+                .difficulty_scale_x64(self.context.flow_length.as_u64());
+
+            if quality <= (self.target_quality / difficulty_scale_x64) << 64 {
                 debug!(
-                    "Find a PoRA valid answer, quality: {}, target_quality {}, scale {}",
+                    "Find a PoRA valid answer, quality: {}, target_quality {}, scale {:.3}",
                     U256::MAX / quality,
                     U256::MAX / self.target_quality,
-                    quality_scale
+                    difficulty_scale_x64.as_u128() as f64 / (u64::MAX as f64 + 1.0)
                 );
                 inc_counter(&HIT_COUNT);
                 // Undo mix data when find a valid solition

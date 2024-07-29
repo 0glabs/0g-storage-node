@@ -1,9 +1,11 @@
 use crate::miner_id::check_and_request_miner_id;
+use crate::monitor::Monitor;
 use crate::sealer::Sealer;
 use crate::submitter::Submitter;
 use crate::{config::MinerConfig, mine::PoraService, watcher::MineContextWatcher};
 use network::NetworkMessage;
 use std::sync::Arc;
+use std::time::Duration;
 use storage::config::ShardConfig;
 use storage_async::Store;
 use tokio::sync::broadcast;
@@ -48,7 +50,7 @@ impl MineService {
         let mine_answer_receiver = PoraService::spawn(
             executor.clone(),
             msg_recv.resubscribe(),
-            mine_context_receiver,
+            mine_context_receiver.resubscribe(),
             store.clone(),
             &config,
             miner_id,
@@ -57,12 +59,15 @@ impl MineService {
         Submitter::spawn(
             executor.clone(),
             mine_answer_receiver,
+            mine_context_receiver,
             provider.clone(),
             store.clone(),
             &config,
         );
 
-        Sealer::spawn(executor, provider, store, &config, miner_id);
+        Sealer::spawn(executor.clone(), provider, store, &config, miner_id);
+
+        Monitor::spawn(executor, Duration::from_secs(5));
 
         debug!("Starting miner service");
 

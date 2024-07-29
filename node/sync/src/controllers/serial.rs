@@ -40,6 +40,7 @@ pub enum SyncState {
     },
     FoundPeers,
     ConnectingPeers {
+        origin: InstantWrapper,
         since: InstantWrapper,
     },
     AwaitingOutgoingConnection {
@@ -253,6 +254,7 @@ impl SerialSyncController {
         info!(%self.tx_seq, %num_peers_dailed, "Connecting peers");
 
         self.state = SyncState::ConnectingPeers {
+            origin: self.since,
             since: Instant::now().into(),
         };
     }
@@ -632,6 +634,7 @@ impl SerialSyncController {
                 SyncState::FoundPeers => {
                     if self.peers.all_shards_available(vec![Connecting, Connected]) {
                         self.state = SyncState::ConnectingPeers {
+                            origin: self.since,
                             since: Instant::now().into(),
                         };
                     } else {

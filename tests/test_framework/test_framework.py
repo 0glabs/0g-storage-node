@@ -15,7 +15,7 @@ from pathlib import Path
 
 from eth_utils import encode_hex
 from test_framework.bsc_node import BSCNode
-from test_framework.contract_proxy import FlowContractProxy, MineContractProxy, IRewardContractProxy
+from test_framework.contract_proxy import FlowContractProxy, MineContractProxy, RewardContractProxy
 from test_framework.zgs_node import ZgsNode
 from test_framework.blockchain_node import BlockChainNodeType
 from test_framework.conflux_node import ConfluxNode, connect_sample_nodes
@@ -175,7 +175,7 @@ class TestFramework:
         contract, tx_hash, mine_contract, reward_contract = self.blockchain_nodes[0].setup_contract(self.enable_market, self.mine_period, self.lifetime_seconds)
         self.contract = FlowContractProxy(contract, self.blockchain_nodes)
         self.mine_contract = MineContractProxy(mine_contract, self.blockchain_nodes)
-        self.reward_contract = IRewardContractProxy(reward_contract, self.blockchain_nodes)
+        self.reward_contract = RewardContractProxy(reward_contract, self.blockchain_nodes)
 
 
         for node in self.blockchain_nodes[1:]:
@@ -258,7 +258,7 @@ class TestFramework:
             dest="contract",
             default=os.path.join(
                 __file_path__,
-                "../../0g-storage-contracts/",
+                "../../storage-contracts-abis/",
             ),
             type=str,
         )
