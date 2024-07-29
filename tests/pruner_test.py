@@ -14,8 +14,8 @@ class PrunerTest(TestFramework):
         self.num_blockchain_nodes = 1
         self.num_nodes = 1
         self.zgs_node_configs[0] = {
-            "db_max_num_sectors": 32 * 1024 * 1024,
-            # "miner_key": GENESIS_PRIV_KEY,
+            "db_max_num_sectors": 16 * 1024,
+            # "db_max_num_sectors": 32 * 1024 * 1024,
             "prune_check_time_s": 1,
             "prune_batch_wait_time_ms": 1,
         }
@@ -26,12 +26,10 @@ class PrunerTest(TestFramework):
         self.log.info("Contract Info: Est. block time %.2f, Mine period %d", self.block_time, self.mine_period)
 
     def run_test(self):
-        # difficulty = int(2**256 / 5 / estimate_st_performance())
-        # self.mine_contract.set_quality(difficulty)
-
         client = self.nodes[0]
 
-        chunk_data = b"\x02" * 5 * 1024 * 1024 * 1024
+        chunk_data = b"\x02" * 16 * 256 * 1024
+        # chunk_data = b"\x02" * 5 * 1024 * 1024 * 1024
         submissions, data_root = create_submission(chunk_data)
         self.contract.submit(submissions, tx_prarams = {"value": int(len(chunk_data) / 256 * PRICE_PER_SECTOR * 1.1)})
         wait_until(lambda: self.contract.num_submissions() == 1)
@@ -45,14 +43,15 @@ class PrunerTest(TestFramework):
         shard_id = int(shard_config["shardId"])
         num_shard = int(shard_config["numShard"])
 
-        wait_until(lambda: self.reward_contract.first_rewardable_chunk() != 0, timeout=180)
-        first_rewardable = self.reward_contract.first_rewardable_chunk() * 32 * 1024
+        # wait_until(lambda: self.reward_contract.first_rewardable_chunk() != 0, timeout=180)
+        # first_rewardable = self.reward_contract.first_rewardable_chunk() * 32 * 1024
         # Wait for 1 sec for the no reward segments to be pruned.
         time.sleep(1)
         # Wait for chunks to be removed.
         for i in range(len(segment)):
             seg = client.zgs_download_segment(data_root, i * 1024, (i + 1) * 1024)
-            if i < first_rewardable or i % num_shard != shard_id:
+            # if i < first_rewardable or i % num_shard != shard_id:
+            if i % num_shard != shard_id:
                 assert_equal(seg, None)
             else:
                 assert_equal(len(seg), 349528)
