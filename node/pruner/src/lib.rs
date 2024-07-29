@@ -26,7 +26,7 @@ const CHUNKS_PER_PRICING: u64 = (SECTORS_PER_PRICING / PORA_CHUNK_SIZE) as u64;
 pub struct PrunerConfig {
     pub shard_config: ShardConfig,
     pub db_path: PathBuf,
-    pub max_num_chunks: usize,
+    pub max_num_sectors: usize,
     pub check_time: Duration,
     pub batch_size: usize,
     pub batch_wait_time: Duration,
@@ -37,7 +37,7 @@ pub struct PrunerConfig {
 
 impl PrunerConfig {
     fn start_prune_size(&self) -> u64 {
-        (self.max_num_chunks as f32 * PRUNE_THRESHOLD) as u64
+        (self.max_num_sectors as f32 * PRUNE_THRESHOLD) as u64
     }
 
     fn make_provider(&self) -> Result<Provider<Http>> {

@@ -194,11 +194,11 @@ mine_contract_address = "0x85F6722319538A805ED5733c5F4882d96F1C7384"
 #######################################################################
 # The max number of chunk entries to store in db.
 # Each entry is 256B, so the db size is roughly limited to
-# `256 * db_max_num_chunks` Bytes.
+# `256 * db_max_num_sectors` Bytes.
 # If this limit is reached, the node will update its `shard_position`
 # and store only half data.
 #
-# db_max_num_chunks = 1000000000
+# db_max_num_sectors = 1000000000
 
 # The format is <shard_id>/<shard_number>, where the shard number is 2^n.
 # This only applies if there is no stored shard config in db.
