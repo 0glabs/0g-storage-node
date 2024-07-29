@@ -12,15 +12,15 @@ class PrunerTest(TestFramework):
         self.num_blockchain_nodes = 1
         self.num_nodes = 4
         self.zgs_node_configs[0] = {
-            "db_max_num_chunks": 2 ** 30,
+            "db_max_num_sectors": 2 ** 30,
             "shard_position": "0/2"
         }
         self.zgs_node_configs[1] = {
-            "db_max_num_chunks": 2 ** 30,
+            "db_max_num_sectors": 2 ** 30,
             "shard_position": "1/2"
         }
         self.zgs_node_configs[3] = {
-            "db_max_num_chunks": 2 ** 30,
+            "db_max_num_sectors": 2 ** 30,
             "shard_position": "1/4"
         }
 

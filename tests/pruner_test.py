@@ -12,7 +12,7 @@ class PrunerTest(TestFramework):
         self.num_blockchain_nodes = 1
         self.num_nodes = 1
         self.zgs_node_configs[0] = {
-            "db_max_num_chunks": 16 * 1024,
+            "db_max_num_sectors": 16 * 1024,
             "prune_check_time_s": 1,
             "prune_batch_wait_time_ms": 10,
         }
