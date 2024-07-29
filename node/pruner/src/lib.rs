@@ -4,6 +4,7 @@ use ethereum_types::Address;
 use ethers::prelude::{Http, Provider};
 use miner::MinerMessage;
 use rand::Rng;
+use std::cmp::Ordering;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -162,19 +163,19 @@ impl Pruner {
         &mut self,
         new_first_rewardable: u64,
     ) -> Result<Option<Box<dyn Send + Iterator<Item = u64>>>> {
-        if self.first_rewardable_chunk == new_first_rewardable {
-            Ok(None)
-        } else if self.first_rewardable_chunk > new_first_rewardable {
-            bail!(
-                "Unexpected first_rewardable_chunk revert: old={} new={}",
-                self.first_rewardable_chunk,
-                new_first_rewardable
-            );
-        } else {
-            Ok(Some(Box::new(
+        match self.first_rewardable_chunk.cmp(&new_first_rewardable) {
+            Ordering::Less => Ok(Some(Box::new(
                 self.first_rewardable_chunk * CHUNKS_PER_PRICING
                     ..new_first_rewardable * CHUNKS_PER_PRICING,
-            )))
+            ))),
+            Ordering::Equal => Ok(None),
+            Ordering::Greater => {
+                bail!(
+                    "Unexpected first_rewardable_chunk revert: old={} new={}",
+                    self.first_rewardable_chunk,
+                    new_first_rewardable
+                );
+            }
         }
     }
 
