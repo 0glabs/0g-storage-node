@@ -23,6 +23,7 @@ class PrunerTest(TestFramework):
             "db_max_num_sectors": 2 ** 30,
             "shard_position": "1/4"
         }
+        self.enable_market = True
 
     def run_test(self):
         client = self.nodes[0]
