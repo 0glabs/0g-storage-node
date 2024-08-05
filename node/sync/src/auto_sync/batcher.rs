@@ -1,9 +1,11 @@
 use crate::{controllers::SyncState, Config, SyncRequest, SyncResponse, SyncSender};
 use anyhow::{bail, Result};
-use std::fmt::Debug;
+use serde::{Deserialize, Serialize};
+use std::{fmt::Debug, sync::Arc};
 use storage_async::Store;
+use tokio::sync::RwLock;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum SyncResult {
     Completed,
     Failed,
@@ -11,18 +13,13 @@ pub enum SyncResult {
 }
 
 /// Supports to sync files concurrently.
+#[derive(Clone)]
 pub struct Batcher {
     config: Config,
     capacity: usize,
-    tasks: Vec<u64>, // files to sync
+    tasks: Arc<RwLock<Vec<u64>>>, // files to sync
     store: Store,
     sync_send: SyncSender,
-}
-
-impl Debug for Batcher {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.tasks)
-    }
 }
 
 impl Batcher {
@@ -36,36 +33,43 @@ impl Batcher {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.tasks.len()
+    pub async fn len(&self) -> usize {
+        self.tasks.read().await.len()
     }
 
-    pub async fn add(&mut self, tx_seq: u64) -> Result<bool> {
-        // limits the number of threads
-        if self.tasks.len() >= self.capacity {
-            return Ok(false);
-        }
+    pub async fn tasks(&self) -> Vec<u64> {
+        self.tasks.read().await.clone()
+    }
 
+    pub async fn add(&self, tx_seq: u64) -> Result<bool> {
         // requires log entry available before file sync
         if self.store.get_tx_by_seq_number(tx_seq).await?.is_none() {
             return Ok(false);
         }
 
-        self.tasks.push(tx_seq);
+        let mut tasks = self.tasks.write().await;
+
+        // limits the number of threads
+        if tasks.len() >= self.capacity {
+            return Ok(false);
+        }
+
+        tasks.push(tx_seq);
 
         Ok(true)
     }
 
-    pub fn reorg(&mut self, reverted_tx_seq: u64) {
-        self.tasks.retain(|&x| x < reverted_tx_seq);
+    pub async fn reorg(&self, reverted_tx_seq: u64) {
+        self.tasks.write().await.retain(|&x| x < reverted_tx_seq);
     }
 
     /// Poll the sync result of any completed file sync.
-    pub async fn poll(&mut self) -> Result<Option<(u64, SyncResult)>> {
+    pub async fn poll(&self) -> Result<Option<(u64, SyncResult)>> {
         let mut result = None;
-        let mut index = self.tasks.len();
+        let tasks = self.tasks.read().await.clone();
+        let mut index = tasks.len();
 
-        for (i, tx_seq) in self.tasks.iter().enumerate() {
+        for (i, tx_seq) in tasks.iter().enumerate() {
             if let Some(ret) = self.poll_tx(*tx_seq).await? {
                 result = Some((*tx_seq, ret));
                 index = i;
@@ -73,8 +77,9 @@ impl Batcher {
             }
         }
 
-        if index < self.tasks.len() {
-            self.tasks.swap_remove(index);
+        let mut tasks = self.tasks.write().await;
+        if index < tasks.len() {
+            tasks.swap_remove(index);
         }
 
         Ok(result)

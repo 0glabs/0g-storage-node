@@ -1,6 +1,4 @@
-use crate::auto_sync::batcher_random::RandomBatcher;
-use crate::auto_sync::batcher_serial::SerialBatcher;
-use crate::auto_sync::sync_store::SyncStore;
+use crate::auto_sync::manager::AutoSyncManager;
 use crate::context::SyncNetworkContext;
 use crate::controllers::{
     FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
@@ -18,7 +16,6 @@ use network::{
     PeerRequestId, SyncId as RequestId,
 };
 use shared_types::{bytes_to_chunks, timestamp_now, ChunkArrayWithProof, TxID};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
@@ -27,7 +24,6 @@ use storage::config::ShardConfig;
 use storage::error::Result as StorageResult;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 const HEARTBEAT_INTERVAL_SEC: u64 = 5;
@@ -131,7 +127,7 @@ pub struct SyncService {
     /// Heartbeat interval for executing periodic tasks.
     heartbeat: tokio::time::Interval,
 
-    file_announcement_send: Option<UnboundedSender<u64>>,
+    auto_sync_manager: Option<AutoSyncManager>,
 }
 
 impl SyncService {
@@ -172,35 +168,18 @@ impl SyncService {
         let store = Store::new(store, executor.clone());
 
         // init auto sync
-        let file_announcement_send = if config.auto_sync_enabled {
-            let (send, recv) = unbounded_channel();
-            let sync_store = Arc::new(SyncStore::new(store.clone()));
-            let catched_up = Arc::new(AtomicBool::new(false));
-
-            // sync in sequence
-            let serial_batcher =
-                SerialBatcher::new(config, store.clone(), sync_send.clone(), sync_store.clone())
-                    .await?;
-            executor.spawn(
-                serial_batcher.start(recv, event_recv, catched_up.clone()),
-                "auto_sync_serial",
-            );
-
-            // sync randomly
-            let random_batcher =
-                RandomBatcher::new(config, store.clone(), sync_send.clone(), sync_store);
-            executor.spawn(random_batcher.start(catched_up.clone()), "auto_sync_random");
-
-            // handle on catched up notification
-            executor.spawn(
-                async move {
-                    catch_up_end_recv.await.expect("Catch up sender dropped");
-                    catched_up.store(true, Ordering::Relaxed);
-                },
-                "auto_sync_wait_for_catchup",
-            );
-
-            Some(send)
+        let auto_sync_manager = if config.auto_sync_enabled {
+            Some(
+                AutoSyncManager::spawn(
+                    config,
+                    &executor,
+                    store.clone(),
+                    sync_send.clone(),
+                    event_recv,
+                    catch_up_end_recv,
+                )
+                .await?,
+            )
         } else {
             None
         };
@@ -213,7 +192,7 @@ impl SyncService {
             file_location_cache,
             controllers: Default::default(),
             heartbeat,
-            file_announcement_send,
+            auto_sync_manager,
         };
 
         info!("Starting sync service");
@@ -676,8 +655,8 @@ impl SyncService {
         let tx_seq = tx_id.seq;
         trace!(%tx_seq, %peer_id, %addr, "Received AnnounceFile gossip");
 
-        if let Some(send) = &self.file_announcement_send {
-            let _ = send.send(tx_seq);
+        if let Some(manager) = &self.auto_sync_manager {
+            let _ = manager.file_announcement_send.send(tx_seq);
         }
 
         // File already in sync
@@ -915,7 +894,7 @@ mod tests {
             file_location_cache,
             controllers: Default::default(),
             heartbeat,
-            file_announcement_send: None,
+            auto_sync_manager: None,
         };
 
         sync.on_peer_connected(init_peer_id);
@@ -947,7 +926,7 @@ mod tests {
             file_location_cache,
             controllers: Default::default(),
             heartbeat,
-            file_announcement_send: None,
+            auto_sync_manager: None,
         };
 
         sync.on_peer_disconnected(init_peer_id);
