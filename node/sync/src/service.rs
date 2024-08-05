@@ -573,7 +573,9 @@ impl SyncService {
 
     async fn on_find_file(&mut self, tx_seq: u64) -> Result<()> {
         // file already exists
-        if self.store.check_tx_completed(tx_seq).await? {
+        if self.store.check_tx_completed(tx_seq).await?
+            || self.store.check_tx_pruned(tx_seq).await?
+        {
             return Ok(());
         }
         // broadcast find file
@@ -633,7 +635,9 @@ impl SyncService {
                 };
 
                 // file already exists
-                if self.store.check_tx_completed(tx_seq).await? {
+                if self.store.check_tx_completed(tx_seq).await?
+                    || self.store.check_tx_pruned(tx_seq).await?
+                {
                     bail!("File already exists");
                 }
 
@@ -701,6 +705,15 @@ impl SyncService {
             Ok(false) => {}
             Err(err) => {
                 error!(%tx_seq, %err, "Failed to check if file finalized");
+                return;
+            }
+        }
+
+        match self.store.check_tx_pruned(tx_seq).await {
+            Ok(true) => return,
+            Ok(false) => {}
+            Err(err) => {
+                error!(%tx_seq, %err, "Failed to check if file pruned");
                 return;
             }
         }

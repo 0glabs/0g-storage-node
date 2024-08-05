@@ -195,6 +195,10 @@ impl RpcServerImpl {
                 ));
             }
 
+            if self.ctx.log_store.check_tx_pruned(tx.seq).await? {
+                return Err(error::invalid_params("root", "already pruned"));
+            }
+
             Ok(false)
         } else {
             //Check whether file is small enough to cache in the system

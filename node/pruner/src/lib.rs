@@ -50,6 +50,7 @@ impl PrunerConfig {
 pub struct Pruner {
     config: PrunerConfig,
     first_rewardable_chunk: u64,
+    first_tx_seq: u64,
 
     store: Arc<Store>,
 
@@ -69,15 +70,16 @@ impl Pruner {
         if let Some(shard_config) = get_shard_config(store.as_ref()).await? {
             config.shard_config = shard_config;
         }
-        let first_rewardable_chunk = get_first_rewardable_chunk(store.as_ref())
+        let (first_rewardable_chunk, first_tx_seq) = get_first_rewardable_chunk(store.as_ref())
             .await?
-            .unwrap_or(0);
+            .unwrap_or((0, 0));
         let reward_contract =
             ChunkLinearReward::new(config.reward_address, Arc::new(config.make_provider()?));
         let (tx, rx) = mpsc::unbounded_channel();
         let pruner = Pruner {
             config,
             first_rewardable_chunk,
+            first_tx_seq,
             store,
             sender: tx,
             miner_sender,
@@ -112,10 +114,19 @@ impl Pruner {
                     ?new_first_rewardable,
                     "first rewardable chunk moves forward, start pruning"
                 );
+                self.prune_tx(
+                    self.first_rewardable_chunk * SECTORS_PER_PRICING as u64,
+                    new_first_rewardable * SECTORS_PER_PRICING as u64,
+                )
+                .await?;
                 self.prune_in_batch(no_reward_list).await?;
-                self.put_first_rewardable_chunk_index(new_first_rewardable)
-                    .await?;
+
                 self.first_rewardable_chunk = new_first_rewardable;
+                self.put_first_rewardable_chunk_index(
+                    self.first_rewardable_chunk,
+                    self.first_tx_seq,
+                )
+                .await?;
             }
             tokio::time::sleep(self.config.check_time).await;
         }
@@ -194,6 +205,26 @@ impl Pruner {
         Ok(())
     }
 
+    async fn prune_tx(&mut self, start_sector: u64, end_sector: u64) -> Result<()> {
+        while let Some(tx) = self.store.get_tx_by_seq_number(self.first_tx_seq).await? {
+            // If a part of the tx data is pruned, we mark the tx as pruned.
+            if tx.start_entry_index() >= start_sector && tx.start_entry_index() < end_sector {
+                self.store.prune_tx(tx.seq).await?;
+            } else if tx.start_entry_index() >= end_sector {
+                break;
+            } else {
+                bail!(
+                    "prune tx out of range: tx={:?}, start={} end={}",
+                    tx,
+                    start_sector,
+                    end_sector
+                );
+            }
+            self.first_tx_seq += 1;
+        }
+        Ok(())
+    }
+
     async fn put_shard_config(&self) -> Result<()> {
         if let Some(sender) = &self.miner_sender {
             sender.send(MinerMessage::SetShardConfig(self.config.shard_config))?;
@@ -211,9 +242,13 @@ impl Pruner {
     async fn put_first_rewardable_chunk_index(
         &self,
         new_first_rewardable_chunk: u64,
+        new_first_tx_seq: u64,
     ) -> Result<()> {
         self.store
-            .set_config_encoded(&FIRST_REWARDABLE_CHUNK_KEY, &new_first_rewardable_chunk)
+            .set_config_encoded(
+                &FIRST_REWARDABLE_CHUNK_KEY,
+                &(new_first_rewardable_chunk, new_first_tx_seq),
+            )
             .await
     }
 }
@@ -222,7 +257,7 @@ async fn get_shard_config(store: &Store) -> Result<Option<ShardConfig>> {
     store.get_config_decoded(&SHARD_CONFIG_KEY).await
 }
 
-async fn get_first_rewardable_chunk(store: &Store) -> Result<Option<u64>> {
+async fn get_first_rewardable_chunk(store: &Store) -> Result<Option<(u64, u64)>> {
     store.get_config_decoded(&FIRST_REWARDABLE_CHUNK_KEY).await
 }
 

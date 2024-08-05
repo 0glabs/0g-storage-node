@@ -20,6 +20,9 @@ use tracing::{error, instrument};
 const LOG_SYNC_PROGRESS_KEY: &str = "log_sync_progress";
 const NEXT_TX_KEY: &str = "next_tx_seq";
 
+const TX_STATUS_FINALIZED: u8 = 0;
+const TX_STATUS_PRUNED: u8 = 1;
+
 #[derive(Clone, Debug)]
 pub struct BlockHashAndSubmissionIndex {
     pub block_hash: H256,
@@ -156,13 +159,27 @@ impl TransactionStore {
 
     #[instrument(skip(self))]
     pub fn finalize_tx(&self, tx_seq: u64) -> Result<()> {
+        Ok(self.kvdb.put(
+            COL_TX_COMPLETED,
+            &tx_seq.to_be_bytes(),
+            &[TX_STATUS_FINALIZED],
+        )?)
+    }
+
+    #[instrument(skip(self))]
+    pub fn prune_tx(&self, tx_seq: u64) -> Result<()> {
         Ok(self
             .kvdb
-            .put(COL_TX_COMPLETED, &tx_seq.to_be_bytes(), &[0])?)
+            .put(COL_TX_COMPLETED, &tx_seq.to_be_bytes(), &[TX_STATUS_PRUNED])?)
     }
 
     pub fn check_tx_completed(&self, tx_seq: u64) -> Result<bool> {
-        Ok(self.kvdb.has_key(COL_TX_COMPLETED, &tx_seq.to_be_bytes())?)
+        Ok(self.kvdb.get(COL_TX_COMPLETED, &tx_seq.to_be_bytes())?
+            == Some(vec![TX_STATUS_FINALIZED]))
+    }
+
+    pub fn check_tx_pruned(&self, tx_seq: u64) -> Result<bool> {
+        Ok(self.kvdb.get(COL_TX_COMPLETED, &tx_seq.to_be_bytes())? == Some(vec![TX_STATUS_PRUNED]))
     }
 
     pub fn next_tx_seq(&self) -> u64 {
