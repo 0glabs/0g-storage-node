@@ -2,6 +2,7 @@
 import time
 
 from test_framework.test_framework import TestFramework
+from mine_with_market_test import PRICE_PER_SECTOR
 from utility.submission import create_submission, submit_data, data_to_segments
 from utility.utils import wait_until, assert_equal
 
@@ -30,7 +31,7 @@ class PrunerTest(TestFramework):
 
         chunk_data = b"\x02" * 8 * 256 * 1024
         submissions, data_root = create_submission(chunk_data)
-        self.contract.submit(submissions)
+        self.contract.submit(submissions, tx_prarams = {"value": int(len(chunk_data) / 256 * PRICE_PER_SECTOR * 1.1)})
         wait_until(lambda: self.contract.num_submissions() == 1)
         wait_until(lambda: client.zgs_get_file_info(data_root) is not None)
 
