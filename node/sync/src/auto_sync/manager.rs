@@ -48,15 +48,16 @@ impl AutoSyncManager {
         );
 
         // sync randomly
-        let random = RandomBatcher::new(config, store.clone(), sync_send.clone(), sync_store);
+        let random = RandomBatcher::new(config, store, sync_send, sync_store);
         executor.spawn(random.clone().start(catched_up.clone()), "auto_sync_random");
 
         // handle on catched up notification
         executor.spawn(
             async move {
-                catch_up_end_recv.await.expect("Catch up sender dropped");
-                info!("log entry catched up");
-                catched_up.store(true, Ordering::Relaxed);
+                if catch_up_end_recv.await.is_ok() {
+                    info!("log entry catched up");
+                    catched_up.store(true, Ordering::Relaxed);
+                }
             },
             "auto_sync_wait_for_catchup",
         );

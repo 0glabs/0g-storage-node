@@ -284,7 +284,12 @@ impl SerialBatcher {
         let origin = self.next_tx_seq_in_db.load(Ordering::Relaxed);
         let mut current = origin;
 
-        while let Some(&sync_result) = self.pending_completed_txs.read().await.get(&current) {
+        loop {
+            let sync_result = match self.pending_completed_txs.read().await.get(&current) {
+                Some(&v) => v,
+                None => break,
+            };
+
             // downgrade to random sync if file sync failed or timeout
             if matches!(sync_result, SyncResult::Failed | SyncResult::Timeout) {
                 self.sync_store.add_pending_tx(current).await?;
