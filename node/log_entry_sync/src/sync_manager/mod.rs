@@ -21,7 +21,8 @@ use tokio::sync::{oneshot, RwLock};
 const RETRY_WAIT_MS: u64 = 500;
 
 // A RPC query can return at most 10000 entries.
-const BROADCAST_CHANNEL_CAPACITY: usize = 10000;
+// Each tx has less than 10KB, so the cache size should be acceptable.
+const BROADCAST_CHANNEL_CAPACITY: usize = 25000;
 const CATCH_UP_END_GAP: u64 = 10;
 
 #[derive(Clone, Debug)]
