@@ -1,6 +1,4 @@
-use ethers::prelude::{
-    Filter, JsonRpcClient, Log, Middleware, Provider, ProviderError, U64,
-};
+use ethers::prelude::{Filter, JsonRpcClient, Log, Middleware, Provider, ProviderError, U64};
 use futures_core::stream::Stream;
 use jsonrpsee::tracing::trace;
 use std::future::Future;
