@@ -4,7 +4,7 @@ use crate::controllers::{
     FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
     MAX_CHUNKS_TO_REQUEST,
 };
-use crate::Config;
+use crate::{Config, SyncServiceState};
 use anyhow::{bail, Result};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
@@ -74,6 +74,7 @@ pub enum SyncMessage {
 
 #[derive(Debug)]
 pub enum SyncRequest {
+    SyncState,
     SyncStatus {
         tx_seq: u64,
     },
@@ -99,6 +100,7 @@ pub enum SyncRequest {
 
 #[derive(Debug)]
 pub enum SyncResponse {
+    SyncState { state: SyncServiceState },
     SyncStatus { status: Option<SyncState> },
     SyncFile { err: String },
     FileSyncInfo { result: HashMap<u64, FileSyncInfo> },
@@ -278,6 +280,23 @@ impl SyncService {
         sender: channel::ResponseSender<SyncResponse>,
     ) {
         match req {
+            SyncRequest::SyncState => {
+                let state = match &self.auto_sync_manager {
+                    Some(manager) => SyncServiceState {
+                        num_syncing: self.controllers.len(),
+                        auto_sync_serial: Some(manager.serial.get_state().await),
+                        auto_sync_random: manager.random.get_state().await.ok(),
+                    },
+                    None => SyncServiceState {
+                        num_syncing: self.controllers.len(),
+                        auto_sync_serial: None,
+                        auto_sync_random: None,
+                    },
+                };
+
+                let _ = sender.send(SyncResponse::SyncState { state });
+            }
+
             SyncRequest::SyncStatus { tx_seq } => {
                 let status = self
                     .controllers

@@ -7,9 +7,10 @@ mod controllers;
 mod service;
 pub mod test_util;
 
+use auto_sync::{batcher_random::RandomBatcherState, batcher_serial::SerialBatcherState};
 pub use controllers::FileSyncInfo;
 use duration_str::deserialize_duration;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 pub use service::{SyncMessage, SyncReceiver, SyncRequest, SyncResponse, SyncSender, SyncService};
 use std::{
     fmt::Debug,
@@ -63,4 +64,12 @@ impl InstantWrapper {
     pub fn elapsed(&self) -> Duration {
         self.0.elapsed()
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncServiceState {
+    pub num_syncing: usize,
+    pub auto_sync_serial: Option<SerialBatcherState>,
+    pub auto_sync_random: Option<RandomBatcherState>,
 }

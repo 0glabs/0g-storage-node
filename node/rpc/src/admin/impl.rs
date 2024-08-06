@@ -8,7 +8,7 @@ use network::{multiaddr::Protocol, Multiaddr};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use storage::config::all_shards_available;
-use sync::{FileSyncInfo, SyncRequest, SyncResponse};
+use sync::{FileSyncInfo, SyncRequest, SyncResponse, SyncServiceState};
 use task_executor::ShutdownReason;
 
 pub struct RpcServerImpl {
@@ -115,6 +115,17 @@ impl RpcServer for RpcServerImpl {
 
         match response {
             SyncResponse::TerminateFileSync { count } => Ok(count > 0),
+            _ => Err(error::internal_error("unexpected response type")),
+        }
+    }
+
+    async fn get_sync_service_state(&self) -> RpcResult<SyncServiceState> {
+        info!("admin_getSyncServiceState()");
+
+        let response = self.ctx.request_sync(SyncRequest::SyncState).await?;
+
+        match response {
+            SyncResponse::SyncState { state } => Ok(state),
             _ => Err(error::internal_error("unexpected response type")),
         }
     }

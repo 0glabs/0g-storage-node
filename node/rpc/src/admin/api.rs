@@ -2,7 +2,7 @@ use crate::types::{LocationInfo, NetworkInfo, PeerInfo};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use std::collections::HashMap;
-use sync::FileSyncInfo;
+use sync::{FileSyncInfo, SyncServiceState};
 
 #[rpc(server, client, namespace = "admin")]
 pub trait Rpc {
@@ -26,6 +26,9 @@ pub trait Rpc {
     /// Terminate file or chunks sync for specified tx_seq.
     #[method(name = "terminateSync")]
     async fn terminate_sync(&self, tx_seq: u64) -> RpcResult<bool>;
+
+    #[method(name = "getSyncServiceState")]
+    async fn get_sync_service_state(&self) -> RpcResult<SyncServiceState>;
 
     #[method(name = "getSyncStatus")]
     async fn get_sync_status(&self, tx_seq: u64) -> RpcResult<String>;
