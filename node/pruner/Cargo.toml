@@ -12,3 +12,7 @@ tokio = "1.37.0"
 rand = "0.8.5"
 task_executor = { path = "../../common/task_executor" }
 tracing = "0.1.40"
+ethereum-types = "0.14.1"
+contract-interface = { path = "../../common/contract-interface" }
+ethers = "^2"
+zgs_spec = { path = "../../common/spec" }

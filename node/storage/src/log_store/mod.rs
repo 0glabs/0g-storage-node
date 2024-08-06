@@ -53,6 +53,8 @@ pub trait LogStoreRead: LogStoreChunkRead {
 
     fn check_tx_completed(&self, tx_seq: u64) -> Result<bool>;
 
+    fn check_tx_pruned(&self, tx_seq: u64) -> Result<bool>;
+
     fn next_tx_seq(&self) -> u64;
 
     fn get_sync_progress(&self) -> Result<Option<(u64, H256)>>;
@@ -118,6 +120,8 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
     /// the caller is supposed to track chunk statuses and call this after storing all the chunks.
     fn finalize_tx(&self, tx_seq: u64) -> Result<()>;
     fn finalize_tx_with_hash(&self, tx_seq: u64, tx_hash: H256) -> Result<bool>;
+    /// Mark the tx as pruned, meaning the data will not be stored.
+    fn prune_tx(&self, tx_seq: u64) -> Result<()>;
 
     /// Store the progress of synced block number and its hash.
     fn put_sync_progress(&self, progress: (u64, H256, Option<Option<u64>>)) -> Result<()>;

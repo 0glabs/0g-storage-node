@@ -203,6 +203,10 @@ impl ZgsConfig {
     pub fn pruner_config(&self) -> Result<Option<PrunerConfig>, String> {
         if let Some(max_num_sectors) = self.db_max_num_sectors {
             let shard_config = self.shard_config()?;
+            let reward_address = self
+                .reward_contract_address
+                .parse::<ContractAddress>()
+                .map_err(|e| format!("Unable to parse reward_contract_address: {:?}", e))?;
             Ok(Some(PrunerConfig {
                 shard_config,
                 db_path: self.db_dir.clone().into(),
@@ -210,6 +214,8 @@ impl ZgsConfig {
                 check_time: Duration::from_secs(self.prune_check_time_s),
                 batch_size: self.prune_batch_size,
                 batch_wait_time: Duration::from_millis(self.prune_batch_wait_time_ms),
+                rpc_endpoint_url: self.blockchain_rpc_endpoint.clone(),
+                reward_address,
             }))
         } else {
             Ok(None)

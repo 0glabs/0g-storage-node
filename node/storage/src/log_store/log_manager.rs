@@ -337,6 +337,10 @@ impl LogStoreWrite for LogManager {
         }
     }
 
+    fn prune_tx(&self, tx_seq: u64) -> crate::error::Result<()> {
+        self.tx_store.prune_tx(tx_seq)
+    }
+
     fn put_sync_progress(&self, progress: (u64, H256, Option<Option<u64>>)) -> Result<()> {
         self.tx_store.put_progress(progress)
     }
@@ -562,6 +566,10 @@ impl LogStoreRead for LogManager {
             *merkle.pora_chunks_merkle.root(),
             merkle.last_chunk_start_index() + merkle.last_chunk_merkle.leaves() as u64,
         ))
+    }
+
+    fn check_tx_pruned(&self, tx_seq: u64) -> crate::error::Result<bool> {
+        self.tx_store.check_tx_pruned(tx_seq)
     }
 }
 

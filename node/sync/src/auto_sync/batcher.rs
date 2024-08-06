@@ -87,7 +87,9 @@ impl Batcher {
 
     async fn poll_tx(&self, tx_seq: u64) -> Result<Option<SyncResult>> {
         // file already exists
-        if self.store.check_tx_completed(tx_seq).await? {
+        if self.store.check_tx_completed(tx_seq).await?
+            || self.store.check_tx_pruned(tx_seq).await?
+        {
             // File may be finalized during file sync, e.g. user uploaded file via RPC.
             // In this case, just terminate the file sync.
             let num_terminated = self.terminate_file_sync(tx_seq, false).await;

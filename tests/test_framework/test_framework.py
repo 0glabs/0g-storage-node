@@ -51,6 +51,7 @@ class TestFramework:
         self.block_time = blockchain_node_type.block_time()
         self.enable_market = False
         self.mine_period = 100
+        self.lifetime_seconds = 3600
         self.launch_wait_seconds = 1
 
         # Set default binary path
@@ -171,7 +172,7 @@ class TestFramework:
                 wait_until(lambda: node.eth_blockNumber() is not None)
                 wait_until(lambda: int(node.eth_blockNumber(), 16) > 0)
 
-        contract, tx_hash, mine_contract, reward_contract = self.blockchain_nodes[0].setup_contract(self.enable_market, self.mine_period)
+        contract, tx_hash, mine_contract, reward_contract = self.blockchain_nodes[0].setup_contract(self.enable_market, self.mine_period, self.lifetime_seconds)
         self.contract = FlowContractProxy(contract, self.blockchain_nodes)
         self.mine_contract = MineContractProxy(mine_contract, self.blockchain_nodes)
         self.reward_contract = RewardContractProxy(reward_contract, self.blockchain_nodes)
@@ -197,6 +198,7 @@ class TestFramework:
                 updated_config,
                 self.contract.address(),
                 self.mine_contract.address(),
+                self.reward_contract.address(),
                 self.log,
             )
             self.nodes.append(node)
