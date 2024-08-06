@@ -20,10 +20,13 @@ pub fn configure(log_level_file: &str, log_directory: &str, executor: TaskExecut
     let handle = builder.reload_handle();
     builder.init();
 
-    let level_file = log_level_file.to_string();
+    let level_file = log_level_file.trim_end().to_string();
 
     // load config synchronously
-    let mut config = std::fs::read_to_string(&level_file).unwrap_or_default();
+    let mut config = std::fs::read_to_string(&level_file)
+        .unwrap_or_default()
+        .trim_end()
+        .to_string();
     let _ = handle.reload(&config);
 
     // periodically check for config changes
@@ -38,8 +41,14 @@ pub fn configure(log_level_file: &str, log_directory: &str, executor: TaskExecut
                 interval.tick().await;
 
                 let new_config = match tokio::fs::read_to_string(&level_file).await {
-                    Ok(c) if c == config => continue,
-                    Ok(c) => c,
+                    Ok(c) => {
+                        let nc = c.trim_end().to_string();
+                        if nc == config {
+                            continue;
+                        } else {
+                            nc
+                        }
+                    }
                     Err(e) => {
                         println!("Unable to read log file {}: {:?}", level_file, e);
                         continue;
