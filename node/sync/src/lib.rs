@@ -20,12 +20,35 @@ use std::{
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    // sync service config
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub heartbeat_interval: Duration,
     pub auto_sync_enabled: bool,
     pub max_sync_files: usize,
     pub sync_file_by_rpc_enabled: bool,
     pub sync_file_on_announcement_enabled: bool,
 
-    // auto_sync config
+    // serial sync config
+    pub max_chunks_to_request: u64,
+    pub max_request_failures: usize,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub peer_connect_timeout: Duration,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub peer_disconnect_timeout: Duration,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub peer_find_timeout: Duration,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub peer_chunks_download_timeout: Duration,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub peer_wait_outgoing_connection_timeout: Duration,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub peer_next_chunks_request_wait_timeout: Duration,
+
+    // auto sync config
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub auto_sync_idle_interval: Duration,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub auto_sync_error_interval: Duration,
     pub max_sequential_workers: usize,
     #[serde(deserialize_with = "deserialize_duration")]
     pub find_peer_timeout: Duration,
@@ -34,11 +57,26 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            // sync service config
+            heartbeat_interval: Duration::from_secs(5),
             auto_sync_enabled: false,
             max_sync_files: 16,
             sync_file_by_rpc_enabled: true,
             sync_file_on_announcement_enabled: false,
 
+            // serial sync config
+            max_chunks_to_request: 2 * 1024,
+            max_request_failures: 5,
+            peer_connect_timeout: Duration::from_secs(5),
+            peer_disconnect_timeout: Duration::from_secs(5),
+            peer_find_timeout: Duration::from_secs(5),
+            peer_chunks_download_timeout: Duration::from_secs(5),
+            peer_wait_outgoing_connection_timeout: Duration::from_secs(10),
+            peer_next_chunks_request_wait_timeout: Duration::from_secs(3),
+
+            // auto sync config
+            auto_sync_idle_interval: Duration::from_secs(3),
+            auto_sync_error_interval: Duration::from_secs(10),
             max_sequential_workers: 8,
             find_peer_timeout: Duration::from_secs(10),
         }

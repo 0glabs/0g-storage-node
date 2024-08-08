@@ -7,15 +7,12 @@ use shared_types::TxID;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::vec;
 use storage::config::{all_shards_available, ShardConfig};
 
 use crate::context::SyncNetworkContext;
-use crate::InstantWrapper;
-
-const PEER_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-const PEER_DISCONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+use crate::{Config, InstantWrapper};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PeerState {
@@ -49,6 +46,7 @@ impl PeerInfo {
 
 #[derive(Default)]
 pub struct SyncPeers {
+    config: Config,
     peers: HashMap<PeerId, PeerInfo>,
     ctx: Option<Arc<SyncNetworkContext>>,
     file_location_cache: Option<(TxID, Arc<FileLocationCache>)>,
@@ -56,11 +54,13 @@ pub struct SyncPeers {
 
 impl SyncPeers {
     pub fn new(
+        config: Config,
         ctx: Arc<SyncNetworkContext>,
         tx_id: TxID,
         file_location_cache: Arc<FileLocationCache>,
     ) -> Self {
         Self {
+            config,
             peers: Default::default(),
             ctx: Some(ctx),
             file_location_cache: Some((tx_id, file_location_cache)),
@@ -185,7 +185,7 @@ impl SyncPeers {
                 PeerState::Found | PeerState::Connected => {}
 
                 PeerState::Connecting => {
-                    if info.since.elapsed() >= PEER_CONNECT_TIMEOUT {
+                    if info.since.elapsed() >= self.config.peer_connect_timeout {
                         info!(%peer_id, %info.addr, "Peer connection timeout");
                         bad_peers.push(*peer_id);
 
@@ -206,7 +206,7 @@ impl SyncPeers {
                 }
 
                 PeerState::Disconnecting => {
-                    if info.since.elapsed() >= PEER_DISCONNECT_TIMEOUT {
+                    if info.since.elapsed() >= self.config.peer_disconnect_timeout {
                         info!(%peer_id, %info.addr, "Peer disconnect timeout");
                         bad_peers.push(*peer_id);
                     }
@@ -352,7 +352,7 @@ mod tests {
         sync_peers.add_new_peer(peer_id_connecting, addr.clone());
         sync_peers.update_state_force(&peer_id_connecting, PeerState::Connecting);
         sync_peers.peers.get_mut(&peer_id_connecting).unwrap().since =
-            (Instant::now() - PEER_CONNECT_TIMEOUT).into();
+            (Instant::now() - sync_peers.config.peer_connect_timeout).into();
 
         let peer_id_disconnecting = identity::Keypair::generate_ed25519().public().to_peer_id();
         sync_peers.add_new_peer(peer_id_disconnecting, addr.clone());
@@ -361,7 +361,7 @@ mod tests {
             .peers
             .get_mut(&peer_id_disconnecting)
             .unwrap()
-            .since = (Instant::now() - PEER_DISCONNECT_TIMEOUT).into();
+            .since = (Instant::now() - sync_peers.config.peer_disconnect_timeout).into();
 
         let peer_id_disconnected = identity::Keypair::generate_ed25519().public().to_peer_id();
         sync_peers.add_new_peer(peer_id_disconnected, addr);

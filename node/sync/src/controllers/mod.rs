@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use peers::PeerState;
 use serde::{Deserialize, Serialize};
 
-pub use serial::{FailureReason, SerialSyncController, SyncState, MAX_CHUNKS_TO_REQUEST};
+pub use serial::{FailureReason, SerialSyncController, SyncState};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

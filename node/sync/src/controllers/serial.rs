@@ -1,7 +1,7 @@
 use crate::context::SyncNetworkContext;
 use crate::controllers::peers::{PeerState, SyncPeers};
 use crate::controllers::{FileSyncGoal, FileSyncInfo};
-use crate::InstantWrapper;
+use crate::{Config, InstantWrapper};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use network::types::FindChunks;
@@ -11,19 +11,9 @@ use network::{
 };
 use rand::Rng;
 use shared_types::{timestamp_now, ChunkArrayWithProof, TxID, CHUNK_SIZE};
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Instant};
 use storage::log_store::log_manager::PORA_CHUNK_SIZE;
 use storage_async::Store;
-
-pub const MAX_CHUNKS_TO_REQUEST: u64 = 2 * 1024;
-const MAX_REQUEST_FAILURES: usize = 5;
-const PEER_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
-const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(5);
-const WAIT_OUTGOING_CONNECTION_TIMEOUT: Duration = Duration::from_secs(10);
-const NEXT_REQUEST_WAIT_TIME: Duration = Duration::from_secs(3);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FailureReason {
@@ -62,6 +52,8 @@ pub enum SyncState {
 }
 
 pub struct SerialSyncController {
+    config: Config,
+
     // only used for log purpose
     tx_seq: u64,
 
@@ -99,6 +91,7 @@ pub struct SerialSyncController {
 
 impl SerialSyncController {
     pub fn new(
+        config: Config,
         tx_id: TxID,
         tx_start_chunk_in_flow: u64,
         goal: FileSyncGoal,
@@ -107,6 +100,7 @@ impl SerialSyncController {
         file_location_cache: Arc<FileLocationCache>,
     ) -> Self {
         SerialSyncController {
+            config,
             tx_seq: tx_id.seq,
             tx_id,
             tx_start_chunk_in_flow,
@@ -115,7 +109,7 @@ impl SerialSyncController {
             next_chunk: goal.index_start,
             failures: 0,
             state: SyncState::Idle,
-            peers: SyncPeers::new(ctx.clone(), tx_id, file_location_cache.clone()),
+            peers: SyncPeers::new(config, ctx.clone(), tx_id, file_location_cache.clone()),
             ctx,
             store,
             file_location_cache,
@@ -465,7 +459,8 @@ impl SerialSyncController {
                 // occurs when remote peer has higher block height
                 info!(%self.tx_seq, "Failed to validate chunks response due to no root found");
                 self.state = SyncState::AwaitingDownload {
-                    since: (Instant::now() + NEXT_REQUEST_WAIT_TIME).into(),
+                    since: (Instant::now() + self.config.peer_next_chunks_request_wait_timeout)
+                        .into(),
                 };
                 return;
             }
@@ -557,10 +552,10 @@ impl SerialSyncController {
 
         self.failures += 1;
 
-        if self.failures <= MAX_REQUEST_FAILURES {
+        if self.failures <= self.config.max_request_failures {
             // try again
             self.state = SyncState::AwaitingDownload {
-                since: (Instant::now() + NEXT_REQUEST_WAIT_TIME).into(),
+                since: (Instant::now() + self.config.peer_next_chunks_request_wait_timeout).into(),
             };
         } else {
             // ban and find new peer to download
@@ -622,7 +617,7 @@ impl SerialSyncController {
                         // storage node may not have the specific file when `FindFile`
                         // gossip message received. In this case, just broadcast the
                         // `FindFile` message again.
-                        if since.elapsed() >= PEER_REQUEST_TIMEOUT {
+                        if since.elapsed() >= self.config.peer_find_timeout {
                             debug!(%self.tx_seq, "Finding peer timeout and try to find peers again");
                             self.try_find_peers();
                         }
@@ -657,7 +652,7 @@ impl SerialSyncController {
                 }
 
                 SyncState::AwaitingOutgoingConnection { since } => {
-                    if since.elapsed() < WAIT_OUTGOING_CONNECTION_TIMEOUT {
+                    if since.elapsed() < self.config.peer_wait_outgoing_connection_timeout {
                         completed = true;
                     } else {
                         debug!(%self.tx_seq, "Waiting for outgoing connection timeout and try to find other peers to dial");
@@ -679,7 +674,7 @@ impl SerialSyncController {
                         // e.g. peer disconnected by remote node
                         debug!(%self.tx_seq, "No peer to continue downloading and try to find other peers to download");
                         self.state = SyncState::Idle;
-                    } else if since.elapsed() >= DOWNLOAD_TIMEOUT {
+                    } else if since.elapsed() >= self.config.peer_chunks_download_timeout {
                         self.handle_response_failure(peer_id, "RPC timeout");
                     } else {
                         completed = true;
@@ -1516,7 +1511,7 @@ mod tests {
             chunk_count,
         );
 
-        for i in 0..(MAX_REQUEST_FAILURES + 1) {
+        for i in 0..(controller.config.max_request_failures + 1) {
             controller.handle_response_failure(init_peer_id, "unit test");
             if let Some(msg) = network_recv.recv().await {
                 match msg {
@@ -1550,7 +1545,7 @@ mod tests {
             }
 
             assert_eq!(controller.failures, i + 1);
-            if i == MAX_REQUEST_FAILURES {
+            if i == controller.config.max_request_failures {
                 assert_eq!(*controller.get_status(), SyncState::Idle);
 
                 if let Some(msg) = network_recv.recv().await {
@@ -1626,6 +1621,7 @@ mod tests {
         let file_location_cache = create_file_location_cache(peer_id, vec![tx_id]);
 
         let controller = SerialSyncController::new(
+            Config::default(),
             tx_id,
             0,
             FileSyncGoal::new_file(num_chunks as u64),
