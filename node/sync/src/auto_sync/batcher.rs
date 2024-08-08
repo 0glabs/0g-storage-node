@@ -1,7 +1,7 @@
 use crate::{controllers::SyncState, Config, SyncRequest, SyncResponse, SyncSender};
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, sync::Arc};
+use std::{collections::HashSet, fmt::Debug, sync::Arc};
 use storage_async::Store;
 use tokio::sync::RwLock;
 
@@ -17,7 +17,7 @@ pub enum SyncResult {
 pub struct Batcher {
     pub(crate) config: Config,
     capacity: usize,
-    tasks: Arc<RwLock<Vec<u64>>>, // files to sync
+    tasks: Arc<RwLock<HashSet<u64>>>, // files to sync
     store: Store,
     sync_send: SyncSender,
 }
@@ -33,12 +33,10 @@ impl Batcher {
         }
     }
 
-    pub async fn len(&self) -> usize {
-        self.tasks.read().await.len()
-    }
-
     pub async fn tasks(&self) -> Vec<u64> {
-        self.tasks.read().await.clone()
+        let mut result: Vec<u64> = self.tasks.read().await.iter().copied().collect();
+        result.sort();
+        result
     }
 
     pub async fn add(&self, tx_seq: u64) -> Result<bool> {
@@ -54,9 +52,7 @@ impl Batcher {
             return Ok(false);
         }
 
-        tasks.push(tx_seq);
-
-        Ok(true)
+        Ok(tasks.insert(tx_seq))
     }
 
     pub async fn reorg(&self, reverted_tx_seq: u64) {
@@ -67,19 +63,16 @@ impl Batcher {
     pub async fn poll(&self) -> Result<Option<(u64, SyncResult)>> {
         let mut result = None;
         let tasks = self.tasks.read().await.clone();
-        let mut index = tasks.len();
 
-        for (i, tx_seq) in tasks.iter().enumerate() {
+        for tx_seq in tasks.iter() {
             if let Some(ret) = self.poll_tx(*tx_seq).await? {
                 result = Some((*tx_seq, ret));
-                index = i;
                 break;
             }
         }
 
-        let mut tasks = self.tasks.write().await;
-        if index < tasks.len() {
-            tasks.swap_remove(index);
+        if let Some((tx_seq, _)) = &result {
+            self.tasks.write().await.remove(tx_seq);
         }
 
         Ok(result)

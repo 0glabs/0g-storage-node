@@ -241,3 +241,6 @@ auto_sync_enabled = true
 
 # Maximum threads to sync files in sequence.
 # max_sequential_workers = 8
+
+# Maximum threads to sync files randomly.
+# max_random_workers = 4
