@@ -31,8 +31,7 @@ impl RandomBatcher {
         sync_store: Arc<SyncStore>,
     ) -> Self {
         Self {
-            // now, only 1 thread to sync file randomly
-            batcher: Batcher::new(config, 1, store, sync_send),
+            batcher: Batcher::new(config, config.max_random_workers, store, sync_send),
             sync_store,
         }
     }
@@ -97,10 +96,6 @@ impl RandomBatcher {
     }
 
     async fn schedule(&mut self) -> Result<bool> {
-        if self.batcher.len().await > 0 {
-            return Ok(false);
-        }
-
         let tx_seq = match self.sync_store.random_tx().await? {
             Some(v) => v,
             None => return Ok(false),

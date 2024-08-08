@@ -50,6 +50,7 @@ pub struct Config {
     #[serde(deserialize_with = "deserialize_duration")]
     pub auto_sync_error_interval: Duration,
     pub max_sequential_workers: usize,
+    pub max_random_workers: usize,
     #[serde(deserialize_with = "deserialize_duration")]
     pub find_peer_timeout: Duration,
 }
@@ -78,6 +79,7 @@ impl Default for Config {
             auto_sync_idle_interval: Duration::from_secs(3),
             auto_sync_error_interval: Duration::from_secs(10),
             max_sequential_workers: 8,
+            max_random_workers: 4,
             find_peer_timeout: Duration::from_secs(10),
         }
     }
