@@ -15,7 +15,7 @@ pub enum SyncResult {
 /// Supports to sync files concurrently.
 #[derive(Clone)]
 pub struct Batcher {
-    config: Config,
+    pub(crate) config: Config,
     capacity: usize,
     tasks: Arc<RwLock<Vec<u64>>>, // files to sync
     store: Store,

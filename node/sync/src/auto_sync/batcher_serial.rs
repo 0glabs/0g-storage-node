@@ -2,10 +2,7 @@ use super::{
     batcher::{Batcher, SyncResult},
     sync_store::SyncStore,
 };
-use crate::{
-    auto_sync::{INTERVAL_ERROR, INTERVAL_IDLE},
-    Config, SyncSender,
-};
+use crate::{Config, SyncSender};
 use anyhow::Result;
 use log_entry_sync::LogSyncEvent;
 use serde::{Deserialize, Serialize};
@@ -139,7 +136,7 @@ impl SerialBatcher {
             // disable file sync until catched up
             if !catched_up.load(Ordering::Relaxed) {
                 trace!("Cannot sync file in catch-up phase");
-                sleep(INTERVAL_IDLE).await;
+                sleep(self.batcher.config.auto_sync_idle_interval).await;
                 continue;
             }
 
@@ -151,11 +148,11 @@ impl SerialBatcher {
                         "File sync still in progress or idle, state = {:?}",
                         self.get_state().await
                     );
-                    sleep(INTERVAL_IDLE).await;
+                    sleep(self.batcher.config.auto_sync_idle_interval).await;
                 }
                 Err(err) => {
                     warn!(%err, "Failed to sync file once, state = {:?}", self.get_state().await);
-                    sleep(INTERVAL_ERROR).await;
+                    sleep(self.batcher.config.auto_sync_error_interval).await;
                 }
             }
         }

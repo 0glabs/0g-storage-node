@@ -2,7 +2,6 @@ use crate::auto_sync::manager::AutoSyncManager;
 use crate::context::SyncNetworkContext;
 use crate::controllers::{
     FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
-    MAX_CHUNKS_TO_REQUEST,
 };
 use crate::{Config, SyncServiceState};
 use anyhow::{bail, Result};
@@ -25,8 +24,6 @@ use storage::error::Result as StorageResult;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
 use tokio::sync::{broadcast, mpsc, oneshot};
-
-const HEARTBEAT_INTERVAL_SEC: u64 = 5;
 
 pub type SyncSender = channel::Sender<SyncMessage, SyncRequest, SyncResponse>;
 pub type SyncReceiver = channel::Receiver<SyncMessage, SyncRequest, SyncResponse>;
@@ -126,9 +123,6 @@ pub struct SyncService {
     /// A collection of file sync controllers.
     controllers: HashMap<u64, SerialSyncController>,
 
-    /// Heartbeat interval for executing periodic tasks.
-    heartbeat: tokio::time::Interval,
-
     auto_sync_manager: Option<AutoSyncManager>,
 }
 
@@ -163,10 +157,6 @@ impl SyncService {
         catch_up_end_recv: oneshot::Receiver<()>,
     ) -> Result<SyncSender> {
         let (sync_send, sync_recv) = channel::Channel::unbounded();
-
-        let heartbeat =
-            tokio::time::interval(tokio::time::Duration::from_secs(HEARTBEAT_INTERVAL_SEC));
-
         let store = Store::new(store, executor.clone());
 
         // init auto sync
@@ -193,7 +183,6 @@ impl SyncService {
             store,
             file_location_cache,
             controllers: Default::default(),
-            heartbeat,
             auto_sync_manager,
         };
 
@@ -204,6 +193,8 @@ impl SyncService {
     }
 
     async fn main(&mut self) {
+        let mut heartbeat = tokio::time::interval(self.config.heartbeat_interval);
+
         loop {
             tokio::select! {
                 // received sync message
@@ -215,7 +206,7 @@ impl SyncService {
                 }
 
                 // heartbeat
-                _ = self.heartbeat.tick() => self.on_heartbeat(),
+                _ = heartbeat.tick() => self.on_heartbeat(),
             }
         }
     }
@@ -417,7 +408,7 @@ impl SyncService {
         }
 
         // ban peer if requested too many chunks
-        if request.index_end - request.index_start > MAX_CHUNKS_TO_REQUEST {
+        if request.index_end - request.index_start > self.config.max_chunks_to_request {
             self.ctx.ban_peer(peer_id, "Too many chunks requested");
             return Ok(());
         }
@@ -649,6 +640,7 @@ impl SyncService {
                 }
 
                 entry.insert(SerialSyncController::new(
+                    self.config,
                     tx.id(),
                     tx.start_entry_index(),
                     FileSyncGoal::new(num_chunks, index_start, index_end),
@@ -916,8 +908,6 @@ mod tests {
         let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
         let (_, sync_recv) = channel::Channel::unbounded();
 
-        let heartbeat = tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL_SEC));
-
         let mut sync = SyncService {
             config: Config::default(),
             msg_recv: sync_recv,
@@ -925,7 +915,6 @@ mod tests {
             store,
             file_location_cache,
             controllers: Default::default(),
-            heartbeat,
             auto_sync_manager: None,
         };
 
@@ -948,8 +937,6 @@ mod tests {
         let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
         let (_, sync_recv) = channel::Channel::unbounded();
 
-        let heartbeat = tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL_SEC));
-
         let mut sync = SyncService {
             config: Config::default(),
             msg_recv: sync_recv,
@@ -957,7 +944,6 @@ mod tests {
             store,
             file_location_cache,
             controllers: Default::default(),
-            heartbeat,
             auto_sync_manager: None,
         };
 
@@ -1357,7 +1343,8 @@ mod tests {
         wait_for_tx_finalized(runtime.store, tx_seq).await;
 
         // test heartbeat
-        let deadline = Instant::now() + Duration::from_secs(HEARTBEAT_INTERVAL_SEC + 1);
+        let deadline =
+            Instant::now() + Config::default().heartbeat_interval + Duration::from_secs(1);
         while !matches!(sync_send
             .request(SyncRequest::SyncStatus { tx_seq })
             .await

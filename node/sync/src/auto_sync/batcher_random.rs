@@ -1,8 +1,5 @@
 use super::{batcher::Batcher, sync_store::SyncStore};
-use crate::{
-    auto_sync::{batcher::SyncResult, INTERVAL_ERROR, INTERVAL_IDLE},
-    Config, SyncSender,
-};
+use crate::{auto_sync::batcher::SyncResult, Config, SyncSender};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::{
@@ -57,7 +54,7 @@ impl RandomBatcher {
             // disable file sync until catched up
             if !catched_up.load(Ordering::Relaxed) {
                 trace!("Cannot sync file in catch-up phase");
-                sleep(INTERVAL_IDLE).await;
+                sleep(self.batcher.config.auto_sync_idle_interval).await;
                 continue;
             }
 
@@ -68,11 +65,11 @@ impl RandomBatcher {
                         "File sync still in progress or idle, state = {:?}",
                         self.get_state().await
                     );
-                    sleep(INTERVAL_IDLE).await;
+                    sleep(self.batcher.config.auto_sync_idle_interval).await;
                 }
                 Err(err) => {
                     warn!(%err, "Failed to sync file once, state = {:?}", self.get_state().await);
-                    sleep(INTERVAL_ERROR).await;
+                    sleep(self.batcher.config.auto_sync_error_interval).await;
                 }
             }
         }
