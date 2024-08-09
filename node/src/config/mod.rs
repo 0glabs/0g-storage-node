@@ -81,6 +81,8 @@ build_config! {
     (mine_iter_batch_size, (usize), 100)
     (reward_contract_address, (String), "".to_string())
     (shard_position, (Option<String>), None)
+
+    (mine_context_query_seconds, (u64), 5)
 }
 
 #[derive(Debug, Default, Deserialize)]

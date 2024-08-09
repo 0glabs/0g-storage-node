@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use ethereum_types::{Address, H256, U256};
 use ethers::core::k256::SecretKey;
 use ethers::middleware::SignerMiddleware;
@@ -18,6 +20,7 @@ pub struct MinerConfig {
     pub(crate) cpu_percentage: u64,
     pub(crate) iter_batch: usize,
     pub(crate) shard_config: ShardConfig,
+    pub(crate) context_query_interval: Duration,
 }
 
 pub type MineServiceMiddleware = SignerMiddleware<Provider<Http>, LocalWallet>;
@@ -33,6 +36,7 @@ impl MinerConfig {
         submission_gas: Option<U256>,
         cpu_percentage: u64,
         iter_batch: usize,
+        context_query_seconds: u64,
         shard_config: ShardConfig,
     ) -> Option<MinerConfig> {
         miner_key.map(|miner_key| MinerConfig {
@@ -45,6 +49,7 @@ impl MinerConfig {
             cpu_percentage,
             iter_batch,
             shard_config,
+            context_query_interval: Duration::from_secs(context_query_seconds),
         })
     }
 

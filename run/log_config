@@ -1,1 +1,1 @@
-debug,hyper=info,h2=info
+debug,hyper=info,h2=info,rpc=info,discv5=info,router=info,jsonrpsee_http_server=info

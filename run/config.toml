@@ -179,8 +179,11 @@
 ###                     Mine Config Options                         ###
 #######################################################################
 
-# Mine contract address for incentive.
+# Mine contract address for PoRA.
 # mine_contract_address = ""
+
+# Reward contract address for incentive.
+# reward_contract_address = ""
 
 # Miner key is used to sign blockchain transaction for incentive.
 # The value should be a hex string of length 64 without 0x prefix.
@@ -188,6 +191,18 @@
 # Note, the corresponding address should have enough tokens to pay
 # transaction gas fee.
 # miner_key = ""
+
+# Period for querying mine context on chain (in seconds)
+#
+# Note: During each query period, nodes will issue 3 `eth_call` requests. 
+# If your blockchain RPC endpoint is a public or priced node, please be 
+# cautious not to set the period too short.
+#
+# mine_context_query_seconds = 5
+
+# CPU Usage percentage for PoRA mining. 100 means one CPU core is fully loaded. 
+#
+# miner_cpu_percentage = 100
 
 #######################################################################
 ###                   Sharding Config Options                       ###

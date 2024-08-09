@@ -168,6 +168,7 @@ impl ZgsConfig {
         let submission_gas = self.miner_submission_gas.map(U256::from);
         let cpu_percentage = self.miner_cpu_percentage;
         let iter_batch = self.mine_iter_batch_size;
+        let context_query_seconds = self.mine_context_query_seconds;
 
         let shard_config = self.shard_config()?;
 
@@ -180,6 +181,7 @@ impl ZgsConfig {
             submission_gas,
             cpu_percentage,
             iter_batch,
+            context_query_seconds,
             shard_config,
         ))
     }
