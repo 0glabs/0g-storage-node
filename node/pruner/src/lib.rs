@@ -1,11 +1,13 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use contract_interface::ChunkLinearReward;
 use ethereum_types::Address;
 use ethers::prelude::{Http, Provider};
+use ethers::providers::{HttpRateLimitRetryPolicy, RetryClient, RetryClientBuilder};
 use miner::MinerMessage;
 use rand::Rng;
 use std::cmp::Ordering;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
@@ -34,16 +36,16 @@ pub struct PrunerConfig {
 
     pub rpc_endpoint_url: String,
     pub reward_address: Address,
+
+    pub rate_limit_retries: u32,
+    pub timeout_retries: u32,
+    pub initial_backoff: u64,
+
 }
 
 impl PrunerConfig {
     fn start_prune_size(&self) -> u64 {
         (self.max_num_sectors as f32 * PRUNE_THRESHOLD) as u64
-    }
-
-    fn make_provider(&self) -> Result<Provider<Http>> {
-        Provider::<Http>::try_from(&self.rpc_endpoint_url)
-            .map_err(|e| anyhow!("Can not parse blockchain endpoint: {:?}", e))
     }
 }
 
@@ -57,7 +59,7 @@ pub struct Pruner {
     sender: mpsc::UnboundedSender<PrunerMessage>,
     miner_sender: Option<broadcast::Sender<MinerMessage>>,
 
-    reward_contract: ChunkLinearReward<Provider<Http>>,
+    reward_contract: ChunkLinearReward<Arc<Provider<RetryClient<Http>>>>,
 }
 
 impl Pruner {
@@ -73,8 +75,16 @@ impl Pruner {
         let (first_rewardable_chunk, first_tx_seq) = get_first_rewardable_chunk(store.as_ref())
             .await?
             .unwrap_or((0, 0));
+
+        let provider = Arc::new(Provider::new(
+            RetryClientBuilder::default()
+                .rate_limit_retries(config.rate_limit_retries)
+                .timeout_retries(config.timeout_retries)
+                .initial_backoff(Duration::from_millis(config.initial_backoff))
+                .build(Http::from_str(&config.rpc_endpoint_url)?, Box::new(HttpRateLimitRetryPolicy)),
+            ));
         let reward_contract =
-            ChunkLinearReward::new(config.reward_address, Arc::new(config.make_provider()?));
+            ChunkLinearReward::new(config.reward_address, Arc::new(provider));
         let (tx, rx) = mpsc::unbounded_channel();
         let pruner = Pruner {
             config,

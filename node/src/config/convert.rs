@@ -216,6 +216,9 @@ impl ZgsConfig {
                 batch_wait_time: Duration::from_millis(self.prune_batch_wait_time_ms),
                 rpc_endpoint_url: self.blockchain_rpc_endpoint.clone(),
                 reward_address,
+                rate_limit_retries: self.rate_limit_retries,
+                timeout_retries: self.timeout_retries,
+                initial_backoff: self.initial_backoff,
             }))
         } else {
             Ok(None)
