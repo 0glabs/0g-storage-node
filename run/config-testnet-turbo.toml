@@ -1,0 +1,268 @@
+# This is a TOML config file.
+# For more information, see https://github.com/toml-lang/toml
+
+#######################################################################
+###                     Network Config Options                      ###
+#######################################################################
+
+# Data directory where node's keyfile is stored.
+# network_dir = "network"
+
+# IP address to listen on.
+# network_listen_address = "0.0.0.0"
+
+# The address to broadcast to peers about which address we are listening on. Generally,
+# configure public IP address for UDP discovery. If not specified, program will try to
+# detect public IP address automatically.
+# network_enr_address = ""
+
+# The tcp port to broadcast to peers in order to reach back for libp2p services.
+# network_enr_tcp_port = 1234
+
+# The udp port to broadcast to peers in order to reach back for discovery.
+# network_enr_udp_port = 1234
+
+# The TCP port that libp2p listens on.
+# network_libp2p_port = 1234
+
+# UDP port that discovery listens on.
+# network_discovery_port = 1234
+
+# Target number of connected peers.
+# network_target_peers = 50
+
+# List of nodes to bootstrap UDP discovery. Note, `network_enr_address` should be
+# configured as well to enable UDP discovery.
+network_boot_nodes = ["/ip4/54.219.26.22/udp/1234/p2p/16Uiu2HAmTVDGNhkHD98zDnJxQWu3i1FL1aFYeh9wiQTNu4pDCgps","/ip4/52.52.127.117/udp/1234/p2p/16Uiu2HAkzRjxK2gorngB1Xq84qDrT4hSVznYDHj6BkbaE4SGx9oS","/ip4/18.162.65.205/udp/1234/p2p/16Uiu2HAm2k6ua2mGgvZ8rTMV8GhpW71aVzkQWy7D37TTDuLCpgmX"]
+
+# List of libp2p nodes to initially connect to.
+# network_libp2p_nodes = []
+
+# Indicates if the user has set the network to be in private mode. Currently this
+# prevents sending client identifying information over identify.
+# network_private = false
+
+# Disables the discovery protocol from starting.
+# network_disable_discovery = false
+
+#######################################################################
+###                   UDP Discovery Config Options                  ###
+#######################################################################
+# The request timeout for each UDP request.
+# discv5_request_timeout_secs = 5
+
+# The timeout after which a `QueryPeer` in an ongoing query is marked unresponsive.
+# Unresponsive peers don't count towards the parallelism limits for a query.
+# Hence, we may potentially end up making more requests to good peers.
+# discv5_query_peer_timeout_secs = 2
+
+# The number of retries for each UDP request.
+# discv5_request_retries = 1
+
+# The number of peers to request in parallel in a single query.
+# discv5_query_parallelism = 5
+
+# Reports all discovered ENR's when traversing the DHT to the event stream.
+# discv5_report_discovered_peers = false
+
+# Disables the incoming packet filter.
+# discv5_disable_packet_filter = false
+
+# Disable to limit the number of IP addresses from the same
+# /24 subnet in the kbuckets table. This is to mitigate eclipse attacks.
+# discv5_disable_ip_limit = false
+
+#######################################################################
+###                     Log Sync Config Options                     ###
+#######################################################################
+
+# RPC endpoint to sync event logs on EVM compatible blockchain.
+# blockchain_rpc_endpoint = "http://127.0.0.1:8545"
+
+# Flow contract address to sync event logs.
+log_contract_address = "0xbD2C3F0E65eDF5582141C35969d66e34629cC768"
+
+# Block number to sync event logs from blockchain. Generally, this is
+# the block number when flow contract deployed.
+log_sync_start_block_number = 595059
+
+# Number of blocks to confirm a transaction.
+confirmation_block_count = 6
+
+# Maximum number of event logs to poll at a time.
+# log_page_size = 999
+
+# Maximum data size to cache in memory (by default, 100MB).
+# max_cache_data_size = 104857600
+
+# TTL to cache data in memory.
+# cache_tx_seq_ttl = 500
+
+# The number of retries after a RPC request times out.
+# rate_limit_retries = 100
+
+# The nubmer of retries for rate limited responses.
+# timeout_retries = 100
+
+# The duration to wait before retry, in ms.
+# initial_backoff = 500
+
+# The duration between each paginated getLogs RPC call, in ms.
+# This is set to avoid triggering the throttling mechanism in the RPC server.
+# recover_query_delay = 50
+
+# The counter assumed the finalized block behind the latest block.
+# default_finalized_block_count = 100
+
+# Remove finalized block trigger interval.
+# remove_finalized_block_interval_minutes = 30
+
+# Watch_loop (eth_getLogs) trigger interval.
+# watch_loop_wait_time_ms = 500
+
+#######################################################################
+###                     RPC Config Options                          ###
+#######################################################################
+
+# Whether to provide RPC service.
+# rpc_enabled = true
+
+# HTTP server address to bind for public RPC.
+# rpc_listen_address = "0.0.0.0:5678"
+
+# HTTP server address to bind for admin and debug RPC.
+# rpc_listen_address_admin = "127.0.0.1:5679"
+
+# Maximum data size of RPC request body (by default, 100MB).
+# max_request_body_size = 104857600
+
+# Number of chunks for a single segment.
+# rpc_chunks_per_segment = 1024
+
+# Maximum file size that allowed to cache in memory (by default, 10MB).
+# rpc_max_cache_file_size = 10485760
+
+#######################################################################
+###                     Chunk Pool Config Options                   ###
+#######################################################################
+
+# Maximum number of threads to upload segments of a single file simultaneously.
+# chunk_pool_write_window_size = 4
+
+# Maximum data size of cached segment in pool (by default, 4MB).
+# chunk_pool_max_cached_chunks_all = 4194304
+
+# Maximum number of threads to upload segments for all files simultaneously.
+# chunk_pool_max_writings = 16
+
+# Expiration time to cache uploaded segments in memory.
+# chunk_pool_expiration_time_secs = 300
+
+#######################################################################
+###                     DB Config Options                           ###
+#######################################################################
+
+# Directory to store data.
+# db_dir = "db"
+
+#######################################################################
+###                     Misc Config Options                         ###
+#######################################################################
+
+# Log configuration file.
+# log_config_file = "log_config"
+
+# Log directory.
+# log_directory = "log"
+
+#######################################################################
+###                     Mine Config Options                         ###
+#######################################################################
+
+# Mine contract address for incentive.
+mine_contract_address = "0x6815F41019255e00D6F34aAB8397a6Af5b6D806f"
+
+# Miner key is used to sign blockchain transaction for incentive.
+# The value should be a hex string of length 64 without 0x prefix.
+#
+# Note, the corresponding address should have enough tokens to pay
+# transaction gas fee.
+# miner_key = ""
+
+#######################################################################
+###                   Sharding Config Options                       ###
+#######################################################################
+# The max number of chunk entries to store in db.
+# Each entry is 256B, so the db size is roughly limited to
+# `256 * db_max_num_sectors` Bytes.
+# If this limit is reached, the node will update its `shard_position`
+# and store only half data.
+#
+db_max_num_sectors = 1000000000
+
+# The format is <shard_id>/<shard_number>, where the shard number is 2^n.
+# This only applies if there is no stored shard config in db.
+# shard_position = "0/2"
+
+reward_contract_address = "0x51998C4d486F406a788B766d93510980ae1f9360"
+# The time interval to check if we should half `shard_position` to prune data.
+#
+# prune_check_time_s = 60
+
+# The number of chunk entries to delete in a batch when we prune data.
+#
+# prune_batch_size = 1024
+
+# The time interval to wait between each prune batch deletion to avoid
+# IO resource exhaustion.
+#
+# prune_batch_wait_time_ms = 1000
+
+#######################################################################
+###                   File Sync Config Options                      ###
+#######################################################################
+[sync]
+
+# Enable file sync among peers automatically. When enabled, each node will store
+# all files, and sufficient disk space is required.
+auto_sync_enabled = true
+
+#  Maximum number of files in sync from other peers simultaneously.
+max_sync_files = 32
+
+# Timeout to terminate a file sync when automatically sync from other peers.
+# If timeout, terminated file sync will be triggered later.
+# find_peer_timeout = "10s"
+
+# Enable to start a file sync via RPC (e.g. `admin_startSyncFile`).
+# sync_file_by_rpc_enabled = true
+
+# Enable to start a file sync automatically when a file announcement P2P message received.
+# sync_file_on_announcement_enabled = false
+
+# Maximum threads to sync files in sequence.
+max_sequential_workers = 24
+
+# Maximum threads to sync files randomly.
+# max_random_workers = 4
+
+#######################################################################
+###                File Location Cache Options                      ###
+#######################################################################
+
+# [file_location_cache]
+
+# File location cache is a cache that maintains storage positions of files. 
+# Storage location information is represented by the IP address of the storage node and the timestamp indicating when the node declared that it stores the corresponding file.
+# It has both a global capacity limit and a limit on the capacity for location information of each individual file.
+# When the cache is full, the storage position information with oldest timestamp will be replaced.
+
+# Global cache capacity.
+# max_entries_total = 4096
+
+# Location information capacity for each file.
+# max_entries_per_file = 4
+
+# Validity period of location information.
+# If the timestamp in the storage location information exceeds this duration from the current time, it will be removed from the cache.
+# entry_expiration_time_secs = 3600
