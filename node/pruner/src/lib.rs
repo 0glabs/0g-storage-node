@@ -40,7 +40,6 @@ pub struct PrunerConfig {
     pub rate_limit_retries: u32,
     pub timeout_retries: u32,
     pub initial_backoff: u64,
-
 }
 
 impl PrunerConfig {
@@ -81,10 +80,12 @@ impl Pruner {
                 .rate_limit_retries(config.rate_limit_retries)
                 .timeout_retries(config.timeout_retries)
                 .initial_backoff(Duration::from_millis(config.initial_backoff))
-                .build(Http::from_str(&config.rpc_endpoint_url)?, Box::new(HttpRateLimitRetryPolicy)),
-            ));
-        let reward_contract =
-            ChunkLinearReward::new(config.reward_address, Arc::new(provider));
+                .build(
+                    Http::from_str(&config.rpc_endpoint_url)?,
+                    Box::new(HttpRateLimitRetryPolicy),
+                ),
+        ));
+        let reward_contract = ChunkLinearReward::new(config.reward_address, Arc::new(provider));
         let (tx, rx) = mpsc::unbounded_channel();
         let pruner = Pruner {
             config,
