@@ -181,6 +181,9 @@ impl ZgsConfig {
             cpu_percentage,
             iter_batch,
             shard_config,
+            self.rate_limit_retries,
+            self.timeout_retries,
+            self.initial_backoff,
         ))
     }
 
