@@ -33,7 +33,7 @@
 
 # List of nodes to bootstrap UDP discovery. Note, `network_enr_address` should be
 # configured as well to enable UDP discovery.
-# network_boot_nodes = []
+network_boot_nodes = ["/ip4/35.95.5.134/udp/1234/p2p/16Uiu2HAmFGrDV8wKToa1dd8uh6bz8bSY28n33iRP3pvfeBU6ysCw","/ip4/35.84.189.77/udp/1234/p2p/16Uiu2HAmF7t5iuRoWLMvQVfHbbJr5TFgHo2oU1CDxJm56eLdxRAY"]
 
 # List of libp2p nodes to initially connect to.
 # network_libp2p_nodes = []
@@ -80,14 +80,14 @@
 # blockchain_rpc_endpoint = "http://127.0.0.1:8545"
 
 # Flow contract address to sync event logs.
-# log_contract_address = ""
+log_contract_address = "0x0460aA47b41a66694c0a73f667a1b795A5ED3556"
 
 # Block number to sync event logs from blockchain. Generally, this is
 # the block number when flow contract deployed.
-# log_sync_start_block_number = 0
+log_sync_start_block_number = 595059
 
 # Number of blocks to confirm a transaction.
-# confirmation_block_count = 12
+confirmation_block_count = 6
 
 # Maximum number of event logs to poll at a time.
 # log_page_size = 999
@@ -180,7 +180,7 @@
 #######################################################################
 
 # Mine contract address for incentive.
-# mine_contract_address = ""
+mine_contract_address = "0x1785c8683b3c527618eFfF78d876d9dCB4b70285"
 
 # Miner key is used to sign blockchain transaction for incentive.
 # The value should be a hex string of length 64 without 0x prefix.
@@ -198,12 +198,13 @@
 # If this limit is reached, the node will update its `shard_position`
 # and store only half data.
 #
-# db_max_num_sectors = 1000000000
+db_max_num_sectors = 1000000000
 
 # The format is <shard_id>/<shard_number>, where the shard number is 2^n.
 # This only applies if there is no stored shard config in db.
 # shard_position = "0/2"
 
+reward_contract_address = "0x0496D0817BD8519e0de4894Dc379D35c35275609"
 # The time interval to check if we should half `shard_position` to prune data.
 #
 # prune_check_time_s = 60
@@ -220,14 +221,14 @@
 #######################################################################
 ###                   File Sync Config Options                      ###
 #######################################################################
-# [sync]
+[sync]
 
 # Enable file sync among peers automatically. When enabled, each node will store
 # all files, and sufficient disk space is required.
-# auto_sync_enabled = false
+auto_sync_enabled = true
 
 #  Maximum number of files in sync from other peers simultaneously.
-# max_sync_files = 16
+max_sync_files = 32
 
 # Timeout to terminate a file sync when automatically sync from other peers.
 # If timeout, terminated file sync will be triggered later.
@@ -240,7 +241,7 @@
 # sync_file_on_announcement_enabled = false
 
 # Maximum threads to sync files in sequence.
-# max_sequential_workers = 8
+max_sequential_workers = 24
 
 # Maximum threads to sync files randomly.
 # max_random_workers = 4
