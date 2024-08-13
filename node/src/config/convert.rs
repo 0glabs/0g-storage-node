@@ -2,6 +2,7 @@
 
 use crate::ZgsConfig;
 use ethereum_types::{H256, U256};
+use ethers::prelude::{Http, Middleware, Provider};
 use log_entry_sync::{CacheConfig, ContractAddress, LogSyncConfig};
 use miner::MinerConfig;
 use network::NetworkConfig;
@@ -30,8 +31,15 @@ impl ZgsConfig {
             .log_contract_address
             .parse::<ContractAddress>()
             .map_err(|e| format!("Unable to parse log_contract_address: {:?}", e))?;
+        let provider = Provider::<Http>::try_from(&self.blockchain_rpc_endpoint)
+            .map_err(|e| format!("Can not parse blockchain endpoint: {:?}", e))?;
+        let chain_id = provider
+            .get_chainid()
+            .await
+            .map_err(|e| format!("Unable to get chain id: {:?}", e))?
+            .as_u64();
         network_config.network_id = NetworkIdentity {
-            chain_id: self.blockchain_id,
+            chain_id,
             flow_address,
         };
 
