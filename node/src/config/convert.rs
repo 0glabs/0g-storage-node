@@ -7,6 +7,7 @@ use miner::MinerConfig;
 use network::NetworkConfig;
 use pruner::PrunerConfig;
 use rpc::RPCConfig;
+use shared_types::NetworkIdentity;
 use std::net::IpAddr;
 use std::time::Duration;
 use storage::config::ShardConfig;
@@ -25,6 +26,14 @@ impl ZgsConfig {
         network_config.libp2p_port = self.network_libp2p_port;
         network_config.disable_discovery = self.network_disable_discovery;
         network_config.discovery_port = self.network_discovery_port;
+        let flow_address = self
+            .log_contract_address
+            .parse::<ContractAddress>()
+            .map_err(|e| format!("Unable to parse log_contract_address: {:?}", e))?;
+        network_config.network_id = NetworkIdentity {
+            chain_id: self.blockchain_id,
+            flow_address,
+        };
 
         if !self.network_disable_discovery {
             network_config.enr_tcp_port = Some(self.network_enr_tcp_port);

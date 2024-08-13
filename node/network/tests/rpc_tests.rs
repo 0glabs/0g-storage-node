@@ -23,10 +23,14 @@ fn test_status_rpc() {
         let (mut sender, mut receiver) = common::build_node_pair(Arc::downgrade(&rt)).await;
 
         // Dummy STATUS RPC message
-        let rpc_request = Request::Status(StatusMessage { data: 2 });
+        let rpc_request = Request::Status(StatusMessage {
+            data: Default::default(),
+        });
 
         // Dummy STATUS RPC message
-        let rpc_response = Response::Status(StatusMessage { data: 3 });
+        let rpc_response = Response::Status(StatusMessage {
+            data: Default::default(),
+        });
 
         // build the sender future
         let sender_future = async {

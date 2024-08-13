@@ -5,7 +5,6 @@ use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
 use network::multiaddr::Protocol;
 use network::types::{AnnounceShardConfig, SignedAnnounceShardConfig};
-use network::Multiaddr;
 use network::{
     rpc::StatusMessage,
     types::{
@@ -15,7 +14,8 @@ use network::{
     Keypair, MessageAcceptance, MessageId, NetworkGlobals, NetworkMessage, PeerId, PeerRequestId,
     PublicKey, PubsubMessage, Request, RequestId, Response,
 };
-use shared_types::{bytes_to_chunks, timestamp_now, TxID};
+use network::{Multiaddr, PeerAction, ReportSource};
+use shared_types::{bytes_to_chunks, timestamp_now, NetworkIdentity, TxID};
 use storage::config::ShardConfig;
 use storage_async::Store;
 use sync::{SyncMessage, SyncSender};
@@ -139,7 +139,9 @@ impl Libp2pEventHandler {
     }
 
     pub fn send_status(&self, peer_id: PeerId) {
-        let status_message = StatusMessage { data: 123 }; // dummy status message
+        let status_message = StatusMessage {
+            data: self.network_globals.network_id(),
+        }; // dummy status message
         debug!(%peer_id, ?status_message, "Sending Status request");
 
         self.send_to_network(NetworkMessage::SendRequest {
@@ -191,7 +193,10 @@ impl Libp2pEventHandler {
     fn on_status_request(&self, peer_id: PeerId, request_id: PeerRequestId, status: StatusMessage) {
         debug!(%peer_id, ?status, "Received Status request");
 
-        let status_message = StatusMessage { data: 456 }; // dummy status message
+        let network_id = self.network_globals.network_id();
+        let status_message = StatusMessage {
+            data: network_id.clone(),
+        }; // dummy status message
         debug!(%peer_id, ?status_message, "Sending Status response");
 
         self.send_to_network(NetworkMessage::SendResponse {
@@ -199,6 +204,12 @@ impl Libp2pEventHandler {
             id: request_id,
             response: Response::Status(status_message),
         });
+        self.on_status_message(peer_id, status, network_id);
+    }
+
+    fn on_status_response(&self, peer_id: PeerId, status: StatusMessage) {
+        let network_id = self.network_globals.network_id();
+        self.on_status_message(peer_id, status, network_id);
     }
 
     pub async fn on_rpc_response(
@@ -212,6 +223,7 @@ impl Libp2pEventHandler {
         match response {
             Response::Status(status_message) => {
                 debug!(%peer_id, ?status_message, "Received Status response");
+                self.on_status_response(peer_id, status_message);
             }
             Response::Chunks(response) => {
                 let request_id = match request_id {
@@ -671,6 +683,23 @@ impl Libp2pEventHandler {
 
         MessageAcceptance::Accept
     }
+
+    fn on_status_message(
+        &self,
+        peer_id: PeerId,
+        status: StatusMessage,
+        network_id: NetworkIdentity,
+    ) {
+        if status.data != network_id {
+            warn!(%peer_id, ?network_id, ?status.data, "Report peer with incompatible network id");
+            self.send_to_network(NetworkMessage::ReportPeer {
+                peer_id,
+                action: PeerAction::Fatal,
+                source: ReportSource::Gossipsub,
+                msg: "Incompatible network id in StatusMessage",
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -762,7 +791,8 @@ mod tests {
             let keypair = Keypair::generate_secp256k1();
             let enr_key = CombinedKey::from_libp2p(&keypair).unwrap();
             let enr = EnrBuilder::new("v4").build(&enr_key).unwrap();
-            let network_globals = NetworkGlobals::new(enr, 30000, 30000, vec![]);
+            let network_globals =
+                NetworkGlobals::new(enr, 30000, 30000, vec![], Default::default());
 
             let listen_addr: Multiaddr = "/ip4/127.0.0.1/tcp/30000".parse().unwrap();
             network_globals.listen_multiaddrs.write().push(listen_addr);
@@ -876,7 +906,9 @@ mod tests {
 
         let alice = PeerId::random();
         let req_id = (ConnectionId::new(4), SubstreamId(12));
-        let request = Request::Status(StatusMessage { data: 412 });
+        let request = Request::Status(StatusMessage {
+            data: Default::default(),
+        });
         handler.on_rpc_request(alice, req_id, request).await;
 
         match ctx.network_recv.try_recv() {

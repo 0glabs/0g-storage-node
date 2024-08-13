@@ -11,6 +11,7 @@ use libp2p::gossipsub::{
 use libp2p::Multiaddr;
 use serde_derive::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use shared_types::NetworkIdentity;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -122,6 +123,9 @@ pub struct Config {
 
     /// Whether metrics are enabled.
     pub metrics_enabled: bool,
+
+    /// The id of the storage network.
+    pub network_id: NetworkIdentity,
 }
 
 impl Default for Config {
@@ -199,6 +203,7 @@ impl Default for Config {
             shutdown_after_sync: false,
             topics: Vec::new(),
             metrics_enabled: false,
+            network_id: Default::default(),
         }
     }
 }

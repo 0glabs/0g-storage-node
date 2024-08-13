@@ -19,6 +19,7 @@ build_config! {
     (network_libp2p_nodes, (Vec<String>), vec![])
     (network_private, (bool), false)
     (network_disable_discovery, (bool), false)
+    (blockchain_id, (u64), 16600)
 
     // discv5
     (discv5_request_timeout_secs, (u64), 5)

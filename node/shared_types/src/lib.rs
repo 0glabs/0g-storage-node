@@ -4,7 +4,7 @@ use anyhow::{anyhow, bail, Error};
 use append_merkle::{
     AppendMerkleTree, Proof as RawProof, RangeProof as RawRangeProof, Sha3Algorithm,
 };
-use ethereum_types::{H256, U256};
+use ethereum_types::{Address, H256, U256};
 use merkle_light::merkle::MerkleTree;
 use merkle_light::proof::Proof as RawFileProof;
 use merkle_light::{hash::Algorithm, merkle::next_pow2};
@@ -365,4 +365,15 @@ impl TryFrom<FileProof> for FlowProof {
             Ok(Self::new(lemma, value.path))
         }
     }
+}
+
+#[derive(
+    DeriveEncode, DeriveDecode, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize,
+)]
+pub struct NetworkIdentity {
+    /// The chain id of the blockchain network.
+    pub chain_id: u64,
+
+    /// The address of the deployed Flow contract on the blockchain.
+    pub flow_address: Address,
 }

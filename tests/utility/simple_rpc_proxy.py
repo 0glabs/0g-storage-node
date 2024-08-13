@@ -27,5 +27,5 @@ class RpcCaller:
             else:
                 print("Failed to call RPC, method = %s(%s), error = %s" % (self.method, str(*args)[-1500:], parsed))
         except Exception as ex:
-            print("Failed to call RPC, method = %s(%s), exception = %s" % (self.method, str(*args)[-1500:], ex))
+            print("Failed to call RPC, method = %s(%s), exception = %s response= %s %s" % (self.method, str(*args)[-1500:], ex, response, response.content))
         return None
