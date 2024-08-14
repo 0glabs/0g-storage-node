@@ -4,6 +4,7 @@ use crate::Client;
 use crate::EnrExt;
 use crate::{Enr, GossipTopic, Multiaddr, PeerId};
 use parking_lot::RwLock;
+use shared_types::NetworkIdentity;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU16, Ordering};
 
@@ -22,10 +23,19 @@ pub struct NetworkGlobals {
     pub peers: RwLock<PeerDB>,
     /// The current gossipsub topic subscriptions.
     pub gossipsub_subscriptions: RwLock<HashSet<GossipTopic>>,
+
+    /// The id of the storage network.
+    pub network_id: RwLock<NetworkIdentity>,
 }
 
 impl NetworkGlobals {
-    pub fn new(enr: Enr, tcp_port: u16, udp_port: u16, trusted_peers: Vec<PeerId>) -> Self {
+    pub fn new(
+        enr: Enr,
+        tcp_port: u16,
+        udp_port: u16,
+        trusted_peers: Vec<PeerId>,
+        network_id: NetworkIdentity,
+    ) -> Self {
         NetworkGlobals {
             local_enr: RwLock::new(enr.clone()),
             peer_id: RwLock::new(enr.peer_id()),
@@ -34,6 +44,7 @@ impl NetworkGlobals {
             listen_port_udp: AtomicU16::new(udp_port),
             peers: RwLock::new(PeerDB::new(trusted_peers)),
             gossipsub_subscriptions: RwLock::new(HashSet::new()),
+            network_id: RwLock::new(network_id),
         }
     }
 
@@ -61,6 +72,10 @@ impl NetworkGlobals {
     /// Returns the UDP discovery port that this node has been configured to listen on.
     pub fn listen_port_udp(&self) -> u16 {
         self.listen_port_udp.load(Ordering::Relaxed)
+    }
+
+    pub fn network_id(&self) -> NetworkIdentity {
+        self.network_id.read().clone()
     }
 
     /// Returns the number of libp2p connected peers.
@@ -95,6 +110,6 @@ impl NetworkGlobals {
         let enr_key: discv5::enr::CombinedKey =
             discv5::enr::CombinedKey::from_libp2p(&keypair).unwrap();
         let enr = discv5::enr::EnrBuilder::new("v4").build(&enr_key).unwrap();
-        NetworkGlobals::new(enr, 9000, 9000, vec![])
+        NetworkGlobals::new(enr, 9000, 9000, vec![], Default::default())
     }
 }

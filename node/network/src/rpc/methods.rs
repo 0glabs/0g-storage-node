@@ -9,7 +9,7 @@ use ssz_types::{
 use std::ops::Deref;
 use strum::IntoStaticStr;
 pub type Hash256 = ethereum_types::H256;
-use shared_types::{ChunkArrayWithProof, TxID};
+use shared_types::{ChunkArrayWithProof, NetworkIdentity, TxID};
 
 pub use ssz_types::{typenum, typenum::Unsigned, BitList, BitVector, FixedVector};
 
@@ -71,7 +71,7 @@ impl ToString for ErrorType {
 /// The STATUS request/response handshake message.
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
 pub struct StatusMessage {
-    pub data: u64,
+    pub data: NetworkIdentity,
 }
 
 /// The PING request/response message.

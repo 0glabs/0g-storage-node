@@ -8552,6 +8552,7 @@ dependencies = [
  "duration-str",
  "error-chain",
  "ethereum-types 0.14.1",
+ "ethers",
  "exit-future",
  "file_location_cache",
  "futures",
