@@ -21,6 +21,7 @@ pub struct AutoSyncManager {
     pub serial: SerialBatcher,
     pub random: RandomBatcher,
     pub file_announcement_send: UnboundedSender<u64>,
+    pub catched_up: Arc<AtomicBool>,
 }
 
 impl AutoSyncManager {
@@ -52,11 +53,12 @@ impl AutoSyncManager {
         executor.spawn(random.clone().start(catched_up.clone()), "auto_sync_random");
 
         // handle on catched up notification
+        let catched_up_cloned = catched_up.clone();
         executor.spawn(
             async move {
                 if catch_up_end_recv.await.is_ok() {
                     info!("log entry catched up");
-                    catched_up.store(true, Ordering::Relaxed);
+                    catched_up_cloned.store(true, Ordering::Relaxed);
                 }
             },
             "auto_sync_wait_for_catchup",
@@ -66,6 +68,7 @@ impl AutoSyncManager {
             serial,
             random,
             file_announcement_send: send,
+            catched_up,
         })
     }
 }
