@@ -2,7 +2,7 @@ use super::{
     batcher::{Batcher, SyncResult},
     sync_store::SyncStore,
 };
-use crate::{Config, SyncSender};
+use crate::{auto_sync::metrics, Config, SyncSender};
 use anyhow::Result;
 use log_entry_sync::LogSyncEvent;
 use serde::{Deserialize, Serialize};
@@ -140,6 +140,15 @@ impl SerialBatcher {
                 continue;
             }
 
+            // update metrics
+            let state = self.get_state().await;
+            metrics::SEQUENTIAL_STATE_TXS_SYNCING.update(state.tasks.len() as u64);
+            if state.max != u64::MAX {
+                metrics::SEQUENTIAL_STATE_GAP_NEXT_MAX.update((state.max - state.next) as usize);
+            }
+            metrics::SEQUENTIAL_STATE_TXS_PENDING.update(state.pendings.len() as u64);
+            metrics::SEQUENTIAL_STATE_GAP_NEXT_DB.update((state.next - state.next_in_db) as usize);
+
             // sync files
             match self.sync_once().await {
                 Ok(true) => {}
@@ -247,6 +256,12 @@ impl SerialBatcher {
         };
 
         info!(%tx_seq, ?sync_result, "Completed to sync file, state = {:?}", self.get_state().await);
+        match sync_result {
+            SyncResult::Completed => metrics::SEQUENTIAL_SYNC_RESULT_COMPLETED.inc(1),
+            SyncResult::Failed => metrics::SEQUENTIAL_SYNC_RESULT_FAILED.inc(1),
+            SyncResult::Timeout => metrics::SEQUENTIAL_SYNC_RESULT_TIMEOUT.inc(1),
+        }
+
         self.pending_completed_txs
             .write()
             .await

@@ -20,6 +20,8 @@ tracing = "0.1.35"
 eth2_ssz = "0.4.0"
 serde = { version = "1.0.137", features = ["derive"] }
 duration-str = "0.5.1"
+lazy_static = "1.4.0"
+metrics = { workspace = true }
 
 [dev-dependencies]
 merkle_light = { path = "../../common/merkle_light" }
