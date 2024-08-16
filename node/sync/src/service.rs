@@ -749,7 +749,7 @@ impl SyncService {
                     to_terminate.push(*tx_seq);
                 }
             }
-        } else {
+        } else if self.controllers.contains_key(&min_tx_seq) {
             to_terminate.push(min_tx_seq);
         }
 
@@ -757,9 +757,12 @@ impl SyncService {
             self.controllers.remove(tx_seq);
         }
 
-        debug!(?to_terminate, "File sync terminated");
+        let num_terminated = to_terminate.len();
+        if num_terminated > 0 {
+            debug!(?to_terminate, "File sync terminated");
+        }
 
-        to_terminate.len()
+        num_terminated
     }
 
     fn on_heartbeat(&mut self) {

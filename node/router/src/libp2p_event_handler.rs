@@ -26,10 +26,10 @@ use crate::peer_manager::PeerManager;
 use crate::Config;
 
 lazy_static::lazy_static! {
-    pub static ref FIND_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
-    pub static ref ANNOUNCE_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
-    pub static ref ANNOUNCE_SHARD_CONFIG_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
-    pub static ref TOLERABLE_DRIFT: chrono::Duration = chrono::Duration::seconds(5);
+    pub static ref FIND_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(5);
+    pub static ref ANNOUNCE_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(5);
+    pub static ref ANNOUNCE_SHARD_CONFIG_TIMEOUT: chrono::Duration = chrono::Duration::minutes(5);
+    pub static ref TOLERABLE_DRIFT: chrono::Duration = chrono::Duration::seconds(10);
 }
 
 #[allow(deprecated)]
@@ -403,7 +403,7 @@ impl Libp2pEventHandler {
         // verify timestamp
         let d = duration_since(timestamp);
         if d < TOLERABLE_DRIFT.neg() || d > *FIND_FILE_TIMEOUT {
-            debug!(%timestamp, "Invalid timestamp, ignoring FindFile message");
+            debug!(%timestamp, ?d, "Invalid timestamp, ignoring FindFile message");
             return MessageAcceptance::Ignore;
         }
 
@@ -481,7 +481,7 @@ impl Libp2pEventHandler {
         // verify timestamp
         let d = duration_since(msg.timestamp);
         if d < TOLERABLE_DRIFT.neg() || d > *FIND_FILE_TIMEOUT {
-            debug!(%msg.timestamp, "Invalid timestamp, ignoring FindFile message");
+            debug!(%msg.timestamp, ?d, "Invalid timestamp, ignoring FindFile message");
             return MessageAcceptance::Ignore;
         }
 
@@ -550,7 +550,8 @@ impl Libp2pEventHandler {
         let seen_ips: Vec<IpAddr> = match self.network_globals.peers.read().peer_info(peer_id) {
             Some(v) => v.seen_ip_addresses().collect(),
             None => {
-                debug!(%announced_ip, "Failed to verify announced IP address, no peer info found");
+                // ignore file announcement from un-seen peers
+                trace!(%announced_ip, "Failed to verify announced IP address, no peer info found");
                 return false;
             }
         };
@@ -558,7 +559,8 @@ impl Libp2pEventHandler {
         if seen_ips.iter().any(|x| *x == announced_ip) {
             true
         } else {
-            debug!(%announced_ip, ?seen_ips, "Failed to verify announced IP address, mismatch with seen ips");
+            // ignore file announcement if announced IP and seen IP mismatch
+            trace!(%announced_ip, ?seen_ips, "Failed to verify announced IP address, mismatch with seen ips");
             false
         }
     }
@@ -587,7 +589,7 @@ impl Libp2pEventHandler {
         // propagate gossip to peers
         let d = duration_since(msg.resend_timestamp);
         if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_FILE_TIMEOUT {
-            debug!(%msg.resend_timestamp, "Invalid resend timestamp, ignoring AnnounceFile message");
+            debug!(%msg.resend_timestamp, ?d, "Invalid resend timestamp, ignoring AnnounceFile message");
             return MessageAcceptance::Ignore;
         }
 
@@ -628,7 +630,7 @@ impl Libp2pEventHandler {
         // propagate gossip to peers
         let d = duration_since(msg.resend_timestamp);
         if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_SHARD_CONFIG_TIMEOUT {
-            debug!(%msg.resend_timestamp, "Invalid resend timestamp, ignoring AnnounceShardConfig message");
+            debug!(%msg.resend_timestamp, ?d, "Invalid resend timestamp, ignoring AnnounceShardConfig message");
             return MessageAcceptance::Ignore;
         }
 
@@ -674,7 +676,7 @@ impl Libp2pEventHandler {
         // propagate gossip to peers
         let d = duration_since(msg.resend_timestamp);
         if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_FILE_TIMEOUT {
-            debug!(%msg.resend_timestamp, "Invalid resend timestamp, ignoring AnnounceChunks message");
+            debug!(%msg.resend_timestamp, ?d, "Invalid resend timestamp, ignoring AnnounceChunks message");
             return MessageAcceptance::Ignore;
         }
 
