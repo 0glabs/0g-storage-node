@@ -6512,7 +6512,6 @@ dependencies = [
  "jsonrpsee",
  "merkle_light",
  "merkle_tree",
- "metrics",
  "miner",
  "network",
  "serde",
