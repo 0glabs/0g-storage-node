@@ -96,6 +96,9 @@ pub struct ZgsConfig {
 
     // file location cache config, configured by [file_location_cache] section by `config` crate.
     pub file_location_cache: file_location_cache::Config,
+
+    // metrics config, configured by [metrics] section by `config` crate.
+    pub metrics: metrics::MetricsConfiguration,
 }
 
 impl Deref for ZgsConfig {
