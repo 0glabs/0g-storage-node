@@ -60,6 +60,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // CLI, config, and logs
     let matches = cli::cli_app().get_matches();
     let config = ZgsConfig::parse(&matches)?;
+    metrics::initialize(config.metrics.clone());
     log::configure(
         &config.log_config_file,
         &config.log_directory,

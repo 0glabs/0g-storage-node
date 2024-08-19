@@ -1,5 +1,8 @@
 use super::{batcher::Batcher, sync_store::SyncStore};
-use crate::{auto_sync::batcher::SyncResult, Config, SyncSender};
+use crate::{
+    auto_sync::{batcher::SyncResult, metrics},
+    Config, SyncSender,
+};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::{
@@ -57,6 +60,12 @@ impl RandomBatcher {
                 continue;
             }
 
+            if let Ok(state) = self.get_state().await {
+                metrics::RANDOM_STATE_TXS_SYNCING.update(state.tasks.len() as u64);
+                metrics::RANDOM_STATE_TXS_READY.update(state.ready_txs as u64);
+                metrics::RANDOM_STATE_TXS_PENDING.update(state.pending_txs as u64);
+            }
+
             match self.sync_once().await {
                 Ok(true) => {}
                 Ok(false) => {
@@ -86,6 +95,11 @@ impl RandomBatcher {
         };
 
         debug!(%tx_seq, ?sync_result, "Completed to sync file, state = {:?}", self.get_state().await);
+        match sync_result {
+            SyncResult::Completed => metrics::RANDOM_SYNC_RESULT_COMPLETED.inc(1),
+            SyncResult::Failed => metrics::RANDOM_SYNC_RESULT_FAILED.inc(1),
+            SyncResult::Timeout => metrics::RANDOM_SYNC_RESULT_TIMEOUT.inc(1),
+        }
 
         match sync_result {
             SyncResult::Completed => self.sync_store.remove_tx(tx_seq).await?,

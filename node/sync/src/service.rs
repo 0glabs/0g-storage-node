@@ -15,6 +15,7 @@ use network::{
     PeerRequestId, SyncId as RequestId,
 };
 use shared_types::{bytes_to_chunks, timestamp_now, ChunkArrayWithProof, TxID};
+use std::sync::atomic::Ordering;
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
@@ -275,11 +276,13 @@ impl SyncService {
                 let state = match &self.auto_sync_manager {
                     Some(manager) => SyncServiceState {
                         num_syncing: self.controllers.len(),
+                        catched_up: Some(manager.catched_up.load(Ordering::Relaxed)),
                         auto_sync_serial: Some(manager.serial.get_state().await),
                         auto_sync_random: manager.random.get_state().await.ok(),
                     },
                     None => SyncServiceState {
                         num_syncing: self.controllers.len(),
+                        catched_up: None,
                         auto_sync_serial: None,
                         auto_sync_random: None,
                     },

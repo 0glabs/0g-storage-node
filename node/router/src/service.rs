@@ -1,3 +1,4 @@
+use crate::metrics;
 use crate::Config;
 use crate::{libp2p_event_handler::Libp2pEventHandler, peer_manager::PeerManager};
 use chunk_pool::ChunkPoolMessage;
@@ -224,6 +225,8 @@ impl RouterService {
     ) {
         trace!(?msg, "Received new message");
 
+        metrics::SERVICE_ROUTE_NETWORK_MESSAGE.mark(1);
+
         match msg {
             NetworkMessage::SendRequest {
                 peer_id,
@@ -231,6 +234,7 @@ impl RouterService {
                 request_id,
             } => {
                 self.libp2p.send_request(peer_id, request_id, request);
+                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_SEND_REQUEST.mark(1);
             }
             NetworkMessage::SendResponse {
                 peer_id,
@@ -238,6 +242,7 @@ impl RouterService {
                 id,
             } => {
                 self.libp2p.send_response(peer_id, id, response);
+                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_SEND_RESPONSE.mark(1);
             }
             NetworkMessage::SendErrorResponse {
                 peer_id,
@@ -246,6 +251,7 @@ impl RouterService {
                 reason,
             } => {
                 self.libp2p.respond_with_error(peer_id, id, error, reason);
+                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_SEND_ERROR_RESPONSE.mark(1);
             }
             NetworkMessage::Publish { messages } => {
                 if self.libp2p.swarm.connected_peers().next().is_none() {
@@ -275,29 +281,44 @@ impl RouterService {
                     "Sending pubsub messages",
                 );
                 self.libp2p.swarm.behaviour_mut().publish(messages);
+
+                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_PUBLISH.mark(1);
             }
             NetworkMessage::ReportPeer {
                 peer_id,
                 action,
                 source,
                 msg,
-            } => self.libp2p.report_peer(&peer_id, action, source, msg),
+            } => {
+                self.libp2p.report_peer(&peer_id, action, source, msg);
+                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_REPORT_PEER.mark(1);
+            }
             NetworkMessage::GoodbyePeer {
                 peer_id,
                 reason,
                 source,
-            } => self.libp2p.goodbye_peer(&peer_id, reason, source),
+            } => {
+                self.libp2p.goodbye_peer(&peer_id, reason, source);
+                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_GOODBYE_PEER.mark(1);
+            }
             NetworkMessage::DialPeer { address, peer_id } => {
+                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DAIL_PEER.mark(1);
+
                 if self.libp2p.swarm.is_connected(&peer_id) {
                     self.libp2p_event_handler
                         .send_to_sync(SyncMessage::PeerConnected { peer_id });
+                    metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DAIL_PEER_ALREADY.mark(1);
                 } else {
                     match Swarm::dial(&mut self.libp2p.swarm, address.clone()) {
-                        Ok(()) => debug!(%address, "Dialing libp2p peer"),
+                        Ok(()) => {
+                            debug!(%address, "Dialing libp2p peer");
+                            metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DAIL_PEER_NEW_OK.mark(1);
+                        }
                         Err(err) => {
                             info!(%address, error = ?err, "Failed to dial peer");
                             self.libp2p_event_handler
                                 .send_to_sync(SyncMessage::DailFailed { peer_id, err });
+                            metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DAIL_PEER_NEW_FAIL.mark(1);
                         }
                     };
                 }
@@ -309,12 +330,14 @@ impl RouterService {
                     .await
                 {
                     self.libp2p_event_handler.publish(msg);
+                    metrics::SERVICE_ROUTE_NETWORK_MESSAGE_ANNOUNCE_LOCAL_FILE.mark(1);
                 }
             }
             NetworkMessage::UPnPMappingEstablished {
                 tcp_socket,
                 udp_socket,
             } => {
+                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_UPNP.mark(1);
                 self.upnp_mappings = (tcp_socket.map(|s| s.port()), udp_socket.map(|s| s.port()));
                 // If there is an external TCP port update, modify our local ENR.
                 if let Some(tcp_socket) = tcp_socket {
@@ -362,16 +385,27 @@ impl RouterService {
     async fn on_heartbeat(&mut self) {
         let expired_peers = self.peers.write().await.expired_peers();
 
+        metrics::SERVICE_EXPIRED_PEERS.update(expired_peers.len() as u64);
         trace!("heartbeat, expired peers = {:?}", expired_peers.len());
 
+        let mut num_succeeded = 0;
+        let mut num_failed = 0;
         for peer_id in expired_peers {
             // async operation, once peer disconnected, swarm event `PeerDisconnected`
             // will be polled to handle in advance.
             match self.libp2p.swarm.disconnect_peer_id(peer_id) {
-                Ok(_) => debug!(%peer_id, "Peer expired and disconnect it"),
-                Err(_) => error!(%peer_id, "Peer expired but failed to disconnect"),
+                Ok(_) => {
+                    debug!(%peer_id, "Peer expired and disconnect it");
+                    num_succeeded += 1;
+                }
+                Err(_) => {
+                    debug!(%peer_id, "Peer expired but failed to disconnect");
+                    num_failed += 1;
+                }
             }
         }
+        metrics::SERVICE_EXPIRED_PEERS_DISCONNECT_OK.update(num_succeeded);
+        metrics::SERVICE_EXPIRED_PEERS_DISCONNECT_FAIL.update(num_failed);
     }
 }
 

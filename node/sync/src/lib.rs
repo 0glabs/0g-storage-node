@@ -110,6 +110,7 @@ impl InstantWrapper {
 #[serde(rename_all = "camelCase")]
 pub struct SyncServiceState {
     pub num_syncing: usize,
+    pub catched_up: Option<bool>,
     pub auto_sync_serial: Option<SerialBatcherState>,
     pub auto_sync_random: Option<RandomBatcherState>,
 }
