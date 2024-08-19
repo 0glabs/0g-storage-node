@@ -258,7 +258,10 @@ impl RpcServer for RpcServerImpl {
             match &maybe_prefix {
                 Some(prefix) if !name.starts_with(prefix) => {}
                 _ => {
-                    result.insert(name.clone(), metric.get_value());
+                    result.insert(
+                        name.clone(),
+                        format!("{} {}", metric.get_type(), metric.get_value()),
+                    );
                 }
             }
         }
