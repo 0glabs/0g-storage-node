@@ -4620,7 +4620,7 @@ dependencies = [
 [[package]]
 name = "metrics"
 version = "0.1.0"
-source = "git+https://github.com/Conflux-Chain/conflux-rust.git?rev=3ee498ce659e11fd0030bd4a264b7442705ade2b#3ee498ce659e11fd0030bd4a264b7442705ade2b"
+source = "git+https://github.com/Conflux-Chain/conflux-rust.git?rev=992ebc5483d937c8f6b883e266f8ed2a67a7fa9a#992ebc5483d937c8f6b883e266f8ed2a67a7fa9a"
 dependencies = [
  "chrono",
  "futures",
@@ -6512,6 +6512,7 @@ dependencies = [
  "jsonrpsee",
  "merkle_light",
  "merkle_tree",
+ "metrics",
  "miner",
  "network",
  "serde",
