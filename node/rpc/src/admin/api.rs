@@ -1,7 +1,7 @@
 use crate::types::{LocationInfo, NetworkInfo, PeerInfo};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use sync::{FileSyncInfo, SyncServiceState};
 
 #[rpc(server, client, namespace = "admin")]
@@ -48,4 +48,10 @@ pub trait Rpc {
         tx_seq: u64,
         all_shards: bool,
     ) -> RpcResult<Option<Vec<LocationInfo>>>;
+
+    #[method(name = "getMetrics")]
+    async fn get_metrics(
+        &self,
+        maybe_prefix: Option<String>,
+    ) -> RpcResult<BTreeMap<String, String>>;
 }
