@@ -257,7 +257,7 @@ impl SerialBatcher {
 
         info!(%tx_seq, ?sync_result, "Completed to sync file, state = {:?}", self.get_state().await);
         match sync_result {
-            SyncResult::Completed => metrics::SEQUENTIAL_SYNC_RESULT_COMPLETED.inc(1),
+            SyncResult::Completed => metrics::SEQUENTIAL_SYNC_RESULT_COMPLETED.mark(1),
             SyncResult::Failed => metrics::SEQUENTIAL_SYNC_RESULT_FAILED.inc(1),
             SyncResult::Timeout => metrics::SEQUENTIAL_SYNC_RESULT_TIMEOUT.inc(1),
         }
