@@ -447,7 +447,7 @@ impl Libp2pEventHandler {
         if matches!(self.store.check_tx_completed(tx_id.seq).await, Ok(true)) {
             if let Ok(Some(tx)) = self.store.get_tx_by_seq_number(tx_id.seq).await {
                 if tx.id() == tx_id {
-                    debug!(?tx_id, "Found file locally, responding to FindFile query");
+                    trace!(?tx_id, "Found file locally, responding to FindFile query");
 
                     return match self.construct_announce_file_message(tx_id).await {
                         Some(msg) => {
@@ -463,7 +463,7 @@ impl Libp2pEventHandler {
 
         // try from cache
         if let Some(mut msg) = self.file_location_cache.get_one(tx_id) {
-            debug!(?tx_id, "Found file in cache, responding to FindFile query");
+            trace!(?tx_id, "Found file in cache, responding to FindFile query");
 
             msg.resend_timestamp = timestamp_now();
             self.publish(PubsubMessage::AnnounceFile(msg));
@@ -520,7 +520,7 @@ impl Libp2pEventHandler {
             metrics::LIBP2P_HANDLE_PUBSUB_LATENCY_FIND_CHUNKS.clone(),
         );
         if d < TOLERABLE_DRIFT.neg() || d > *FIND_FILE_TIMEOUT {
-            debug!(%msg.timestamp, ?d, "Invalid timestamp, ignoring FindFile message");
+            debug!(%msg.timestamp, ?d, "Invalid timestamp, ignoring FindChunks message");
             return MessageAcceptance::Ignore;
         }
 
@@ -554,7 +554,7 @@ impl Libp2pEventHandler {
             _ => return MessageAcceptance::Accept,
         };
 
-        debug!(?msg, "Found chunks to respond FindChunks message");
+        trace!(?msg, "Found chunks to respond FindChunks message");
 
         match self
             .construct_announce_chunks_message(msg.tx_id, msg.index_start, msg.index_end)
@@ -625,7 +625,10 @@ impl Libp2pEventHandler {
         }
 
         // verify announced ip address if required
-        if !self.config.private_ip_enabled && !self.verify_announced_address(&msg.peer_id, &addr) {
+        if !self.config.private_ip_enabled
+            && self.config.check_announced_ip
+            && !self.verify_announced_address(&msg.peer_id, &addr)
+        {
             return MessageAcceptance::Reject;
         }
 
@@ -669,7 +672,10 @@ impl Libp2pEventHandler {
         }
 
         // verify announced ip address if required
-        if !self.config.private_ip_enabled && !self.verify_announced_address(&msg.peer_id, &addr) {
+        if !self.config.private_ip_enabled
+            && self.config.check_announced_ip
+            && !self.verify_announced_address(&msg.peer_id, &addr)
+        {
             return MessageAcceptance::Reject;
         }
 
@@ -718,7 +724,10 @@ impl Libp2pEventHandler {
         }
 
         // verify announced ip address if required
-        if !self.config.private_ip_enabled && !self.verify_announced_address(&msg.peer_id, &addr) {
+        if !self.config.private_ip_enabled
+            && self.config.check_announced_ip
+            && !self.verify_announced_address(&msg.peer_id, &addr)
+        {
             return MessageAcceptance::Reject;
         }
 

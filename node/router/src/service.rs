@@ -263,7 +263,7 @@ impl RouterService {
                                 break;
                             }
                             Err(err) => {
-                                debug!(address = %multiaddr, error = ?err, "Could not connect to peer")
+                                debug!(address = %multiaddr, error = ?err, "Could not connect to peer");
                             }
                         };
                     }
@@ -385,8 +385,11 @@ impl RouterService {
     async fn on_heartbeat(&mut self) {
         let expired_peers = self.peers.write().await.expired_peers();
 
-        metrics::SERVICE_EXPIRED_PEERS.update(expired_peers.len() as u64);
-        trace!("heartbeat, expired peers = {:?}", expired_peers.len());
+        let num_expired_peers = expired_peers.len() as u64;
+        metrics::SERVICE_EXPIRED_PEERS.update(num_expired_peers);
+        if num_expired_peers > 0 {
+            debug!(%num_expired_peers, "Heartbeat, remove expired peers")
+        }
 
         let mut num_succeeded = 0;
         let mut num_failed = 0;
