@@ -1,6 +1,6 @@
 use crate::context::SyncNetworkContext;
 use crate::controllers::peers::{PeerState, SyncPeers};
-use crate::controllers::{FileSyncGoal, FileSyncInfo};
+use crate::controllers::{metrics, FileSyncGoal, FileSyncInfo};
 use crate::{Config, InstantWrapper};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
@@ -311,15 +311,15 @@ impl SerialSyncController {
                 .peers
                 .add_new_peer_with_config(peer_id, addr.clone(), shard_config)
             {
-                info!(%self.tx_seq, %peer_id, %addr, "Found new peer");
+                debug!(%self.tx_seq, %peer_id, %addr, "Found new peer");
                 true
             } else {
                 // e.g. multiple `AnnounceFile` messages propagated
-                debug!(%self.tx_seq, %peer_id, %addr, "Found an existing peer");
+                trace!(%self.tx_seq, %peer_id, %addr, "Found an existing peer");
                 false
             }
         } else {
-            debug!(%self.tx_seq, %peer_id, %addr, "Found peer without shard config");
+            info!(%self.tx_seq, %peer_id, %addr, "Found peer without shard config");
             false
         }
     }
@@ -406,7 +406,6 @@ impl SerialSyncController {
     }
 
     pub async fn on_response(&mut self, from_peer_id: PeerId, response: ChunkArrayWithProof) {
-        debug!(%self.tx_seq, %from_peer_id, "Received RPC response");
         if self.handle_on_response_mismatch(from_peer_id) {
             return;
         }
@@ -511,6 +510,7 @@ impl SerialSyncController {
         // completed to download chunks
         if !self.goal.is_all_chunks() {
             self.state = SyncState::Completed;
+            metrics::SERIAL_SYNC_CHUNKS_COMPLETED.update_since(self.since.0);
             return;
         }
 
@@ -523,6 +523,7 @@ impl SerialSyncController {
             Ok(true) => {
                 info!(%self.tx_seq, "Succeeded to finalize file");
                 self.state = SyncState::Completed;
+                metrics::SERIAL_SYNC_FILE_COMPLETED.update_since(self.since.0);
             }
             Ok(false) => {
                 warn!(?self.tx_id, %self.tx_seq, "Transaction reverted during finalize_tx");

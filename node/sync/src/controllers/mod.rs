@@ -1,3 +1,4 @@
+mod metrics;
 mod peers;
 mod serial;
 
