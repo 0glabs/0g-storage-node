@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::{ShutdownReason, TaskExecutor};
 use tokio::sync::broadcast;
@@ -358,7 +358,11 @@ impl LogSyncManager {
     }
 
     async fn put_tx_inner(&mut self, tx: Transaction) -> bool {
-        if let Err(e) = self.store.put_tx(tx.clone()) {
+        let start_time = Instant::now();
+        let result = self.store.put_tx(tx.clone());
+        metrics::STORE_PUT_TX.update_since(start_time);
+
+        if let Err(e) = result {
             error!("put_tx error: e={:?}", e);
             false
         } else {
@@ -458,3 +462,4 @@ pub(crate) mod config;
 mod data_cache;
 mod log_entry_fetcher;
 mod log_query;
+mod metrics;

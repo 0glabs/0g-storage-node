@@ -4538,6 +4538,8 @@ dependencies = [
  "futures-core",
  "futures-util",
  "jsonrpsee",
+ "lazy_static",
+ "metrics",
  "serde_json",
  "shared_types",
  "storage",
