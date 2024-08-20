@@ -428,6 +428,7 @@ impl SerialSyncController {
         let data_len = response.chunks.data.len();
         if data_len == 0 || data_len % CHUNK_SIZE > 0 {
             warn!(%from_peer_id, %self.tx_seq, %data_len, "Invalid chunk response data length");
+            metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
             self.ban_peer(from_peer_id, "Invalid chunk response data length");
             self.state = SyncState::Idle;
             return;
@@ -465,6 +466,7 @@ impl SerialSyncController {
             }
             Err(err) => {
                 warn!(%err, %self.tx_seq, "Failed to validate chunks response");
+                metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
                 self.ban_peer(from_peer_id, "Chunk array validation failed");
                 self.state = SyncState::Idle;
                 return;
@@ -472,6 +474,8 @@ impl SerialSyncController {
         }
 
         self.failures = 0;
+
+        metrics::SERIAL_SYNC_SEGMENT_LATENCY.update_since(since.0);
 
         let shard_config = self.store.get_store().flow().get_shard_config();
         let next_chunk = shard_config.next_segment_index(
@@ -487,6 +491,7 @@ impl SerialSyncController {
             Ok(true) => self.next_chunk = next_chunk as u64,
             Ok(false) => {
                 warn!(%self.tx_seq, ?self.tx_id, "Transaction reverted while storing chunks");
+                metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
                 self.state = SyncState::Failed {
                     reason: FailureReason::TxReverted(self.tx_id),
                 };
@@ -494,6 +499,7 @@ impl SerialSyncController {
             }
             Err(err) => {
                 error!(%err, %self.tx_seq, "Unexpected DB error while storing chunks");
+                metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
                 self.state = SyncState::Failed {
                     reason: FailureReason::DBError(err.to_string()),
                 };
@@ -527,12 +533,14 @@ impl SerialSyncController {
             }
             Ok(false) => {
                 warn!(?self.tx_id, %self.tx_seq, "Transaction reverted during finalize_tx");
+                metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
                 self.state = SyncState::Failed {
                     reason: FailureReason::TxReverted(self.tx_id),
                 };
             }
             Err(err) => {
                 error!(%err, %self.tx_seq, "Unexpected error during finalize_tx");
+                metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
                 self.state = SyncState::Failed {
                     reason: FailureReason::DBError(err.to_string()),
                 };
