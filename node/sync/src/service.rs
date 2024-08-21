@@ -4,7 +4,7 @@ use crate::controllers::{
     FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
 };
 use crate::{Config, SyncServiceState};
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
@@ -14,14 +14,16 @@ use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, PeerId,
     PeerRequestId, SyncId as RequestId,
 };
-use shared_types::{bytes_to_chunks, timestamp_now, ChunkArrayWithProof, TxID};
+use shared_types::{bytes_to_chunks, timestamp_now, ChunkArrayWithProof, Transaction, TxID};
 use std::sync::atomic::Ordering;
 use std::{
+    cmp,
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
 };
 use storage::config::ShardConfig;
 use storage::error::Result as StorageResult;
+use storage::log_store::log_manager::{sector_to_segment, segment_to_sector, PORA_CHUNK_SIZE};
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
 use tokio::sync::{broadcast, mpsc, oneshot};
@@ -635,7 +637,17 @@ impl SyncService {
 
                 let (index_start, index_end) = match maybe_range {
                     Some((start, end)) => (start, end),
-                    None => (0, num_chunks),
+                    None => {
+                        let start = match Self::tx_sync_start_index(&self.store, &tx).await? {
+                            Some(s) => s,
+                            None => {
+                                debug!(%tx.seq, "No more data needed");
+                                self.store.finalize_tx_with_hash(tx.seq, tx.hash()).await?;
+                                return Ok(());
+                            }
+                        };
+                        (start, num_chunks)
+                    }
                 };
 
                 if index_start >= index_end || index_end > num_chunks {
@@ -792,6 +804,35 @@ impl SyncService {
         for tx_seq in completed {
             self.controllers.remove(&tx_seq);
         }
+    }
+
+    async fn tx_sync_start_index(store: &Store, tx: &Transaction) -> Result<Option<u64>> {
+        let shard_config = store.get_store().flow().get_shard_config();
+        let start_segment = sector_to_segment(tx.start_entry_index());
+        let end =
+            bytes_to_chunks(usize::try_from(tx.size).map_err(|e| anyhow!("tx size e={}", e))?);
+        let mut start = if shard_config.in_range(start_segment as u64) {
+            0
+        } else {
+            segment_to_sector(shard_config.next_segment_index(0, start_segment))
+        };
+        while start < end {
+            if store
+                .get_chunks_by_tx_and_index_range(
+                    tx.seq,
+                    start,
+                    cmp::min(start + PORA_CHUNK_SIZE, end),
+                )
+                .await?
+                .is_none()
+            {
+                return Ok(Some(start as u64));
+            }
+            start = segment_to_sector(
+                shard_config.next_segment_index(sector_to_segment(start as u64), start_segment),
+            );
+        }
+        Ok(None)
     }
 }
 

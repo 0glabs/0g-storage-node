@@ -12,7 +12,7 @@ use network::{
 use rand::Rng;
 use shared_types::{timestamp_now, ChunkArrayWithProof, TxID, CHUNK_SIZE};
 use std::{sync::Arc, time::Instant};
-use storage::log_store::log_manager::PORA_CHUNK_SIZE;
+use storage::log_store::log_manager::{sector_to_segment, segment_to_sector, PORA_CHUNK_SIZE};
 use storage_async::Store;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -475,10 +475,10 @@ impl SerialSyncController {
         self.failures = 0;
 
         let shard_config = self.store.get_store().flow().get_shard_config();
-        let next_chunk = shard_config.next_segment_index(
-            (from_chunk / PORA_CHUNK_SIZE as u64) as usize,
-            (self.tx_start_chunk_in_flow / PORA_CHUNK_SIZE as u64) as usize,
-        ) * PORA_CHUNK_SIZE;
+        let next_chunk = segment_to_sector(shard_config.next_segment_index(
+            sector_to_segment(from_chunk),
+            sector_to_segment(self.tx_start_chunk_in_flow),
+        ));
         // store in db
         match self
             .store
@@ -566,12 +566,11 @@ impl SerialSyncController {
 
     /// Randomly select a `Connected` peer to sync chunks.
     fn select_peer_for_request(&self, request: &GetChunksRequest) -> Option<PeerId> {
-        let segment_index =
-            (request.index_start + self.tx_start_chunk_in_flow) / PORA_CHUNK_SIZE as u64;
+        let segment_index = sector_to_segment(request.index_start + self.tx_start_chunk_in_flow);
         let mut peers = self.peers.filter_peers(vec![PeerState::Connected]);
 
         peers.retain(|peer_id| match self.peers.shard_config(peer_id) {
-            Some(v) => v.in_range(segment_index),
+            Some(v) => v.in_range(segment_index as u64),
             None => false,
         });
 
