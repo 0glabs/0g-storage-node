@@ -1,9 +1,10 @@
 use crate::error::Error;
-use metrics::{register_meter_with_group, Counter, CounterUsize, Histogram, Meter, Sample};
+use crate::metrics::unbounded_channel;
+use metrics::{Counter, CounterUsize};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::sync::mpsc::error::{SendError, TryRecvError};
-use tokio::sync::{mpsc, oneshot};
+use std::time::Duration;
+use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::oneshot;
 use tokio::time::timeout;
 
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
@@ -22,63 +23,21 @@ pub struct Channel<N, Req, Res> {
 
 impl<N, Req, Res> Channel<N, Req, Res> {
     pub fn unbounded(name: &str) -> (Sender<N, Req, Res>, Receiver<N, Req, Res>) {
-        let (sender, receiver) = mpsc::unbounded_channel();
-
         let metrics_group = format!("common_channel_{}", name);
-        let metrics_queued = CounterUsize::register_with_group(metrics_group.as_str(), "size");
-
+        let (sender, receiver) = unbounded_channel(metrics_group.as_str());
+        let metrics_timeout = CounterUsize::register_with_group(metrics_group.as_str(), "timeout");
         (
             Sender {
                 chan: sender,
-                metrics_send_qps: register_meter_with_group(metrics_group.as_str(), "send"),
-                metrics_queued: metrics_queued.clone(),
-                metrics_timeout: CounterUsize::register_with_group(
-                    metrics_group.as_str(),
-                    "timeout",
-                ),
+                metrics_timeout,
             },
-            Receiver {
-                chan: receiver,
-                metrics_recv_qps: register_meter_with_group(metrics_group.as_str(), "recv"),
-                metrics_queued,
-                metrics_queue_latency: Sample::ExpDecay(0.015).register_with_group(
-                    metrics_group.as_str(),
-                    "latency",
-                    1024,
-                ),
-            },
+            Receiver { chan: receiver },
         )
     }
 }
 
-enum TimedMessage<N, Req, Res> {
-    Notification(Instant, N),
-    Request(Instant, Req, ResponseSender<Res>),
-}
-
-impl<N, Req, Res> From<Message<N, Req, Res>> for TimedMessage<N, Req, Res> {
-    fn from(value: Message<N, Req, Res>) -> Self {
-        match value {
-            Message::Notification(n) => TimedMessage::Notification(Instant::now(), n),
-            Message::Request(req, res) => TimedMessage::Request(Instant::now(), req, res),
-        }
-    }
-}
-
-impl<N, Req, Res> TimedMessage<N, Req, Res> {
-    fn into_message(self) -> (Instant, Message<N, Req, Res>) {
-        match self {
-            TimedMessage::Notification(since, n) => (since, Message::Notification(n)),
-            TimedMessage::Request(since, req, res) => (since, Message::Request(req, res)),
-        }
-    }
-}
-
 pub struct Sender<N, Req, Res> {
-    chan: mpsc::UnboundedSender<TimedMessage<N, Req, Res>>,
-
-    metrics_send_qps: Arc<dyn Meter>,
-    metrics_queued: Arc<dyn Counter<usize>>,
+    chan: crate::metrics::Sender<Message<N, Req, Res>>,
     metrics_timeout: Arc<dyn Counter<usize>>,
 }
 
@@ -86,8 +45,6 @@ impl<N, Req, Res> Clone for Sender<N, Req, Res> {
     fn clone(&self) -> Self {
         Sender {
             chan: self.chan.clone(),
-            metrics_send_qps: self.metrics_send_qps.clone(),
-            metrics_queued: self.metrics_queued.clone(),
             metrics_timeout: self.metrics_timeout.clone(),
         }
     }
@@ -95,13 +52,17 @@ impl<N, Req, Res> Clone for Sender<N, Req, Res> {
 
 impl<N, Req, Res> Sender<N, Req, Res> {
     pub fn notify(&self, msg: N) -> Result<(), Error<N, Req, Res>> {
-        self.send(Message::Notification(msg))
+        self.chan
+            .send(Message::Notification(msg))
+            .map_err(|e| Error::SendError(e))
     }
 
     pub async fn request(&self, request: Req) -> Result<Res, Error<N, Req, Res>> {
         let (sender, receiver) = oneshot::channel();
 
-        self.send(Message::Request(request, sender))?;
+        self.chan
+            .send(Message::Request(request, sender))
+            .map_err(|e| Error::SendError(e))?;
 
         timeout(DEFAULT_REQUEST_TIMEOUT, receiver)
             .await
@@ -111,49 +72,19 @@ impl<N, Req, Res> Sender<N, Req, Res> {
             })?
             .map_err(|e| Error::RecvError(e))
     }
-
-    fn send(&self, message: Message<N, Req, Res>) -> Result<(), Error<N, Req, Res>> {
-        match self.chan.send(message.into()) {
-            Ok(()) => {
-                self.metrics_send_qps.mark(1);
-                self.metrics_queued.inc(1);
-                Ok(())
-            }
-            Err(e) => {
-                let (_, msg) = e.0.into_message();
-                Err(Error::SendError(SendError(msg)))
-            }
-        }
-    }
 }
 
 pub struct Receiver<N, Req, Res> {
-    chan: mpsc::UnboundedReceiver<TimedMessage<N, Req, Res>>,
-
-    metrics_recv_qps: Arc<dyn Meter>,
-    metrics_queued: Arc<dyn Counter<usize>>,
-    metrics_queue_latency: Arc<dyn Histogram>,
+    chan: crate::metrics::Receiver<Message<N, Req, Res>>,
 }
 
 impl<N, Req, Res> Receiver<N, Req, Res> {
     pub async fn recv(&mut self) -> Option<Message<N, Req, Res>> {
-        let data = self.chan.recv().await?;
-        Some(self.on_recv_data(data))
+        self.chan.recv().await
     }
 
     pub fn try_recv(&mut self) -> Result<Message<N, Req, Res>, TryRecvError> {
-        let data = self.chan.try_recv()?;
-        Ok(self.on_recv_data(data))
-    }
-
-    fn on_recv_data(&self, data: TimedMessage<N, Req, Res>) -> Message<N, Req, Res> {
-        self.metrics_recv_qps.mark(1);
-        self.metrics_queued.dec(1);
-
-        let (since, msg) = data.into_message();
-        self.metrics_queue_latency.update_since(since);
-
-        msg
+        self.chan.try_recv()
     }
 }
 
