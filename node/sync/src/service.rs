@@ -157,7 +157,7 @@ impl SyncService {
         event_recv: broadcast::Receiver<LogSyncEvent>,
         catch_up_end_recv: oneshot::Receiver<()>,
     ) -> Result<SyncSender> {
-        let (sync_send, sync_recv) = channel::Channel::unbounded();
+        let (sync_send, sync_recv) = channel::Channel::unbounded("sync");
         let store = Store::new(store, executor.clone());
 
         // init auto sync
@@ -912,7 +912,7 @@ mod tests {
             create_file_location_cache(init_peer_id, vec![txs[0].id()]);
 
         let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
-        let (_, sync_recv) = channel::Channel::unbounded();
+        let (_, sync_recv) = channel::Channel::unbounded("test");
 
         let mut sync = SyncService {
             config: Config::default(),
@@ -941,7 +941,7 @@ mod tests {
             create_file_location_cache(init_peer_id, vec![txs[0].id()]);
 
         let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
-        let (_, sync_recv) = channel::Channel::unbounded();
+        let (_, sync_recv) = channel::Channel::unbounded("test");
 
         let mut sync = SyncService {
             config: Config::default(),

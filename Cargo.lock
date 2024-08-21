@@ -844,6 +844,7 @@ dependencies = [
 name = "channel"
 version = "0.1.0"
 dependencies = [
+ "metrics",
  "tokio",
 ]
 
