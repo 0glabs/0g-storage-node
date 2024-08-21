@@ -52,7 +52,9 @@ pub struct Config {
     pub max_sequential_workers: usize,
     pub max_random_workers: usize,
     #[serde(deserialize_with = "deserialize_duration")]
-    pub find_peer_timeout: Duration,
+    pub sequential_find_peer_timeout: Duration,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub random_find_peer_timeout: Duration,
 }
 
 impl Default for Config {
@@ -61,7 +63,7 @@ impl Default for Config {
             // sync service config
             heartbeat_interval: Duration::from_secs(5),
             auto_sync_enabled: false,
-            max_sync_files: 16,
+            max_sync_files: 32,
             sync_file_by_rpc_enabled: true,
             sync_file_on_announcement_enabled: false,
 
@@ -78,9 +80,10 @@ impl Default for Config {
             // auto sync config
             auto_sync_idle_interval: Duration::from_secs(3),
             auto_sync_error_interval: Duration::from_secs(10),
-            max_sequential_workers: 8,
-            max_random_workers: 4,
-            find_peer_timeout: Duration::from_secs(10),
+            max_sequential_workers: 24,
+            max_random_workers: 8,
+            sequential_find_peer_timeout: Duration::from_secs(60),
+            random_find_peer_timeout: Duration::from_secs(500),
         }
     }
 }

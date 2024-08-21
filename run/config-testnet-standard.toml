@@ -228,11 +228,7 @@ reward_contract_address = "0x0496D0817BD8519e0de4894Dc379D35c35275609"
 auto_sync_enabled = true
 
 #  Maximum number of files in sync from other peers simultaneously.
-max_sync_files = 32
-
-# Timeout to terminate a file sync when automatically sync from other peers.
-# If timeout, terminated file sync will be triggered later.
-# find_peer_timeout = "10s"
+# max_sync_files = 32
 
 # Enable to start a file sync via RPC (e.g. `admin_startSyncFile`).
 # sync_file_by_rpc_enabled = true
@@ -241,10 +237,10 @@ max_sync_files = 32
 # sync_file_on_announcement_enabled = false
 
 # Maximum threads to sync files in sequence.
-max_sequential_workers = 24
+# max_sequential_workers = 24
 
 # Maximum threads to sync files randomly.
-# max_random_workers = 4
+# max_random_workers = 8
 
 #######################################################################
 ###                File Location Cache Options                      ###

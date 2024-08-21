@@ -23,6 +23,7 @@ use tokio::{
 /// Supports to sync files in sequence concurrently.
 #[derive(Clone)]
 pub struct SerialBatcher {
+    config: Config,
     batcher: Batcher,
 
     /// Next tx seq to sync.
@@ -80,13 +81,17 @@ impl SerialBatcher {
         sync_send: SyncSender,
         sync_store: Arc<SyncStore>,
     ) -> Result<Self> {
-        let capacity = config.max_sequential_workers;
-
         // continue file sync from break point in db
         let (next_tx_seq, max_tx_seq) = sync_store.get_tx_seq_range().await?;
 
         Ok(Self {
-            batcher: Batcher::new(config, capacity, store, sync_send),
+            config,
+            batcher: Batcher::new(
+                config.max_sequential_workers,
+                config.sequential_find_peer_timeout,
+                store,
+                sync_send,
+            ),
             next_tx_seq: Arc::new(AtomicU64::new(next_tx_seq.unwrap_or(0))),
             max_tx_seq: Arc::new(AtomicU64::new(max_tx_seq.unwrap_or(u64::MAX))),
             pending_completed_txs: Default::default(),
@@ -136,7 +141,7 @@ impl SerialBatcher {
             // disable file sync until catched up
             if !catched_up.load(Ordering::Relaxed) {
                 trace!("Cannot sync file in catch-up phase");
-                sleep(self.batcher.config.auto_sync_idle_interval).await;
+                sleep(self.config.auto_sync_idle_interval).await;
                 continue;
             }
 
@@ -157,11 +162,11 @@ impl SerialBatcher {
                         "File sync still in progress or idle, state = {:?}",
                         self.get_state().await
                     );
-                    sleep(self.batcher.config.auto_sync_idle_interval).await;
+                    sleep(self.config.auto_sync_idle_interval).await;
                 }
                 Err(err) => {
                     warn!(%err, "Failed to sync file once, state = {:?}", self.get_state().await);
-                    sleep(self.batcher.config.auto_sync_error_interval).await;
+                    sleep(self.config.auto_sync_error_interval).await;
                 }
             }
         }
