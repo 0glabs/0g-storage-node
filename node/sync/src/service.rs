@@ -1709,7 +1709,7 @@ mod tests {
                     };
 
                     let sync_id = match request_id {
-                        network::RequestId::Sync(sync_id) => sync_id,
+                        network::RequestId::Sync(_, sync_id) => sync_id,
                         _ => unreachable!("All Chunks responses belong to sync"),
                     };
 
