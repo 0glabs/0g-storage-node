@@ -8,6 +8,7 @@ use shared_types::{timestamp_now, TxID};
 use std::cmp::Reverse;
 use std::collections::HashMap;
 use storage::config::ShardConfig;
+use tracing::debug;
 
 /// Caches limited announcements of specified file from different peers.
 struct AnnouncementCache {

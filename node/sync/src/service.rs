@@ -635,8 +635,8 @@ impl SyncService {
                     bail!("File already exists");
                 }
 
-                let (index_start, index_end) = match maybe_range {
-                    Some((start, end)) => (start, end),
+                let (index_start, index_end, all_chunks) = match maybe_range {
+                    Some((start, end)) => (start, end, false),
                     None => {
                         let start = match Self::tx_sync_start_index(&self.store, &tx).await? {
                             Some(s) => s,
@@ -646,7 +646,7 @@ impl SyncService {
                                 return Ok(());
                             }
                         };
-                        (start, num_chunks)
+                        (start, num_chunks, true)
                     }
                 };
 
@@ -658,7 +658,7 @@ impl SyncService {
                     self.config,
                     tx.id(),
                     tx.start_entry_index(),
-                    FileSyncGoal::new(num_chunks, index_start, index_end),
+                    FileSyncGoal::new(num_chunks, index_start, index_end, all_chunks),
                     self.ctx.clone(),
                     self.store.clone(),
                     self.file_location_cache.clone(),

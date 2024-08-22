@@ -139,7 +139,7 @@ impl SerialSyncController {
         if let Some((start, end)) = maybe_range {
             // Sync new chunks regardless of previously downloaded file or chunks.
             // It's up to client to avoid duplicated chunks sync.
-            self.goal = FileSyncGoal::new(self.goal.num_chunks, start, end);
+            self.goal = FileSyncGoal::new(self.goal.num_chunks, start, end, false);
             self.next_chunk = start;
         } else if self.goal.is_all_chunks() {
             // retry the failed file sync at break point
