@@ -844,6 +844,7 @@ dependencies = [
 name = "channel"
 version = "0.1.0"
 dependencies = [
+ "metrics",
  "tokio",
 ]
 
@@ -4538,6 +4539,8 @@ dependencies = [
  "futures-core",
  "futures-util",
  "jsonrpsee",
+ "lazy_static",
+ "metrics",
  "serde_json",
  "shared_types",
  "storage",

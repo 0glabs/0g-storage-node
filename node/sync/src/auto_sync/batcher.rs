@@ -1,7 +1,7 @@
-use crate::{controllers::SyncState, Config, SyncRequest, SyncResponse, SyncSender};
+use crate::{controllers::SyncState, SyncRequest, SyncResponse, SyncSender};
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, fmt::Debug, sync::Arc};
+use std::{collections::HashSet, fmt::Debug, sync::Arc, time::Duration};
 use storage_async::Store;
 use tokio::sync::RwLock;
 
@@ -15,18 +15,23 @@ pub enum SyncResult {
 /// Supports to sync files concurrently.
 #[derive(Clone)]
 pub struct Batcher {
-    pub(crate) config: Config,
     capacity: usize,
+    find_peer_timeout: Duration,
     tasks: Arc<RwLock<HashSet<u64>>>, // files to sync
     store: Store,
     sync_send: SyncSender,
 }
 
 impl Batcher {
-    pub fn new(config: Config, capacity: usize, store: Store, sync_send: SyncSender) -> Self {
+    pub fn new(
+        capacity: usize,
+        find_peer_timeout: Duration,
+        store: Store,
+        sync_send: SyncSender,
+    ) -> Self {
         Self {
-            config,
             capacity,
+            find_peer_timeout,
             tasks: Default::default(),
             store,
             sync_send,
@@ -128,7 +133,7 @@ impl Batcher {
 
             // finding peers timeout
             Some(SyncState::FindingPeers { origin, .. })
-                if origin.elapsed() > self.config.find_peer_timeout =>
+                if origin.elapsed() > self.find_peer_timeout =>
             {
                 debug!(%tx_seq, "Terminate file sync due to finding peers timeout");
                 self.terminate_file_sync(tx_seq, false).await;
@@ -137,7 +142,7 @@ impl Batcher {
 
             // connecting peers timeout
             Some(SyncState::ConnectingPeers { origin, .. })
-                if origin.elapsed() > self.config.find_peer_timeout =>
+                if origin.elapsed() > self.find_peer_timeout =>
             {
                 debug!(%tx_seq, "Terminate file sync due to connecting peers timeout");
                 self.terminate_file_sync(tx_seq, false).await;

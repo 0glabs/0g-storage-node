@@ -815,7 +815,7 @@ mod tests {
             let runtime = TestRuntime::default();
             let (network_globals, keypair) = Context::new_network_globals();
             let (network_send, network_recv) = mpsc::unbounded_channel();
-            let (sync_send, sync_recv) = channel::Channel::unbounded();
+            let (sync_send, sync_recv) = channel::Channel::unbounded("test");
             let (chunk_pool_send, _chunk_pool_recv) = mpsc::unbounded_channel();
             let store = LogManager::memorydb(LogConfig::default()).unwrap();
             Self {

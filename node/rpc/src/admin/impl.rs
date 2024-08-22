@@ -4,7 +4,7 @@ use crate::{error, Context};
 use futures::prelude::*;
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
-use metrics::DEFAULT_REGISTRY;
+use metrics::{DEFAULT_GROUPING_REGISTRY, DEFAULT_REGISTRY};
 use network::{multiaddr::Protocol, Multiaddr};
 use std::collections::{BTreeMap, HashMap};
 use std::net::IpAddr;
@@ -262,6 +262,21 @@ impl RpcServer for RpcServerImpl {
                         name.clone(),
                         format!("{} {}", metric.get_type(), metric.get_value()),
                     );
+                }
+            }
+        }
+
+        for (group_name, metrics) in DEFAULT_GROUPING_REGISTRY.read().get_all() {
+            for (metric_name, metric) in metrics.iter() {
+                let name = format!("{}.{}", group_name, metric_name);
+                match &maybe_prefix {
+                    Some(prefix) if !name.starts_with(prefix) => {}
+                    _ => {
+                        result.insert(
+                            name,
+                            format!("{} {}", metric.get_type(), metric.get_value()),
+                        );
+                    }
                 }
             }
         }
