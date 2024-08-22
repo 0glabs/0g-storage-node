@@ -883,7 +883,7 @@ mod tests {
                 }) => {
                     assert_eq!(peer_id, expected_peer_id);
                     assert!(matches!(request, Request::Status(..)));
-                    assert!(matches!(request_id, RequestId::Router))
+                    assert!(matches!(request_id, RequestId::Router(..)))
                 }
                 Ok(_) => panic!("Unexpected network message type received"),
                 Err(e) => panic!("No network message received: {:?}", e),
