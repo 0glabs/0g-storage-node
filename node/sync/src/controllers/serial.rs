@@ -684,6 +684,7 @@ impl SerialSyncController {
                         debug!(%self.tx_seq, "No peer to continue downloading and try to find other peers to download");
                         self.state = SyncState::Idle;
                     } else if since.elapsed() >= self.config.peer_chunks_download_timeout {
+                        metrics::SERIAL_SYNC_SEGMENT_TIMEOUT.inc(1);
                         self.handle_response_failure(peer_id, "RPC timeout");
                     } else {
                         completed = true;
