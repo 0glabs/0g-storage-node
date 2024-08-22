@@ -3,7 +3,6 @@ use crate::metrics::unbounded_channel;
 use metrics::{Counter, CounterUsize};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::oneshot;
 use tokio::time::timeout;
 
@@ -31,7 +30,7 @@ impl<N, Req, Res> Channel<N, Req, Res> {
                 chan: sender,
                 metrics_timeout,
             },
-            Receiver { chan: receiver },
+            receiver,
         )
     }
 }
@@ -74,19 +73,7 @@ impl<N, Req, Res> Sender<N, Req, Res> {
     }
 }
 
-pub struct Receiver<N, Req, Res> {
-    chan: crate::metrics::Receiver<Message<N, Req, Res>>,
-}
-
-impl<N, Req, Res> Receiver<N, Req, Res> {
-    pub async fn recv(&mut self) -> Option<Message<N, Req, Res>> {
-        self.chan.recv().await
-    }
-
-    pub fn try_recv(&mut self) -> Result<Message<N, Req, Res>, TryRecvError> {
-        self.chan.try_recv()
-    }
-}
+pub type Receiver<N, Req, Res> = crate::metrics::Receiver<Message<N, Req, Res>>;
 
 #[cfg(test)]
 mod tests {
