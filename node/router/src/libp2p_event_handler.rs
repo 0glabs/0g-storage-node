@@ -1,4 +1,5 @@
 use std::net::IpAddr;
+use std::time::Instant;
 use std::{ops::Neg, sync::Arc};
 
 use chunk_pool::ChunkPoolMessage;
@@ -153,7 +154,7 @@ impl Libp2pEventHandler {
 
         self.send_to_network(NetworkMessage::SendRequest {
             peer_id,
-            request_id: RequestId::Router,
+            request_id: RequestId::Router(Instant::now()),
             request: Request::Status(status_message),
         });
 
@@ -238,12 +239,22 @@ impl Libp2pEventHandler {
         match response {
             Response::Status(status_message) => {
                 debug!(%peer_id, ?status_message, "Received Status response");
+                match request_id {
+                    RequestId::Router(since) => {
+                        metrics::LIBP2P_HANDLE_RESPONSE_STATUS.mark(1);
+                        metrics::LIBP2P_HANDLE_RESPONSE_STATUS_LATENCY.update_since(since);
+                    }
+                    _ => unreachable!("All status response belong to router"),
+                }
                 self.on_status_response(peer_id, status_message);
-                metrics::LIBP2P_HANDLE_RESPONSE_STATUS.mark(1);
             }
             Response::Chunks(response) => {
                 let request_id = match request_id {
-                    RequestId::Sync(sync_id) => sync_id,
+                    RequestId::Sync(since, sync_id) => {
+                        metrics::LIBP2P_HANDLE_RESPONSE_GET_CHUNKS.mark(1);
+                        metrics::LIBP2P_HANDLE_RESPONSE_GET_CHUNKS_LATENCY.update_since(since);
+                        sync_id
+                    }
                     _ => unreachable!("All Chunks responses belong to sync"),
                 };
 
@@ -252,8 +263,6 @@ impl Libp2pEventHandler {
                     request_id,
                     response,
                 });
-
-                metrics::LIBP2P_HANDLE_RESPONSE_GET_CHUNKS.mark(1);
             }
             Response::DataByHash(_) => {
                 // ignore
@@ -265,11 +274,13 @@ impl Libp2pEventHandler {
         self.peers.write().await.update(&peer_id);
 
         // Check if the failed RPC belongs to sync
-        if let RequestId::Sync(request_id) = request_id {
+        if let RequestId::Sync(since, request_id) = request_id {
             self.send_to_sync(SyncMessage::RpcError {
                 peer_id,
                 request_id,
             });
+
+            metrics::LIBP2P_HANDLE_RESPONSE_ERROR_LATENCY.update_since(since);
         }
 
         metrics::LIBP2P_HANDLE_RESPONSE_ERROR.mark(1);
@@ -872,7 +883,7 @@ mod tests {
                 }) => {
                     assert_eq!(peer_id, expected_peer_id);
                     assert!(matches!(request, Request::Status(..)));
-                    assert!(matches!(request_id, RequestId::Router))
+                    assert!(matches!(request_id, RequestId::Router(..)))
                 }
                 Ok(_) => panic!("Unexpected network message type received"),
                 Err(e) => panic!("No network message received: {:?}", e),
@@ -1038,7 +1049,7 @@ mod tests {
         handler
             .on_rpc_response(
                 alice,
-                RequestId::Sync(SyncId::SerialSync { tx_id: id }),
+                RequestId::Sync(Instant::now(), SyncId::SerialSync { tx_id: id }),
                 Response::Chunks(data.clone()),
             )
             .await;
@@ -1066,7 +1077,10 @@ mod tests {
         let alice = PeerId::random();
         let id = TxID::random_hash(555);
         handler
-            .on_rpc_error(alice, RequestId::Sync(SyncId::SerialSync { tx_id: id }))
+            .on_rpc_error(
+                alice,
+                RequestId::Sync(Instant::now(), SyncId::SerialSync { tx_id: id }),
+            )
             .await;
 
         match ctx.sync_recv.try_recv() {

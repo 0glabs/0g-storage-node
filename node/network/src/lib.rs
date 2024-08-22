@@ -25,6 +25,7 @@ pub mod types;
 
 pub use config::gossip_max_size;
 use std::net::SocketAddr;
+use std::time::Instant;
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use shared_types::TxID;
@@ -97,8 +98,8 @@ pub use service::{load_private_key, Context, Libp2pEvent, Service, NETWORK_KEY_F
 /// Application level requests sent to the network.
 #[derive(Debug, Clone, Copy)]
 pub enum RequestId {
-    Router,
-    Sync(SyncId),
+    Router(Instant),
+    Sync(Instant, SyncId),
 }
 
 #[derive(Debug, Clone, Copy)]

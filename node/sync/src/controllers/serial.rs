@@ -258,7 +258,8 @@ impl SerialSyncController {
         // request next chunk array
         let from_chunk = self.next_chunk;
         let to_chunk = std::cmp::min(from_chunk + PORA_CHUNK_SIZE as u64, self.goal.index_end);
-        let request_id = network::RequestId::Sync(RequestId::SerialSync { tx_id: self.tx_id });
+        let request_id =
+            network::RequestId::Sync(Instant::now(), RequestId::SerialSync { tx_id: self.tx_id });
         // TODO: It's possible that we read it while `nex_tx_seq - 1` is still being committed.
         // We can wait for its commitment, but this will slow down this state machine.
         // Or we can use `next_tx_seq - 2`, but for a restarted node without receiving new
@@ -884,7 +885,7 @@ mod tests {
                     );
 
                     match request_id {
-                        network::RequestId::Sync(sync_id) => match sync_id {
+                        network::RequestId::Sync(_, sync_id) => match sync_id {
                             network::SyncId::SerialSync { tx_id } => {
                                 assert_eq!(tx_id, controller.tx_id);
                             }
