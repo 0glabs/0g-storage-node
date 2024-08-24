@@ -3,6 +3,7 @@
 use crate::ZgsConfig;
 use ethereum_types::{H256, U256};
 use ethers::prelude::{Http, Middleware, Provider};
+use ethers::providers::{HttpRateLimitRetryPolicy, RetryClientBuilder};
 use log_entry_sync::{CacheConfig, ContractAddress, LogSyncConfig};
 use miner::MinerConfig;
 use network::NetworkConfig;
@@ -10,6 +11,7 @@ use pruner::PrunerConfig;
 use rpc::RPCConfig;
 use shared_types::NetworkIdentity;
 use std::net::IpAddr;
+use std::str::FromStr;
 use std::time::Duration;
 use storage::config::ShardConfig;
 use storage::StorageConfig;
@@ -31,8 +33,16 @@ impl ZgsConfig {
             .log_contract_address
             .parse::<ContractAddress>()
             .map_err(|e| format!("Unable to parse log_contract_address: {:?}", e))?;
-        let provider = Provider::<Http>::try_from(&self.blockchain_rpc_endpoint)
-            .map_err(|e| format!("Can not parse blockchain endpoint: {:?}", e))?;
+        let provider = Provider::new(
+            RetryClientBuilder::default()
+                .rate_limit_retries(10)
+                .timeout_retries(10)
+                .initial_backoff(Duration::from_millis(1000))
+                .build(
+                    Http::from_str(&self.blockchain_rpc_endpoint).unwrap(),
+                    Box::new(HttpRateLimitRetryPolicy),
+                ),
+        );
         let chain_id = provider
             .get_chainid()
             .await
