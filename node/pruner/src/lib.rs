@@ -15,7 +15,7 @@ use storage::log_store::log_manager::PORA_CHUNK_SIZE;
 use storage_async::Store;
 use task_executor::TaskExecutor;
 use tokio::sync::{broadcast, mpsc};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 use zgs_spec::SECTORS_PER_PRICING;
 
 // Start pruning when the db directory size exceeds 0.9 * limit.
@@ -116,30 +116,36 @@ impl Pruner {
             }
 
             // Check no reward chunks and prune.
-            let new_first_rewardable = self.reward_contract.first_rewardable_chunk().call().await?;
-            if let Some(no_reward_list) = self
-                .maybe_forward_first_rewardable(new_first_rewardable)
-                .await?
-            {
-                info!(
-                    ?new_first_rewardable,
-                    "first rewardable chunk moves forward, start pruning"
-                );
-                self.prune_tx(
-                    self.first_rewardable_chunk * SECTORS_PER_PRICING as u64,
-                    new_first_rewardable * SECTORS_PER_PRICING as u64,
-                )
-                .await?;
-                self.prune_in_batch(no_reward_list).await?;
+            match self.reward_contract.first_rewardable_chunk().call().await {
+                Ok(new_first_rewardable) => {
+                    if let Some(no_reward_list) = self
+                        .maybe_forward_first_rewardable(new_first_rewardable)
+                        .await?
+                    {
+                        info!(
+                            ?new_first_rewardable,
+                            "first rewardable chunk moves forward, start pruning"
+                        );
+                        self.prune_tx(
+                            self.first_rewardable_chunk * SECTORS_PER_PRICING as u64,
+                            new_first_rewardable * SECTORS_PER_PRICING as u64,
+                        )
+                        .await?;
+                        self.prune_in_batch(no_reward_list).await?;
 
-                self.first_rewardable_chunk = new_first_rewardable;
-                self.put_first_rewardable_chunk_index(
-                    self.first_rewardable_chunk,
-                    self.first_tx_seq,
-                )
-                .await?;
-            }
-            tokio::time::sleep(self.config.check_time).await;
+                        self.first_rewardable_chunk = new_first_rewardable;
+                        self.put_first_rewardable_chunk_index(
+                            self.first_rewardable_chunk,
+                            self.first_tx_seq,
+                        )
+                        .await?;
+                    }
+                    tokio::time::sleep(self.config.check_time).await;
+                }
+                e => {
+                    error!("handle reward contract read fails, e={:?}", e);
+                }
+            };
         }
     }
 
