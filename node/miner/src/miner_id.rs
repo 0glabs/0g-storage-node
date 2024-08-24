@@ -37,6 +37,7 @@ pub(crate) async fn check_and_request_miner_id(
                     d_id, c_id
                 ))
             } else {
+                check_miner_id(&mine_contract, d_id).await?;
                 Ok(d_id)
             }
         }

@@ -111,7 +111,7 @@ impl<'a> Miner<'a> {
                     "Find a PoRA valid answer, quality: {}, target_quality {}, scale {:.3}",
                     U256::MAX / quality,
                     U256::MAX / self.target_quality,
-                    difficulty_scale_x64.as_u128() as f64 / (u64::MAX as f64 + 1.0)
+                    difficulty_scale_x64.as_u128() as f64 / u64::MAX as f64
                 );
                 inc_counter(&HIT_COUNT);
                 // Undo mix data when find a valid solition
