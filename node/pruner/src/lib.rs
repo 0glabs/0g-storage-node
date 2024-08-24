@@ -140,12 +140,12 @@ impl Pruner {
                         )
                         .await?;
                     }
-                    tokio::time::sleep(self.config.check_time).await;
                 }
                 e => {
                     error!("handle reward contract read fails, e={:?}", e);
                 }
             };
+            tokio::time::sleep(self.config.check_time).await;
         }
     }
 
