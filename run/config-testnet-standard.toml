@@ -233,14 +233,32 @@ auto_sync_enabled = true
 # Enable to start a file sync via RPC (e.g. `admin_startSyncFile`).
 # sync_file_by_rpc_enabled = true
 
-# Enable to start a file sync automatically when a file announcement P2P message received.
-# sync_file_on_announcement_enabled = false
+# Maximum number of continous failures to terminate a file sync.
+# max_request_failures = 5
+
+# Timeout to dail peers.
+# peer_connect_timeout = "15s"
+
+# Timeout to disconnect peers.
+# peer_disconnect_timeout = "15s"
+
+# Timeout to find peers via FIND_FILE P2P pubsub message.
+# peer_find_timeout = "120s"
+
+# Timeout to download data from remote peer.
+# peer_chunks_download_timeout = "15s"
 
 # Maximum threads to sync files in sequence.
 # max_sequential_workers = 24
 
 # Maximum threads to sync files randomly.
 # max_random_workers = 8
+
+# Timeout to terminate a file sync in sequence.
+# sequential_find_peer_timeout = "60s"
+
+# Timeout to terminate a file sync randomly.
+# random_find_peer_timeout = "500s"
 
 #######################################################################
 ###                File Location Cache Options                      ###
@@ -262,3 +280,27 @@ auto_sync_enabled = true
 # Validity period of location information.
 # If the timestamp in the storage location information exceeds this duration from the current time, it will be removed from the cache.
 # entry_expiration_time_secs = 3600
+
+#######################################################################
+###                      Metrics Options                            ###
+#######################################################################
+
+# [metrics]
+
+# Whether to enable metrics.
+# enabled = false
+
+# Interval to output metrics periodically, e.g. "10s", "30s" or "60s".
+# report_interval = ""
+
+# File name to output metrics periodically.
+# file_report_output = ""
+
+# Influxdb configurations to output metrics periodically.
+# influxdb_report_host = ""
+# influxdb_report_db = ""
+# influxdb_report_username = ""
+# influxdb_report_password = ""
+
+# Storage node name as a tag.
+# influxdb_report_node = ""
