@@ -41,6 +41,7 @@ impl ZgsConfig {
         network_config.network_id = NetworkIdentity {
             chain_id,
             flow_address,
+            p2p_protocol_version: network::PROTOCOL_VERSION.to_vec(),
         };
 
         if !self.network_disable_discovery {

@@ -376,4 +376,7 @@ pub struct NetworkIdentity {
 
     /// The address of the deployed Flow contract on the blockchain.
     pub flow_address: Address,
+
+    /// P2P network protocol version.
+    pub p2p_protocol_version: Vec<u8>,
 }
