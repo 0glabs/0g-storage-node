@@ -72,7 +72,7 @@ impl Default for Config {
             max_request_failures: 5,
             peer_connect_timeout: Duration::from_secs(15),
             peer_disconnect_timeout: Duration::from_secs(15),
-            peer_find_timeout: Duration::from_secs(30),
+            peer_find_timeout: Duration::from_secs(120),
             peer_chunks_download_timeout: Duration::from_secs(15),
             peer_wait_outgoing_connection_timeout: Duration::from_secs(10),
             peer_next_chunks_request_wait_timeout: Duration::from_secs(3),
