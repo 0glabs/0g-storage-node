@@ -84,6 +84,7 @@ impl<AppReqId: ReqId> Service<AppReqId> {
                 .iter()
                 .map(|x| PeerId::from(x.clone()))
                 .collect(),
+            config.network_id.clone(),
         ));
 
         // try and construct UPnP port mappings if required.

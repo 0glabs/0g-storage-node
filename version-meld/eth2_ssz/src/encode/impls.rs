@@ -1,6 +1,6 @@
 use super::*;
 use core::num::NonZeroUsize;
-use ethereum_types::{H256, U128, U256};
+use ethereum_types::{H160, H256, U128, U256};
 use smallvec::SmallVec;
 use std::sync::Arc;
 
@@ -316,6 +316,24 @@ impl Encode for H256 {
 
     fn ssz_bytes_len(&self) -> usize {
         32
+    }
+
+    fn ssz_append(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(self.as_bytes());
+    }
+}
+
+impl Encode for H160 {
+    fn is_ssz_fixed_len() -> bool {
+        true
+    }
+
+    fn ssz_fixed_len() -> usize {
+       20
+    }
+
+    fn ssz_bytes_len(&self) -> usize {
+       20
     }
 
     fn ssz_append(&self, buf: &mut Vec<u8>) {

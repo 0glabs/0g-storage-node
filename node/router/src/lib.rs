@@ -2,6 +2,7 @@
 extern crate tracing;
 
 mod libp2p_event_handler;
+mod metrics;
 mod peer_manager;
 mod service;
 
@@ -23,6 +24,7 @@ pub struct Config {
     pub max_idle_outgoing_peers: usize,
     pub libp2p_nodes: Vec<Multiaddr>,
     pub private_ip_enabled: bool,
+    pub check_announced_ip: bool,
 }
 
 impl Default for Config {
@@ -34,6 +36,7 @@ impl Default for Config {
             max_idle_outgoing_peers: 20,
             libp2p_nodes: vec![],
             private_ip_enabled: false,
+            check_announced_ip: false,
         }
     }
 }

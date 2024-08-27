@@ -1,3 +1,4 @@
+mod metrics;
 mod peers;
 mod serial;
 
@@ -17,10 +18,12 @@ pub struct FileSyncGoal {
     pub index_start: u64,
     /// Chunk index to sync to (exclusive).
     pub index_end: u64,
+    /// `true` if we are syncing all the needed data of this file.
+    pub all_chunks: bool,
 }
 
 impl FileSyncGoal {
-    pub fn new(num_chunks: u64, index_start: u64, index_end: u64) -> Self {
+    pub fn new(num_chunks: u64, index_start: u64, index_end: u64, all_chunks: bool) -> Self {
         assert!(
             index_start < index_end && index_end <= num_chunks,
             "invalid index_end"
@@ -29,15 +32,16 @@ impl FileSyncGoal {
             num_chunks,
             index_start,
             index_end,
+            all_chunks,
         }
     }
 
     pub fn new_file(num_chunks: u64) -> Self {
-        Self::new(num_chunks, 0, num_chunks)
+        Self::new(num_chunks, 0, num_chunks, true)
     }
 
     pub fn is_all_chunks(&self) -> bool {
-        self.index_start == 0 && self.index_end == self.num_chunks
+        self.all_chunks
     }
 }
 

@@ -27,6 +27,9 @@ members = [
 ]
 resolver = "2"
 
+[workspace.dependencies]
+metrics = { git = "https://github.com/Conflux-Chain/conflux-rust.git", rev = "992ebc5483d937c8f6b883e266f8ed2a67a7fa9a" }
+
 [patch.crates-io]
 discv5 = { path = "version-meld/discv5" }
 eth2_ssz = { path = "version-meld/eth2_ssz" }

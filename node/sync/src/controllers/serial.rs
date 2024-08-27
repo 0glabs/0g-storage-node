@@ -1,6 +1,6 @@
 use crate::context::SyncNetworkContext;
 use crate::controllers::peers::{PeerState, SyncPeers};
-use crate::controllers::{FileSyncGoal, FileSyncInfo};
+use crate::controllers::{metrics, FileSyncGoal, FileSyncInfo};
 use crate::{Config, InstantWrapper};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
@@ -12,7 +12,7 @@ use network::{
 use rand::Rng;
 use shared_types::{timestamp_now, ChunkArrayWithProof, TxID, CHUNK_SIZE};
 use std::{sync::Arc, time::Instant};
-use storage::log_store::log_manager::PORA_CHUNK_SIZE;
+use storage::log_store::log_manager::{sector_to_segment, segment_to_sector, PORA_CHUNK_SIZE};
 use storage_async::Store;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -139,7 +139,7 @@ impl SerialSyncController {
         if let Some((start, end)) = maybe_range {
             // Sync new chunks regardless of previously downloaded file or chunks.
             // It's up to client to avoid duplicated chunks sync.
-            self.goal = FileSyncGoal::new(self.goal.num_chunks, start, end);
+            self.goal = FileSyncGoal::new(self.goal.num_chunks, start, end, false);
             self.next_chunk = start;
         } else if self.goal.is_all_chunks() {
             // retry the failed file sync at break point
@@ -258,7 +258,8 @@ impl SerialSyncController {
         // request next chunk array
         let from_chunk = self.next_chunk;
         let to_chunk = std::cmp::min(from_chunk + PORA_CHUNK_SIZE as u64, self.goal.index_end);
-        let request_id = network::RequestId::Sync(RequestId::SerialSync { tx_id: self.tx_id });
+        let request_id =
+            network::RequestId::Sync(Instant::now(), RequestId::SerialSync { tx_id: self.tx_id });
         // TODO: It's possible that we read it while `nex_tx_seq - 1` is still being committed.
         // We can wait for its commitment, but this will slow down this state machine.
         // Or we can use `next_tx_seq - 2`, but for a restarted node without receiving new
@@ -311,15 +312,15 @@ impl SerialSyncController {
                 .peers
                 .add_new_peer_with_config(peer_id, addr.clone(), shard_config)
             {
-                info!(%self.tx_seq, %peer_id, %addr, "Found new peer");
+                debug!(%self.tx_seq, %peer_id, %addr, "Found new peer");
                 true
             } else {
                 // e.g. multiple `AnnounceFile` messages propagated
-                debug!(%self.tx_seq, %peer_id, %addr, "Found an existing peer");
+                trace!(%self.tx_seq, %peer_id, %addr, "Found an existing peer");
                 false
             }
         } else {
-            debug!(%self.tx_seq, %peer_id, %addr, "Found peer without shard config");
+            info!(%self.tx_seq, %peer_id, %addr, "Found peer without shard config");
             false
         }
     }
@@ -406,7 +407,6 @@ impl SerialSyncController {
     }
 
     pub async fn on_response(&mut self, from_peer_id: PeerId, response: ChunkArrayWithProof) {
-        debug!(%self.tx_seq, %from_peer_id, "Received RPC response");
         if self.handle_on_response_mismatch(from_peer_id) {
             return;
         }
@@ -429,6 +429,7 @@ impl SerialSyncController {
         let data_len = response.chunks.data.len();
         if data_len == 0 || data_len % CHUNK_SIZE > 0 {
             warn!(%from_peer_id, %self.tx_seq, %data_len, "Invalid chunk response data length");
+            metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
             self.ban_peer(from_peer_id, "Invalid chunk response data length");
             self.state = SyncState::Idle;
             return;
@@ -466,6 +467,7 @@ impl SerialSyncController {
             }
             Err(err) => {
                 warn!(%err, %self.tx_seq, "Failed to validate chunks response");
+                metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
                 self.ban_peer(from_peer_id, "Chunk array validation failed");
                 self.state = SyncState::Idle;
                 return;
@@ -474,11 +476,13 @@ impl SerialSyncController {
 
         self.failures = 0;
 
+        metrics::SERIAL_SYNC_SEGMENT_LATENCY.update_since(since.0);
+
         let shard_config = self.store.get_store().flow().get_shard_config();
-        let next_chunk = shard_config.next_segment_index(
-            (from_chunk / PORA_CHUNK_SIZE as u64) as usize,
-            (self.tx_start_chunk_in_flow / PORA_CHUNK_SIZE as u64) as usize,
-        ) * PORA_CHUNK_SIZE;
+        let next_chunk = segment_to_sector(shard_config.next_segment_index(
+            sector_to_segment(from_chunk),
+            sector_to_segment(self.tx_start_chunk_in_flow),
+        ));
         // store in db
         match self
             .store
@@ -488,6 +492,7 @@ impl SerialSyncController {
             Ok(true) => self.next_chunk = next_chunk as u64,
             Ok(false) => {
                 warn!(%self.tx_seq, ?self.tx_id, "Transaction reverted while storing chunks");
+                metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
                 self.state = SyncState::Failed {
                     reason: FailureReason::TxReverted(self.tx_id),
                 };
@@ -495,6 +500,7 @@ impl SerialSyncController {
             }
             Err(err) => {
                 error!(%err, %self.tx_seq, "Unexpected DB error while storing chunks");
+                metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
                 self.state = SyncState::Failed {
                     reason: FailureReason::DBError(err.to_string()),
                 };
@@ -511,6 +517,7 @@ impl SerialSyncController {
         // completed to download chunks
         if !self.goal.is_all_chunks() {
             self.state = SyncState::Completed;
+            metrics::SERIAL_SYNC_CHUNKS_COMPLETED.update_since(self.since.0);
             return;
         }
 
@@ -523,15 +530,18 @@ impl SerialSyncController {
             Ok(true) => {
                 info!(%self.tx_seq, "Succeeded to finalize file");
                 self.state = SyncState::Completed;
+                metrics::SERIAL_SYNC_FILE_COMPLETED.update_since(self.since.0);
             }
             Ok(false) => {
                 warn!(?self.tx_id, %self.tx_seq, "Transaction reverted during finalize_tx");
+                metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
                 self.state = SyncState::Failed {
                     reason: FailureReason::TxReverted(self.tx_id),
                 };
             }
             Err(err) => {
                 error!(%err, %self.tx_seq, "Unexpected error during finalize_tx");
+                metrics::SERIAL_SYNC_UNEXPECTED_ERRORS.inc(1);
                 self.state = SyncState::Failed {
                     reason: FailureReason::DBError(err.to_string()),
                 };
@@ -566,12 +576,11 @@ impl SerialSyncController {
 
     /// Randomly select a `Connected` peer to sync chunks.
     fn select_peer_for_request(&self, request: &GetChunksRequest) -> Option<PeerId> {
-        let segment_index =
-            (request.index_start + self.tx_start_chunk_in_flow) / PORA_CHUNK_SIZE as u64;
+        let segment_index = sector_to_segment(request.index_start + self.tx_start_chunk_in_flow);
         let mut peers = self.peers.filter_peers(vec![PeerState::Connected]);
 
         peers.retain(|peer_id| match self.peers.shard_config(peer_id) {
-            Some(v) => v.in_range(segment_index),
+            Some(v) => v.in_range(segment_index as u64),
             None => false,
         });
 
@@ -675,6 +684,7 @@ impl SerialSyncController {
                         debug!(%self.tx_seq, "No peer to continue downloading and try to find other peers to download");
                         self.state = SyncState::Idle;
                     } else if since.elapsed() >= self.config.peer_chunks_download_timeout {
+                        metrics::SERIAL_SYNC_SEGMENT_TIMEOUT.inc(1);
                         self.handle_response_failure(peer_id, "RPC timeout");
                     } else {
                         completed = true;
@@ -874,7 +884,7 @@ mod tests {
                     );
 
                     match request_id {
-                        network::RequestId::Sync(sync_id) => match sync_id {
+                        network::RequestId::Sync(_, sync_id) => match sync_id {
                             network::SyncId::SerialSync { tx_id } => {
                                 assert_eq!(tx_id, controller.tx_id);
                             }

@@ -22,3 +22,5 @@ contract-interface = { path = "../../common/contract-interface" }
 futures-core = "0.3.28"
 futures-util = "0.3.28"
 thiserror = "1.0.44"
+lazy_static = "1.4.0"
+metrics = { workspace = true }

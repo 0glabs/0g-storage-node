@@ -1,5 +1,8 @@
 use super::{batcher::Batcher, sync_store::SyncStore};
-use crate::{auto_sync::batcher::SyncResult, Config, SyncSender};
+use crate::{
+    auto_sync::{batcher::SyncResult, metrics},
+    Config, SyncSender,
+};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::{
@@ -19,6 +22,7 @@ pub struct RandomBatcherState {
 
 #[derive(Clone)]
 pub struct RandomBatcher {
+    config: Config,
     batcher: Batcher,
     sync_store: Arc<SyncStore>,
 }
@@ -31,7 +35,13 @@ impl RandomBatcher {
         sync_store: Arc<SyncStore>,
     ) -> Self {
         Self {
-            batcher: Batcher::new(config, config.max_random_workers, store, sync_send),
+            config,
+            batcher: Batcher::new(
+                config.max_random_workers,
+                config.random_find_peer_timeout,
+                store,
+                sync_send,
+            ),
             sync_store,
         }
     }
@@ -53,8 +63,14 @@ impl RandomBatcher {
             // disable file sync until catched up
             if !catched_up.load(Ordering::Relaxed) {
                 trace!("Cannot sync file in catch-up phase");
-                sleep(self.batcher.config.auto_sync_idle_interval).await;
+                sleep(self.config.auto_sync_idle_interval).await;
                 continue;
+            }
+
+            if let Ok(state) = self.get_state().await {
+                metrics::RANDOM_STATE_TXS_SYNCING.update(state.tasks.len() as u64);
+                metrics::RANDOM_STATE_TXS_READY.update(state.ready_txs as u64);
+                metrics::RANDOM_STATE_TXS_PENDING.update(state.pending_txs as u64);
             }
 
             match self.sync_once().await {
@@ -64,11 +80,11 @@ impl RandomBatcher {
                         "File sync still in progress or idle, state = {:?}",
                         self.get_state().await
                     );
-                    sleep(self.batcher.config.auto_sync_idle_interval).await;
+                    sleep(self.config.auto_sync_idle_interval).await;
                 }
                 Err(err) => {
                     warn!(%err, "Failed to sync file once, state = {:?}", self.get_state().await);
-                    sleep(self.batcher.config.auto_sync_error_interval).await;
+                    sleep(self.config.auto_sync_error_interval).await;
                 }
             }
         }
@@ -86,6 +102,11 @@ impl RandomBatcher {
         };
 
         debug!(%tx_seq, ?sync_result, "Completed to sync file, state = {:?}", self.get_state().await);
+        match sync_result {
+            SyncResult::Completed => metrics::RANDOM_SYNC_RESULT_COMPLETED.mark(1),
+            SyncResult::Failed => metrics::RANDOM_SYNC_RESULT_FAILED.inc(1),
+            SyncResult::Timeout => metrics::RANDOM_SYNC_RESULT_TIMEOUT.inc(1),
+        }
 
         match sync_result {
             SyncResult::Completed => self.sync_store.remove_tx(tx_seq).await?,

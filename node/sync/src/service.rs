@@ -4,7 +4,7 @@ use crate::controllers::{
     FailureReason, FileSyncGoal, FileSyncInfo, SerialSyncController, SyncState,
 };
 use crate::{Config, SyncServiceState};
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
@@ -14,13 +14,16 @@ use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, PeerId,
     PeerRequestId, SyncId as RequestId,
 };
-use shared_types::{bytes_to_chunks, timestamp_now, ChunkArrayWithProof, TxID};
+use shared_types::{bytes_to_chunks, timestamp_now, ChunkArrayWithProof, Transaction, TxID};
+use std::sync::atomic::Ordering;
 use std::{
+    cmp,
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
 };
 use storage::config::ShardConfig;
 use storage::error::Result as StorageResult;
+use storage::log_store::log_manager::{sector_to_segment, segment_to_sector, PORA_CHUNK_SIZE};
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
 use tokio::sync::{broadcast, mpsc, oneshot};
@@ -156,7 +159,7 @@ impl SyncService {
         event_recv: broadcast::Receiver<LogSyncEvent>,
         catch_up_end_recv: oneshot::Receiver<()>,
     ) -> Result<SyncSender> {
-        let (sync_send, sync_recv) = channel::Channel::unbounded();
+        let (sync_send, sync_recv) = channel::Channel::unbounded("sync");
         let store = Store::new(store, executor.clone());
 
         // init auto sync
@@ -275,11 +278,13 @@ impl SyncService {
                 let state = match &self.auto_sync_manager {
                     Some(manager) => SyncServiceState {
                         num_syncing: self.controllers.len(),
+                        catched_up: Some(manager.catched_up.load(Ordering::Relaxed)),
                         auto_sync_serial: Some(manager.serial.get_state().await),
                         auto_sync_random: manager.random.get_state().await.ok(),
                     },
                     None => SyncServiceState {
                         num_syncing: self.controllers.len(),
+                        catched_up: None,
                         auto_sync_serial: None,
                         auto_sync_random: None,
                     },
@@ -630,9 +635,19 @@ impl SyncService {
                     bail!("File already exists");
                 }
 
-                let (index_start, index_end) = match maybe_range {
-                    Some((start, end)) => (start, end),
-                    None => (0, num_chunks),
+                let (index_start, index_end, all_chunks) = match maybe_range {
+                    Some((start, end)) => (start, end, false),
+                    None => {
+                        let start = match Self::tx_sync_start_index(&self.store, &tx).await? {
+                            Some(s) => s,
+                            None => {
+                                debug!(%tx.seq, "No more data needed");
+                                self.store.finalize_tx_with_hash(tx.seq, tx.hash()).await?;
+                                return Ok(());
+                            }
+                        };
+                        (start, num_chunks, true)
+                    }
                 };
 
                 if index_start >= index_end || index_end > num_chunks {
@@ -643,7 +658,7 @@ impl SyncService {
                     self.config,
                     tx.id(),
                     tx.start_entry_index(),
-                    FileSyncGoal::new(num_chunks, index_start, index_end),
+                    FileSyncGoal::new(num_chunks, index_start, index_end, all_chunks),
                     self.ctx.clone(),
                     self.store.clone(),
                     self.file_location_cache.clone(),
@@ -749,7 +764,7 @@ impl SyncService {
                     to_terminate.push(*tx_seq);
                 }
             }
-        } else {
+        } else if self.controllers.contains_key(&min_tx_seq) {
             to_terminate.push(min_tx_seq);
         }
 
@@ -757,9 +772,12 @@ impl SyncService {
             self.controllers.remove(tx_seq);
         }
 
-        debug!(?to_terminate, "File sync terminated");
+        let num_terminated = to_terminate.len();
+        if num_terminated > 0 {
+            debug!(?to_terminate, "File sync terminated");
+        }
 
-        to_terminate.len()
+        num_terminated
     }
 
     fn on_heartbeat(&mut self) {
@@ -786,6 +804,35 @@ impl SyncService {
         for tx_seq in completed {
             self.controllers.remove(&tx_seq);
         }
+    }
+
+    async fn tx_sync_start_index(store: &Store, tx: &Transaction) -> Result<Option<u64>> {
+        let shard_config = store.get_store().flow().get_shard_config();
+        let start_segment = sector_to_segment(tx.start_entry_index());
+        let end =
+            bytes_to_chunks(usize::try_from(tx.size).map_err(|e| anyhow!("tx size e={}", e))?);
+        let mut start = if shard_config.in_range(start_segment as u64) {
+            0
+        } else {
+            segment_to_sector(shard_config.next_segment_index(0, start_segment))
+        };
+        while start < end {
+            if store
+                .get_chunks_by_tx_and_index_range(
+                    tx.seq,
+                    start,
+                    cmp::min(start + PORA_CHUNK_SIZE, end),
+                )
+                .await?
+                .is_none()
+            {
+                return Ok(Some(start as u64));
+            }
+            start = segment_to_sector(
+                shard_config.next_segment_index(sector_to_segment(start as u64), start_segment),
+            );
+        }
+        Ok(None)
     }
 }
 
@@ -906,7 +953,7 @@ mod tests {
             create_file_location_cache(init_peer_id, vec![txs[0].id()]);
 
         let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
-        let (_, sync_recv) = channel::Channel::unbounded();
+        let (_, sync_recv) = channel::Channel::unbounded("test");
 
         let mut sync = SyncService {
             config: Config::default(),
@@ -935,7 +982,7 @@ mod tests {
             create_file_location_cache(init_peer_id, vec![txs[0].id()]);
 
         let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
-        let (_, sync_recv) = channel::Channel::unbounded();
+        let (_, sync_recv) = channel::Channel::unbounded("test");
 
         let mut sync = SyncService {
             config: Config::default(),
@@ -1703,7 +1750,7 @@ mod tests {
                     };
 
                     let sync_id = match request_id {
-                        network::RequestId::Sync(sync_id) => sync_id,
+                        network::RequestId::Sync(_, sync_id) => sync_id,
                         _ => unreachable!("All Chunks responses belong to sync"),
                     };
 

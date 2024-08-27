@@ -609,9 +609,9 @@ impl LogManager {
                     .get_tx_by_seq_number(last_tx_seq)?
                     .expect("tx missing");
                 let mut current_len = initial_data.leaves();
-                let expected_len = (last_tx.start_entry_index + last_tx.num_entries() as u64)
-                    / PORA_CHUNK_SIZE as u64;
-                match expected_len.cmp(&(current_len as u64)) {
+                let expected_len =
+                    sector_to_segment(last_tx.start_entry_index + last_tx.num_entries() as u64);
+                match expected_len.cmp(&(current_len)) {
                     Ordering::Less => {
                         bail!(
                             "Unexpected DB: merkle tree larger than the known data size,\
@@ -634,10 +634,9 @@ impl LogManager {
                             let previous_tx = tx_store
                                 .get_tx_by_seq_number(last_tx_seq - 1)?
                                 .expect("tx missing");
-                            let expected_len = ((previous_tx.start_entry_index
-                                + previous_tx.num_entries() as u64)
-                                / PORA_CHUNK_SIZE as u64)
-                                as usize;
+                            let expected_len = sector_to_segment(
+                                previous_tx.start_entry_index + previous_tx.num_entries() as u64,
+                            );
                             if current_len > expected_len {
                                 while let Some((subtree_depth, _)) = initial_data.subtree_list.pop()
                                 {
@@ -737,13 +736,13 @@ impl LogManager {
         maybe_tx_seq: Option<u64>,
     ) -> Result<FlowProof> {
         let merkle = self.merkle.read_recursive();
-        let chunk_index = flow_index / PORA_CHUNK_SIZE as u64;
+        let seg_index = sector_to_segment(flow_index);
         let top_proof = match maybe_tx_seq {
-            None => merkle.pora_chunks_merkle.gen_proof(chunk_index as usize)?,
+            None => merkle.pora_chunks_merkle.gen_proof(seg_index)?,
             Some(tx_seq) => merkle
                 .pora_chunks_merkle
                 .at_version(tx_seq)?
-                .gen_proof(chunk_index as usize)?,
+                .gen_proof(seg_index)?,
         };
 
         // TODO(zz): Maybe we can decide that all proofs are at the PoRA chunk level, so
@@ -753,11 +752,11 @@ impl LogManager {
         // and `flow_index` must be within a complete PoRA chunk. For possible future usages,
         // we'll need to find the flow length at the given root and load a partial chunk
         // if `flow_index` is in the last chunk.
-        let sub_proof = if chunk_index as usize != merkle.pora_chunks_merkle.leaves() - 1
+        let sub_proof = if seg_index != merkle.pora_chunks_merkle.leaves() - 1
             || merkle.last_chunk_merkle.leaves() == 0
         {
             self.flow_store
-                .gen_proof_in_batch(chunk_index as usize, flow_index as usize % PORA_CHUNK_SIZE)?
+                .gen_proof_in_batch(seg_index, flow_index as usize % PORA_CHUNK_SIZE)?
         } else {
             match maybe_tx_seq {
                 None => merkle
@@ -1235,4 +1234,12 @@ pub fn tx_subtree_root_list_padded(data: &[u8]) -> Vec<(usize, DataRoot)> {
     }
 
     root_list
+}
+
+pub fn sector_to_segment(sector_index: u64) -> usize {
+    (sector_index / PORA_CHUNK_SIZE as u64) as usize
+}
+
+pub fn segment_to_sector(segment_index: usize) -> usize {
+    segment_index * PORA_CHUNK_SIZE
 }
