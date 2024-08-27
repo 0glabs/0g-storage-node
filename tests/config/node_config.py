@@ -5,6 +5,16 @@ ZGS_CONFIG = {
     "confirmation_block_count": 1,
     "router": {
         "private_ip_enabled": True,
+    },
+    "sync": {
+        "heartbeat_interval": "1s",
+        "peer_connect_timeout": "3s",
+        "peer_disconnect_timeout": "3s",
+        "peer_find_timeout": "3s",
+        "peer_chunks_download_timeout": "3s",
+        "auto_sync_idle_interval": "1s",
+        "sequential_find_peer_timeout": "10s",
+        "random_find_peer_timeout": "10s",
     }
 }
 
