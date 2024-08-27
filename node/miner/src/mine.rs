@@ -99,7 +99,7 @@ impl MineRangeConfig {
         }
         Some(
             self_start_position <= recall_position + SECTORS_PER_LOAD as u64
-                || self_end_position > recall_position,
+                && self_end_position > recall_position,
         )
     }
 }
