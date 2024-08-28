@@ -271,7 +271,7 @@
 # When the cache is full, the storage position information with oldest timestamp will be replaced.
 
 # Global cache capacity.
-# max_entries_total = 4096
+# max_entries_total = 256000
 
 # Location information capacity for each file.
 # max_entries_per_file = 4
