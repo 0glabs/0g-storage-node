@@ -200,12 +200,14 @@ pub type SignedAnnounceFile = SignedMessage<AnnounceFile>;
 pub type SignedAnnounceShardConfig = SignedMessage<AnnounceShardConfig>;
 pub type SignedAnnounceChunks = SignedMessage<AnnounceChunks>;
 
+type SignedAnnounceFiles = Vec<SignedAnnounceFile>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PubsubMessage {
     ExampleMessage(u64),
     FindFile(FindFile),
     FindChunks(FindChunks),
-    AnnounceFile(SignedAnnounceFile),
+    AnnounceFile(Vec<SignedAnnounceFile>),
     AnnounceShardConfig(SignedAnnounceShardConfig),
     AnnounceChunks(SignedAnnounceChunks),
 }
@@ -314,7 +316,8 @@ impl PubsubMessage {
                         FindChunks::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::AnnounceFile => Ok(PubsubMessage::AnnounceFile(
-                        SignedAnnounceFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                        SignedAnnounceFiles::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::AnnounceChunks => Ok(PubsubMessage::AnnounceChunks(
                         SignedAnnounceChunks::from_ssz_bytes(data)
