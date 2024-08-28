@@ -76,7 +76,7 @@ impl<T> Batcher<T> {
         let pos = total - first_unexpired;
 
         // remove expired items for batch operation in advance
-        self.metrics_batch_size.update((total - pos) as u64);
+        self.metrics_batch_size.update(first_unexpired as u64);
 
         Some(Vec::from_iter(
             self.items
