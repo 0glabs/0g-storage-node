@@ -161,10 +161,7 @@ impl FileCache {
     }
 
     /// Insert the specified `announcement` into cache.
-    fn insert(&mut self, announcement: SignedAnnounceFile) {
-        // FIXME(qhz): handle batch case
-        let tx_id = announcement.tx_ids[0];
-
+    fn insert(&mut self, tx_id: TxID, announcement: SignedAnnounceFile) {
         let item = self.files.entry(tx_id).or_insert_with(|| {
             AnnouncementCache::new(
                 self.config.max_entries_per_file,
@@ -291,8 +288,12 @@ impl FileLocationCache {
             shard_id: announcement.shard_id,
             num_shard: announcement.num_shard,
         };
-        self.cache.lock().insert(announcement);
         self.insert_peer_config(peer_id, shard_config);
+
+        let mut cache = self.cache.lock();
+        for tx_id in announcement.tx_ids.iter() {
+            cache.insert(tx_id.clone(), announcement.clone());
+        }
     }
 
     pub fn get_one(&self, tx_id: TxID) -> Option<SignedAnnounceFile> {
@@ -552,11 +553,11 @@ mod tests {
         let tx1 = TxID::random_hash(1);
         let tx2 = TxID::random_hash(2);
 
-        cache.insert(create_file_2(tx1, peer1, now - 1));
+        cache.insert(tx1, create_file_2(tx1, peer1, now - 1));
         assert_eq!(cache.total_announcements, 1);
-        cache.insert(create_file_2(tx2, peer1, now - 2));
+        cache.insert(tx2, create_file_2(tx2, peer1, now - 2));
         assert_eq!(cache.total_announcements, 2);
-        cache.insert(create_file_2(tx1, peer2, now - 3));
+        cache.insert(tx1, create_file_2(tx1, peer2, now - 3));
         assert_eq!(cache.total_announcements, 3);
 
         assert_file(&cache.pop().unwrap(), tx1, peer2, now - 3);
@@ -574,18 +575,18 @@ mod tests {
         let now = timestamp_now();
 
         let tx1 = TxID::random_hash(1);
-        cache.insert(create_file_2(tx1, PeerId::random(), now - 7));
-        cache.insert(create_file_2(tx1, PeerId::random(), now - 8));
-        cache.insert(create_file_2(tx1, PeerId::random(), now - 9));
+        cache.insert(tx1, create_file_2(tx1, PeerId::random(), now - 7));
+        cache.insert(tx1, create_file_2(tx1, PeerId::random(), now - 8));
+        cache.insert(tx1, create_file_2(tx1, PeerId::random(), now - 9));
         assert_eq!(cache.total_announcements, 3);
 
         // insert more files and cause to max entries limited
         let tx2 = TxID::random_hash(2);
-        cache.insert(create_file_2(tx2, PeerId::random(), now - 1));
+        cache.insert(tx2, create_file_2(tx2, PeerId::random(), now - 1));
         assert_all_files(cache.all(tx1).unwrap_or_default(), vec![now - 8, now - 7]);
-        cache.insert(create_file_2(tx2, PeerId::random(), now - 2));
+        cache.insert(tx2, create_file_2(tx2, PeerId::random(), now - 2));
         assert_all_files(cache.all(tx1).unwrap_or_default(), vec![now - 7]);
-        cache.insert(create_file_2(tx2, PeerId::random(), now - 3));
+        cache.insert(tx2, create_file_2(tx2, PeerId::random(), now - 3));
         assert_all_files(cache.all(tx1).unwrap_or_default(), vec![]);
 
         assert_all_files(
