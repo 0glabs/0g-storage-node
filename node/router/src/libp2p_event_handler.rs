@@ -695,7 +695,7 @@ impl Libp2pEventHandler {
         // notify sync layer
         for tx_id in msg.tx_ids.iter() {
             self.send_to_sync(SyncMessage::AnnounceFileGossip {
-                tx_id: tx_id.clone(),
+                tx_id: *tx_id,
                 peer_id: msg.peer_id.clone().into(),
                 addr: addr.clone(),
             });
@@ -822,7 +822,7 @@ impl Libp2pEventHandler {
                 let announcement = self.construct_announce_file_message(batch).await?;
                 Some(self.publish_announcement(announcement).await)
             }
-            None => return Some(false),
+            None => Some(false),
         }
     }
 
