@@ -51,4 +51,7 @@ lazy_static::lazy_static! {
     pub static ref LIBP2P_VERIFY_ANNOUNCED_IP: Arc<dyn Meter> = register_meter("router_libp2p_verify_announced_ip");
     pub static ref LIBP2P_VERIFY_ANNOUNCED_IP_UNSEEN: Arc<dyn Meter> = register_meter("router_libp2p_verify_announced_ip_unseen");
     pub static ref LIBP2P_VERIFY_ANNOUNCED_IP_MISMATCH: Arc<dyn Meter> = register_meter("router_libp2p_verify_announced_ip_mismatch");
+
+    // batcher
+    pub static ref BATCHER_ANNOUNCE_FILE_SIZE: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register("router_batcher_announce_file_size", 1024);
 }

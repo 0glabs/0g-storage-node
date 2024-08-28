@@ -23,6 +23,7 @@ use sync::{SyncMessage, SyncSender};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, RwLock};
 
+use crate::batcher::FileBatcher;
 use crate::metrics;
 use crate::peer_manager::PeerManager;
 use crate::Config;
@@ -94,6 +95,8 @@ pub struct Libp2pEventHandler {
     file_location_cache: Arc<FileLocationCache>,
     /// All connected peers.
     peers: Arc<RwLock<PeerManager>>,
+    /// Fils to announce in batch
+    announce_file_batcher: RwLock<FileBatcher>,
 }
 
 impl Libp2pEventHandler {
@@ -109,6 +112,11 @@ impl Libp2pEventHandler {
         file_location_cache: Arc<FileLocationCache>,
         peers: Arc<RwLock<PeerManager>>,
     ) -> Self {
+        let announce_file_batcher = RwLock::new(FileBatcher::new(
+            config.announce_file_batcher_capacity,
+            config.announce_file_batcher_timeout,
+        ));
+
         Self {
             config,
             network_globals,
@@ -119,6 +127,7 @@ impl Libp2pEventHandler {
             store,
             file_location_cache,
             peers,
+            announce_file_batcher,
         }
     }
 
@@ -382,7 +391,14 @@ impl Libp2pEventHandler {
         false
     }
 
-    pub async fn construct_announce_file_message(&self, tx_id: TxID) -> Option<PubsubMessage> {
+    pub async fn construct_announce_file_message(
+        &self,
+        tx_ids: Vec<TxID>,
+    ) -> Option<PubsubMessage> {
+        if tx_ids.is_empty() {
+            return None;
+        }
+
         let peer_id = *self.network_globals.peer_id.read();
 
         let addr = self.get_listen_addr_or_add().await?;
@@ -391,7 +407,7 @@ impl Libp2pEventHandler {
         let shard_config = self.store.get_store().flow().get_shard_config();
 
         let msg = AnnounceFile {
-            tx_id,
+            tx_ids,
             num_shard: shard_config.num_shard,
             shard_id: shard_config.shard_id,
             peer_id: peer_id.into(),
@@ -402,7 +418,7 @@ impl Libp2pEventHandler {
         let mut signed = match SignedMessage::sign_message(msg, &self.local_keypair) {
             Ok(signed) => signed,
             Err(e) => {
-                error!(%tx_id.seq, %e, "Failed to sign AnnounceFile message");
+                error!(%e, "Failed to sign AnnounceFile message");
                 return None;
             }
         };
@@ -410,6 +426,18 @@ impl Libp2pEventHandler {
         signed.resend_timestamp = timestamp;
 
         Some(PubsubMessage::AnnounceFile(signed))
+    }
+
+    pub async fn publish_file_announcement(&self, tx_id: TxID) -> Option<bool> {
+        let batch = match self.announce_file_batcher.write().await.add(tx_id) {
+            Some(v) => v,
+            None => return Some(false),
+        };
+
+        let msg = self.construct_announce_file_message(batch).await?;
+        self.publish(msg);
+
+        Some(true)
     }
 
     pub async fn construct_announce_shard_config_message(
@@ -460,12 +488,8 @@ impl Libp2pEventHandler {
                 if tx.id() == tx_id {
                     trace!(?tx_id, "Found file locally, responding to FindFile query");
 
-                    return match self.construct_announce_file_message(tx_id).await {
-                        Some(msg) => {
-                            self.publish(msg);
-                            MessageAcceptance::Ignore
-                        }
-                        // propagate FindFile query to other nodes
+                    return match self.publish_file_announcement(tx_id).await {
+                        Some(_) => MessageAcceptance::Ignore,
                         None => MessageAcceptance::Accept,
                     };
                 }
@@ -654,11 +678,13 @@ impl Libp2pEventHandler {
         }
 
         // notify sync layer
-        self.send_to_sync(SyncMessage::AnnounceFileGossip {
-            tx_id: msg.tx_id,
-            peer_id: msg.peer_id.clone().into(),
-            addr,
-        });
+        for tx_id in msg.tx_ids.iter() {
+            self.send_to_sync(SyncMessage::AnnounceFileGossip {
+                tx_id: tx_id.clone(),
+                peer_id: msg.peer_id.clone().into(),
+                addr: addr.clone(),
+            });
+        }
 
         // insert message to cache
         self.file_location_cache.insert(msg);
@@ -772,6 +798,14 @@ impl Libp2pEventHandler {
                 source: ReportSource::Gossipsub,
                 msg: "Incompatible network id in StatusMessage",
             })
+        }
+    }
+
+    pub async fn expire_file_batcher(&self) {
+        if let Some(batch) = self.announce_file_batcher.write().await.expire() {
+            if let Some(msg) = self.construct_announce_file_message(batch).await {
+                self.publish(msg);
+            }
         }
     }
 }
@@ -895,7 +929,7 @@ mod tests {
                 Ok(NetworkMessage::Publish { messages }) => {
                     assert_eq!(messages.len(), 1);
                     assert!(
-                        matches!(&messages[0], PubsubMessage::AnnounceFile(file) if file.tx_id == expected_tx_id)
+                        matches!(&messages[0], PubsubMessage::AnnounceFile(file) if file.tx_ids[0] == expected_tx_id)
                     );
                 }
                 Ok(_) => panic!("Unexpected network message type received"),
@@ -1186,7 +1220,7 @@ mod tests {
 
         // change signed message
         let message = match handler
-            .construct_announce_file_message(tx_id)
+            .construct_announce_file_message(vec![tx_id])
             .await
             .unwrap()
         {
@@ -1212,7 +1246,10 @@ mod tests {
         let (alice, bob) = (PeerId::random(), PeerId::random());
         let id = MessageId::new(b"dummy message");
         let tx = TxID::random_hash(412);
-        let message = handler.construct_announce_file_message(tx).await.unwrap();
+        let message = handler
+            .construct_announce_file_message(vec![tx])
+            .await
+            .unwrap();
 
         // succeeded to handle
         let result = handler.on_pubsub_message(alice, bob, &id, message).await;

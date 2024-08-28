@@ -35,7 +35,7 @@ impl AnnounceFileBuilder {
         let timestamp = self.timestamp.unwrap_or_else(timestamp_now);
 
         let msg = AnnounceFile {
-            tx_id,
+            tx_ids: vec![tx_id],
             num_shard: 1,
             shard_id: 0,
             peer_id: peer_id.into(),

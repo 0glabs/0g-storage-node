@@ -162,7 +162,8 @@ impl FileCache {
 
     /// Insert the specified `announcement` into cache.
     fn insert(&mut self, announcement: SignedAnnounceFile) {
-        let tx_id = announcement.tx_id;
+        // FIXME(qhz): handle batch case
+        let tx_id = announcement.tx_ids[0];
 
         let item = self.files.entry(tx_id).or_insert_with(|| {
             AnnouncementCache::new(
@@ -534,7 +535,7 @@ mod tests {
     }
 
     fn assert_file(file: &SignedAnnounceFile, tx_id: TxID, peer_id: PeerId, timestamp: u32) {
-        assert_eq!(file.tx_id, tx_id);
+        assert_eq!(file.tx_ids[0], tx_id);
         assert_eq!(PeerId::from(file.peer_id.clone()), peer_id);
         assert_eq!(file.timestamp, timestamp);
     }
