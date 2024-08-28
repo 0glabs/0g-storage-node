@@ -219,6 +219,21 @@ reward_contract_address = "0x51998C4d486F406a788B766d93510980ae1f9360"
 # prune_batch_wait_time_ms = 1000
 
 #######################################################################
+###                   Router Config Options                         ###
+#######################################################################
+
+[router]
+
+# Timeout to publish file announcements in batch.
+# batcher_timeout = "1s"
+
+# Number of files in an announcement to publish in batch.
+batcher_file_capacity = 10
+
+# Number of announcements in a pubsub message to publish in batch.
+batcher_announcement_capacity = 100
+
+#######################################################################
 ###                   File Sync Config Options                      ###
 #######################################################################
 [sync]

@@ -218,6 +218,21 @@
 # prune_batch_wait_time_ms = 1000
 
 #######################################################################
+###                   Router Config Options                         ###
+#######################################################################
+
+# [router]
+
+# Timeout to publish file announcements in batch.
+# batcher_timeout = "1s"
+
+# Number of files in an announcement to publish in batch.
+# batcher_file_capacity = 1
+
+# Number of announcements in a pubsub message to publish in batch.
+# batcher_announcement_capacity = 1
+
+#######################################################################
 ###                   File Sync Config Options                      ###
 #######################################################################
 # [sync]

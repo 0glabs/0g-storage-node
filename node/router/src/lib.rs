@@ -28,6 +28,7 @@ pub struct Config {
     pub check_announced_ip: bool,
 
     // batcher
+    /// Timeout to publish messages in batch
     #[serde(deserialize_with = "deserialize_duration")]
     pub batcher_timeout: Duration,
     /// Number of files in an announcement
@@ -48,8 +49,8 @@ impl Default for Config {
             check_announced_ip: false,
 
             batcher_timeout: Duration::from_secs(1),
-            batcher_file_capacity: 10,
-            batcher_announcement_capacity: 100,
+            batcher_file_capacity: 1,
+            batcher_announcement_capacity: 1,
         }
     }
 }

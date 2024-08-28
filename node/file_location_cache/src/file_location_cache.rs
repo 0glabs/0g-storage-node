@@ -292,7 +292,7 @@ impl FileLocationCache {
 
         let mut cache = self.cache.lock();
         for tx_id in announcement.tx_ids.iter() {
-            cache.insert(tx_id.clone(), announcement.clone());
+            cache.insert(*tx_id, announcement.clone());
         }
     }
 
