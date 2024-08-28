@@ -660,6 +660,7 @@ impl Libp2pEventHandler {
         msg: SignedAnnounceFile,
     ) -> MessageAcceptance {
         metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_ANNOUNCEMENTS.mark(1);
+        metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_FILES.mark(msg.tx_ids.len());
 
         // verify message signature
         if !verify_signature(&msg, &msg.peer_id, propagation_source) {
@@ -693,7 +694,6 @@ impl Libp2pEventHandler {
 
         // notify sync layer
         for tx_id in msg.tx_ids.iter() {
-            metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_FILES.mark(1);
             self.send_to_sync(SyncMessage::AnnounceFileGossip {
                 tx_id: tx_id.clone(),
                 peer_id: msg.peer_id.clone().into(),
