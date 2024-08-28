@@ -8,7 +8,8 @@ use ::metrics::{Histogram, Sample};
 
 /// `Batcher` is used to handle data in batch, when `capacity` or `timeout` matches.
 pub(crate) struct Batcher<T> {
-    items: VecDeque<(T, Instant)>,
+    items: VecDeque<T>,
+    earliest_time: Option<Instant>,
     capacity: usize,
     timeout: Duration,
     metrics_batch_size: Arc<dyn Histogram>,
@@ -18,6 +19,7 @@ impl<T> Batcher<T> {
     pub fn new(capacity: usize, timeout: Duration, name: &str) -> Self {
         Self {
             items: VecDeque::with_capacity(capacity),
+            earliest_time: None,
             capacity,
             timeout,
             metrics_batch_size: Sample::ExpDecay(0.015).register_with_group(
@@ -28,30 +30,37 @@ impl<T> Batcher<T> {
         }
     }
 
+    fn remove_all(&mut self) -> Option<Vec<T>> {
+        let size = self.items.len();
+        if size == 0 {
+            return None;
+        }
+
+        self.metrics_batch_size.update(size as u64);
+        self.earliest_time = None;
+
+        Some(Vec::from_iter(self.items.split_off(0).into_iter().rev()))
+    }
+
     pub fn add(&mut self, value: T) -> Option<Vec<T>> {
         self.add_with_time(value, Instant::now())
     }
 
     fn add_with_time(&mut self, value: T, now: Instant) -> Option<Vec<T>> {
         // push at front so as to use `split_off` to remove expired items
-        self.items.push_front((value, now));
-
-        // remove expired items if not full
-        let size = self.items.len();
-        if size < self.capacity {
-            return self.expire_with_time(now);
+        self.items.push_front(value);
+        if self.earliest_time.is_none() {
+            self.earliest_time = Some(now);
         }
 
-        // remove all items for batch operation in advance
-        self.metrics_batch_size.update(size as u64);
+        // cache if not full
+        let size = self.items.len();
+        if size < self.capacity {
+            return None;
+        }
 
-        Some(Vec::from_iter(
-            self.items
-                .split_off(0)
-                .into_iter()
-                .rev()
-                .map(|(val, _)| val),
-        ))
+        // cache is full
+        self.remove_all()
     }
 
     pub fn expire(&mut self) -> Option<Vec<T>> {
@@ -59,32 +68,11 @@ impl<T> Batcher<T> {
     }
 
     fn expire_with_time(&mut self, now: Instant) -> Option<Vec<T>> {
-        let total = self.items.len();
-
-        // find the index of first expired item if any
-        let first_unexpired = self
-            .items
-            .iter()
-            .rev()
-            .position(|(_, ts)| now.duration_since(*ts) < self.timeout)
-            .unwrap_or(total);
-
-        if first_unexpired == 0 {
-            return None;
+        if now.duration_since(self.earliest_time?) < self.timeout {
+            None
+        } else {
+            self.remove_all()
         }
-
-        let pos = total - first_unexpired;
-
-        // remove expired items for batch operation in advance
-        self.metrics_batch_size.update(first_unexpired as u64);
-
-        Some(Vec::from_iter(
-            self.items
-                .split_off(pos)
-                .into_iter()
-                .rev()
-                .map(|(val, _)| val),
-        ))
     }
 }
 
@@ -119,17 +107,10 @@ mod tests {
         // expire None
         assert_eq!(batcher.expire_with_time(now + Duration::from_secs(6)), None);
 
-        // expire 1, 2
+        // expire all
         assert_eq!(
             batcher.expire_with_time(now + Duration::from_secs(13)),
-            Some(vec![1, 2])
-        );
-        assert_eq!(batcher.items.len(), 2);
-
-        // expire 3, 4
-        assert_eq!(
-            batcher.expire_with_time(now + Duration::from_secs(20)),
-            Some(vec![3, 4])
+            Some(vec![1, 2, 3, 4])
         );
         assert_eq!(batcher.items.len(), 0);
     }
