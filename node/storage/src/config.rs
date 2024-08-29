@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
+use std::{cell::RefCell, path::PathBuf, rc::Rc, str::FromStr};
 
 pub const SHARD_CONFIG_KEY: &str = "shard_config";
 
@@ -25,11 +25,11 @@ impl Default for ShardConfig {
     }
 }
 
-impl TryFrom<&str> for ShardConfig {
-    type Error = String;
+impl FromStr for ShardConfig {
+    type Err = String;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let parts: Vec<&str> = value.trim().split('/').map(|s| s.trim()).collect();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.trim().split('/').map(|s| s.trim()).collect();
 
         if parts.len() != 2 {
             return Err("Incorrect format, expected like: '0 / 8'".into());
@@ -46,12 +46,12 @@ impl TryFrom<&str> for ShardConfig {
     }
 }
 
-impl TryFrom<&Option<String>> for ShardConfig {
+impl TryFrom<Option<String>> for ShardConfig {
     type Error = String;
 
-    fn try_from(value: &Option<String>) -> Result<Self, Self::Error> {
+    fn try_from(value: Option<String>) -> Result<Self, Self::Error> {
         if let Some(position) = value {
-            <ShardConfig as TryFrom<&str>>::try_from(position)
+            Self::from_str(&position)
         } else {
             Ok(Self::default())
         }
