@@ -681,6 +681,12 @@ impl Libp2pEventHandler {
             return MessageAcceptance::Reject;
         }
 
+        // verify announced shard config
+        let announced_shard_config = match ShardConfig::new(msg.shard_id, msg.num_shard) {
+            Ok(v) => v,
+            Err(_) => return MessageAcceptance::Reject,
+        };
+
         // propagate gossip to peers
         let d = duration_since(
             msg.resend_timestamp,
@@ -692,13 +698,16 @@ impl Libp2pEventHandler {
             return MessageAcceptance::Ignore;
         }
 
-        // notify sync layer
-        for tx_id in msg.tx_ids.iter() {
-            self.send_to_sync(SyncMessage::AnnounceFileGossip {
-                tx_id: *tx_id,
-                peer_id: msg.peer_id.clone().into(),
-                addr: addr.clone(),
-            });
+        // notify sync layer if shard config matches
+        let my_shard_config = self.store.get_store().flow().get_shard_config();
+        if my_shard_config.intersect(&announced_shard_config) {
+            for tx_id in msg.tx_ids.iter() {
+                self.send_to_sync(SyncMessage::AnnounceFileGossip {
+                    tx_id: *tx_id,
+                    peer_id: msg.peer_id.clone().into(),
+                    addr: addr.clone(),
+                });
+            }
         }
 
         // insert message to cache

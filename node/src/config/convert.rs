@@ -253,6 +253,6 @@ impl ZgsConfig {
     }
 
     fn shard_config(&self) -> Result<ShardConfig, String> {
-        ShardConfig::new(&self.shard_position)
+        ShardConfig::try_from(&self.shard_position)
     }
 }
