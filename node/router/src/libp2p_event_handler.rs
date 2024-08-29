@@ -23,6 +23,7 @@ use sync::{SyncMessage, SyncSender};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, RwLock};
 
+use crate::batcher::Batcher;
 use crate::metrics;
 use crate::peer_manager::PeerManager;
 use crate::Config;
@@ -94,6 +95,10 @@ pub struct Libp2pEventHandler {
     file_location_cache: Arc<FileLocationCache>,
     /// All connected peers.
     peers: Arc<RwLock<PeerManager>>,
+    /// Files to announce in batch
+    file_batcher: RwLock<Batcher<TxID>>,
+    /// Announcements to publish in batch
+    announcement_batcher: RwLock<Batcher<SignedAnnounceFile>>,
 }
 
 impl Libp2pEventHandler {
@@ -109,6 +114,18 @@ impl Libp2pEventHandler {
         file_location_cache: Arc<FileLocationCache>,
         peers: Arc<RwLock<PeerManager>>,
     ) -> Self {
+        let file_batcher = RwLock::new(Batcher::new(
+            config.batcher_file_capacity,
+            config.batcher_timeout,
+            "file",
+        ));
+
+        let announcement_batcher = RwLock::new(Batcher::new(
+            config.batcher_announcement_capacity,
+            config.batcher_timeout,
+            "announcement",
+        ));
+
         Self {
             config,
             network_globals,
@@ -119,6 +136,8 @@ impl Libp2pEventHandler {
             store,
             file_location_cache,
             peers,
+            file_batcher,
+            announcement_batcher,
         }
     }
 
@@ -190,7 +209,7 @@ impl Libp2pEventHandler {
         match request {
             Request::Status(status) => {
                 self.on_status_request(peer_id, request_id, status);
-                metrics::LIBP2P_HANDLE_REQUEST_STATUS.mark(1);
+                metrics::LIBP2P_HANDLE_STATUS_REQUEST.mark(1);
             }
             Request::GetChunks(request) => {
                 self.send_to_sync(SyncMessage::RequestChunks {
@@ -198,7 +217,7 @@ impl Libp2pEventHandler {
                     request_id,
                     request,
                 });
-                metrics::LIBP2P_HANDLE_REQUEST_GET_CHUNKS.mark(1);
+                metrics::LIBP2P_HANDLE_GET_CHUNKS_REQUEST.mark(1);
             }
             Request::DataByHash(_) => {
                 // ignore
@@ -241,8 +260,8 @@ impl Libp2pEventHandler {
                 debug!(%peer_id, ?status_message, "Received Status response");
                 match request_id {
                     RequestId::Router(since) => {
-                        metrics::LIBP2P_HANDLE_RESPONSE_STATUS.mark(1);
-                        metrics::LIBP2P_HANDLE_RESPONSE_STATUS_LATENCY.update_since(since);
+                        metrics::LIBP2P_HANDLE_STATUS_RESPONSE.mark(1);
+                        metrics::LIBP2P_HANDLE_STATUS_RESPONSE_LATENCY.update_since(since);
                     }
                     _ => unreachable!("All status response belong to router"),
                 }
@@ -251,8 +270,8 @@ impl Libp2pEventHandler {
             Response::Chunks(response) => {
                 let request_id = match request_id {
                     RequestId::Sync(since, sync_id) => {
-                        metrics::LIBP2P_HANDLE_RESPONSE_GET_CHUNKS.mark(1);
-                        metrics::LIBP2P_HANDLE_RESPONSE_GET_CHUNKS_LATENCY.update_since(since);
+                        metrics::LIBP2P_HANDLE_GET_CHUNKS_RESPONSE.mark(1);
+                        metrics::LIBP2P_HANDLE_GET_CHUNKS_RESPONSE_LATENCY.update_since(since);
                         sync_id
                     }
                     _ => unreachable!("All Chunks responses belong to sync"),
@@ -305,9 +324,18 @@ impl Libp2pEventHandler {
                 metrics::LIBP2P_HANDLE_PUBSUB_FIND_CHUNKS.mark(1);
                 self.on_find_chunks(msg).await
             }
-            PubsubMessage::AnnounceFile(msg) => {
+            PubsubMessage::AnnounceFile(msgs) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE.mark(1);
-                self.on_announce_file(propagation_source, msg)
+
+                for msg in msgs {
+                    match self.on_announce_file(propagation_source, msg) {
+                        MessageAcceptance::Reject => return MessageAcceptance::Reject,
+                        MessageAcceptance::Ignore => return MessageAcceptance::Ignore,
+                        _ => {}
+                    }
+                }
+
+                MessageAcceptance::Accept
             }
             PubsubMessage::AnnounceChunks(msg) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_CHUNKS.mark(1);
@@ -382,7 +410,14 @@ impl Libp2pEventHandler {
         false
     }
 
-    pub async fn construct_announce_file_message(&self, tx_id: TxID) -> Option<PubsubMessage> {
+    pub async fn construct_announce_file_message(
+        &self,
+        tx_ids: Vec<TxID>,
+    ) -> Option<SignedAnnounceFile> {
+        if tx_ids.is_empty() {
+            return None;
+        }
+
         let peer_id = *self.network_globals.peer_id.read();
 
         let addr = self.get_listen_addr_or_add().await?;
@@ -391,7 +426,7 @@ impl Libp2pEventHandler {
         let shard_config = self.store.get_store().flow().get_shard_config();
 
         let msg = AnnounceFile {
-            tx_id,
+            tx_ids,
             num_shard: shard_config.num_shard,
             shard_id: shard_config.shard_id,
             peer_id: peer_id.into(),
@@ -402,14 +437,14 @@ impl Libp2pEventHandler {
         let mut signed = match SignedMessage::sign_message(msg, &self.local_keypair) {
             Ok(signed) => signed,
             Err(e) => {
-                error!(%tx_id.seq, %e, "Failed to sign AnnounceFile message");
+                error!(%e, "Failed to sign AnnounceFile message");
                 return None;
             }
         };
 
         signed.resend_timestamp = timestamp;
 
-        Some(PubsubMessage::AnnounceFile(signed))
+        Some(signed)
     }
 
     pub async fn construct_announce_shard_config_message(
@@ -447,10 +482,11 @@ impl Libp2pEventHandler {
         // verify timestamp
         let d = duration_since(
             timestamp,
-            metrics::LIBP2P_HANDLE_PUBSUB_LATENCY_FIND_FILE.clone(),
+            metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_LATENCY.clone(),
         );
         if d < TOLERABLE_DRIFT.neg() || d > *FIND_FILE_TIMEOUT {
             debug!(%timestamp, ?d, "Invalid timestamp, ignoring FindFile message");
+            metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_TIMEOUT.mark(1);
             return MessageAcceptance::Ignore;
         }
 
@@ -460,14 +496,10 @@ impl Libp2pEventHandler {
                 if tx.id() == tx_id {
                     trace!(?tx_id, "Found file locally, responding to FindFile query");
 
-                    return match self.construct_announce_file_message(tx_id).await {
-                        Some(msg) => {
-                            self.publish(msg);
-                            MessageAcceptance::Ignore
-                        }
-                        // propagate FindFile query to other nodes
-                        None => MessageAcceptance::Accept,
-                    };
+                    if self.publish_file(tx_id).await.is_some() {
+                        metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_STORE.mark(1);
+                        return MessageAcceptance::Ignore;
+                    }
                 }
             }
         }
@@ -477,12 +509,15 @@ impl Libp2pEventHandler {
             trace!(?tx_id, "Found file in cache, responding to FindFile query");
 
             msg.resend_timestamp = timestamp_now();
-            self.publish(PubsubMessage::AnnounceFile(msg));
+            self.publish_announcement(msg).await;
+
+            metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_CACHE.mark(1);
 
             return MessageAcceptance::Ignore;
         }
 
         // propagate FindFile query to other nodes
+        metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_FORWARD.mark(1);
         MessageAcceptance::Accept
     }
 
@@ -528,7 +563,7 @@ impl Libp2pEventHandler {
         // verify timestamp
         let d = duration_since(
             msg.timestamp,
-            metrics::LIBP2P_HANDLE_PUBSUB_LATENCY_FIND_CHUNKS.clone(),
+            metrics::LIBP2P_HANDLE_PUBSUB_FIND_CHUNKS_LATENCY.clone(),
         );
         if d < TOLERABLE_DRIFT.neg() || d > *FIND_FILE_TIMEOUT {
             debug!(%msg.timestamp, ?d, "Invalid timestamp, ignoring FindChunks message");
@@ -624,6 +659,9 @@ impl Libp2pEventHandler {
         propagation_source: PeerId,
         msg: SignedAnnounceFile,
     ) -> MessageAcceptance {
+        metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_ANNOUNCEMENTS.mark(1);
+        metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_FILES.mark(msg.tx_ids.len());
+
         // verify message signature
         if !verify_signature(&msg, &msg.peer_id, propagation_source) {
             return MessageAcceptance::Reject;
@@ -646,19 +684,22 @@ impl Libp2pEventHandler {
         // propagate gossip to peers
         let d = duration_since(
             msg.resend_timestamp,
-            metrics::LIBP2P_HANDLE_PUBSUB_LATENCY_ANNOUNCE_FILE.clone(),
+            metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_LATENCY.clone(),
         );
         if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_FILE_TIMEOUT {
             debug!(%msg.resend_timestamp, ?d, "Invalid resend timestamp, ignoring AnnounceFile message");
+            metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_TIMEOUT.mark(1);
             return MessageAcceptance::Ignore;
         }
 
         // notify sync layer
-        self.send_to_sync(SyncMessage::AnnounceFileGossip {
-            tx_id: msg.tx_id,
-            peer_id: msg.peer_id.clone().into(),
-            addr,
-        });
+        for tx_id in msg.tx_ids.iter() {
+            self.send_to_sync(SyncMessage::AnnounceFileGossip {
+                tx_id: *tx_id,
+                peer_id: msg.peer_id.clone().into(),
+                addr: addr.clone(),
+            });
+        }
 
         // insert message to cache
         self.file_location_cache.insert(msg);
@@ -693,7 +734,7 @@ impl Libp2pEventHandler {
         // propagate gossip to peers
         let d = duration_since(
             msg.resend_timestamp,
-            metrics::LIBP2P_HANDLE_PUBSUB_LATENCY_ANNOUNCE_SHARD.clone(),
+            metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_SHARD_LATENCY.clone(),
         );
         if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_SHARD_CONFIG_TIMEOUT {
             debug!(%msg.resend_timestamp, ?d, "Invalid resend timestamp, ignoring AnnounceShardConfig message");
@@ -745,7 +786,7 @@ impl Libp2pEventHandler {
         // propagate gossip to peers
         let d = duration_since(
             msg.resend_timestamp,
-            metrics::LIBP2P_HANDLE_PUBSUB_LATENCY_ANNOUNCE_CHUNKS.clone(),
+            metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_CHUNKS_LATENCY.clone(),
         );
         if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_FILE_TIMEOUT {
             debug!(%msg.resend_timestamp, ?d, "Invalid resend timestamp, ignoring AnnounceChunks message");
@@ -772,6 +813,39 @@ impl Libp2pEventHandler {
                 source: ReportSource::Gossipsub,
                 msg: "Incompatible network id in StatusMessage",
             })
+        }
+    }
+
+    pub async fn publish_file(&self, tx_id: TxID) -> Option<bool> {
+        match self.file_batcher.write().await.add(tx_id) {
+            Some(batch) => {
+                let announcement = self.construct_announce_file_message(batch).await?;
+                Some(self.publish_announcement(announcement).await)
+            }
+            None => Some(false),
+        }
+    }
+
+    async fn publish_announcement(&self, announcement: SignedAnnounceFile) -> bool {
+        match self.announcement_batcher.write().await.add(announcement) {
+            Some(batch) => {
+                self.publish(PubsubMessage::AnnounceFile(batch));
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Publish expired file announcements.
+    pub async fn expire_batcher(&self) {
+        if let Some(batch) = self.file_batcher.write().await.expire() {
+            if let Some(announcement) = self.construct_announce_file_message(batch).await {
+                self.publish_announcement(announcement).await;
+            }
+        }
+
+        if let Some(batch) = self.announcement_batcher.write().await.expire() {
+            self.publish(PubsubMessage::AnnounceFile(batch));
         }
     }
 }
@@ -895,7 +969,7 @@ mod tests {
                 Ok(NetworkMessage::Publish { messages }) => {
                     assert_eq!(messages.len(), 1);
                     assert!(
-                        matches!(&messages[0], PubsubMessage::AnnounceFile(file) if file.tx_id == expected_tx_id)
+                        matches!(&messages[0], PubsubMessage::AnnounceFile(files) if files[0].tx_ids[0] == expected_tx_id)
                     );
                 }
                 Ok(_) => panic!("Unexpected network message type received"),
@@ -1185,18 +1259,13 @@ mod tests {
         let tx_id = TxID::random_hash(412);
 
         // change signed message
-        let message = match handler
-            .construct_announce_file_message(tx_id)
+        let mut file = handler
+            .construct_announce_file_message(vec![tx_id])
             .await
-            .unwrap()
-        {
-            PubsubMessage::AnnounceFile(mut file) => {
-                let malicious_addr: Multiaddr = "/ip4/127.0.0.38/tcp/30000".parse().unwrap();
-                file.inner.at = malicious_addr.into();
-                PubsubMessage::AnnounceFile(file)
-            }
-            _ => panic!("Unexpected pubsub message type"),
-        };
+            .unwrap();
+        let malicious_addr: Multiaddr = "/ip4/127.0.0.38/tcp/30000".parse().unwrap();
+        file.inner.at = malicious_addr.into();
+        let message = PubsubMessage::AnnounceFile(vec![file]);
 
         // failed to verify signature
         let result = handler.on_pubsub_message(alice, bob, &id, message).await;
@@ -1212,7 +1281,11 @@ mod tests {
         let (alice, bob) = (PeerId::random(), PeerId::random());
         let id = MessageId::new(b"dummy message");
         let tx = TxID::random_hash(412);
-        let message = handler.construct_announce_file_message(tx).await.unwrap();
+        let message = handler
+            .construct_announce_file_message(vec![tx])
+            .await
+            .unwrap();
+        let message = PubsubMessage::AnnounceFile(vec![message]);
 
         // succeeded to handle
         let result = handler.on_pubsub_message(alice, bob, &id, message).await;

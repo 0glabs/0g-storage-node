@@ -95,6 +95,8 @@ pub use peer_manager::{
 };
 pub use service::{load_private_key, Context, Libp2pEvent, Service, NETWORK_KEY_FILENAME};
 
+pub const PROTOCOL_VERSION: [u8; 3] = [0, 1, 0];
+
 /// Application level requests sent to the network.
 #[derive(Debug, Clone, Copy)]
 pub enum RequestId {

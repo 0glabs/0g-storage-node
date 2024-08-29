@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate tracing;
 
+mod batcher;
 mod libp2p_event_handler;
 mod metrics;
 mod peer_manager;
@@ -25,6 +26,15 @@ pub struct Config {
     pub libp2p_nodes: Vec<Multiaddr>,
     pub private_ip_enabled: bool,
     pub check_announced_ip: bool,
+
+    // batcher
+    /// Timeout to publish messages in batch
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub batcher_timeout: Duration,
+    /// Number of files in an announcement
+    pub batcher_file_capacity: usize,
+    /// Number of announcements in a pubsub message
+    pub batcher_announcement_capacity: usize,
 }
 
 impl Default for Config {
@@ -37,6 +47,10 @@ impl Default for Config {
             libp2p_nodes: vec![],
             private_ip_enabled: false,
             check_announced_ip: false,
+
+            batcher_timeout: Duration::from_secs(1),
+            batcher_file_capacity: 1,
+            batcher_announcement_capacity: 1,
         }
     }
 }

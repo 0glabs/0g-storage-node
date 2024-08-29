@@ -95,7 +95,8 @@ impl RouterService {
     }
 
     async fn main(mut self, mut shutdown_sender: Sender<ShutdownReason>) {
-        let mut heartbeat = interval(self.config.heartbeat_interval);
+        let mut heartbeat_service = interval(self.config.heartbeat_interval);
+        let mut heartbeat_batcher = interval(self.config.batcher_timeout);
 
         loop {
             tokio::select! {
@@ -107,8 +108,11 @@ impl RouterService {
 
                 Some(msg) = Self::try_recv(&mut self.pruner_recv) => self.on_pruner_msg(msg).await,
 
-                // heartbeat
-                _ = heartbeat.tick() => self.on_heartbeat().await,
+                // heartbeat for service
+                _ = heartbeat_service.tick() => self.on_heartbeat().await,
+
+                // heartbeat for expire file batcher
+                _ = heartbeat_batcher.tick() => self.libp2p_event_handler.expire_batcher().await,
             }
         }
     }
@@ -324,12 +328,12 @@ impl RouterService {
                 }
             }
             NetworkMessage::AnnounceLocalFile { tx_id } => {
-                if let Some(msg) = self
+                if self
                     .libp2p_event_handler
-                    .construct_announce_file_message(tx_id)
+                    .publish_file(tx_id)
                     .await
+                    .is_some()
                 {
-                    self.libp2p_event_handler.publish(msg);
                     metrics::SERVICE_ROUTE_NETWORK_MESSAGE_ANNOUNCE_LOCAL_FILE.mark(1);
                 }
             }

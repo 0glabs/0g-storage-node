@@ -8,7 +8,7 @@ use miner::MinerConfig;
 use network::NetworkConfig;
 use pruner::PrunerConfig;
 use rpc::RPCConfig;
-use shared_types::NetworkIdentity;
+use shared_types::{NetworkIdentity, ProtocolVersion};
 use std::net::IpAddr;
 use std::time::Duration;
 use storage::config::ShardConfig;
@@ -41,6 +41,11 @@ impl ZgsConfig {
         network_config.network_id = NetworkIdentity {
             chain_id,
             flow_address,
+            p2p_protocol_version: ProtocolVersion {
+                major: network::PROTOCOL_VERSION[0],
+                minor: network::PROTOCOL_VERSION[1],
+                build: network::PROTOCOL_VERSION[2],
+            },
         };
 
         if !self.network_disable_discovery {

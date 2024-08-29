@@ -233,6 +233,21 @@
 # prune_batch_wait_time_ms = 1000
 
 #######################################################################
+###                   Router Config Options                         ###
+#######################################################################
+
+# [router]
+
+# Timeout to publish file announcements in batch.
+# batcher_timeout = "1s"
+
+# Number of files in an announcement to publish in batch.
+# batcher_file_capacity = 1
+
+# Number of announcements in a pubsub message to publish in batch.
+# batcher_announcement_capacity = 1
+
+#######################################################################
 ###                   File Sync Config Options                      ###
 #######################################################################
 # [sync]
@@ -286,7 +301,7 @@
 # When the cache is full, the storage position information with oldest timestamp will be replaced.
 
 # Global cache capacity.
-# max_entries_total = 4096
+# max_entries_total = 256000
 
 # Location information capacity for each file.
 # max_entries_per_file = 4
