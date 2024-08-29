@@ -13,3 +13,5 @@ tracing = "0.1.35"
 priority-queue = "1.2.3"
 shared_types = { path = "../shared_types" }
 serde = { version = "1.0.137", features = ["derive"] }
+lazy_static = "1.4.0"
+metrics = { workspace = true }

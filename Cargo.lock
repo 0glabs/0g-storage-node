@@ -2373,6 +2373,8 @@ name = "file_location_cache"
 version = "0.1.0"
 dependencies = [
  "hashlink 0.8.4",
+ "lazy_static",
+ "metrics",
  "network",
  "parking_lot 0.12.3",
  "priority-queue",

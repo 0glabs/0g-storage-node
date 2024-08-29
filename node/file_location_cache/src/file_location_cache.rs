@@ -1,4 +1,5 @@
 use crate::Config;
+use metrics::{register_meter_with_group, Histogram, Meter, Sample};
 use network::types::SignedAnnounceFile;
 use network::PeerId;
 use parking_lot::Mutex;
@@ -7,7 +8,14 @@ use rand::seq::IteratorRandom;
 use shared_types::{timestamp_now, TxID};
 use std::cmp::Reverse;
 use std::collections::HashMap;
+use std::sync::Arc;
 use storage::config::ShardConfig;
+
+lazy_static::lazy_static! {
+    pub static ref INSERT_QPS: Arc<dyn Meter> = register_meter_with_group("file_location_cache_insert", "qps");
+    pub static ref INSERT_BATCH: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register_with_group("file_location_cache_insert", "batch", 1024);
+    pub static ref TOTAL_CACHED: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register("file_location_cache_size", 1024);
+}
 
 /// Caches limited announcements of specified file from different peers.
 struct AnnouncementCache {
@@ -201,6 +209,7 @@ impl FileCache {
         let item = self.files.get_mut(&tx_id)?;
         let (result, collected) = item.random();
         self.update_on_announcement_cache_changed(&tx_id, collected);
+        TOTAL_CACHED.update(self.total_announcements as u64);
         result
     }
 
@@ -232,6 +241,7 @@ impl FileCache {
         let item = self.files.get_mut(&tx_id)?;
         let (result, collected) = item.all();
         self.update_on_announcement_cache_changed(&tx_id, collected);
+        TOTAL_CACHED.update(self.total_announcements as u64);
         Some(result)
     }
 
@@ -240,6 +250,7 @@ impl FileCache {
         let item = self.files.get_mut(tx_id)?;
         let result = item.remove(peer_id)?;
         self.update_on_announcement_cache_changed(tx_id, 1);
+        TOTAL_CACHED.update(self.total_announcements as u64);
         Some(result)
     }
 }
@@ -282,6 +293,9 @@ impl FileLocationCache {
     }
 
     pub fn insert(&self, announcement: SignedAnnounceFile) {
+        INSERT_QPS.mark(1);
+        INSERT_BATCH.update(announcement.tx_ids.len() as u64);
+
         let peer_id = *announcement.peer_id;
         // FIXME: Check validity.
         let shard_config = ShardConfig {
@@ -294,6 +308,8 @@ impl FileLocationCache {
         for tx_id in announcement.tx_ids.iter() {
             cache.insert(*tx_id, announcement.clone());
         }
+
+        TOTAL_CACHED.update(cache.total_announcements as u64);
     }
 
     pub fn get_one(&self, tx_id: TxID) -> Option<SignedAnnounceFile> {
