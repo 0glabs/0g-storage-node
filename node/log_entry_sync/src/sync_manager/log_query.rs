@@ -14,7 +14,7 @@ use thiserror::Error;
 pub(crate) type PinBoxFut<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, ProviderError>> + Send + 'a>>;
 
-const TOO_MANY_LOGS_ERROR_MSG: &str = "query returned more than";
+const TOO_MANY_LOGS_ERROR_MSG: [&str; 2] = ["query returned more than", "too large with more than"];
 
 /// A log query provides streaming access to historical logs via a paginated
 /// request. For streaming access to future logs, use [`Middleware::watch`] or
@@ -127,7 +127,7 @@ where
                         // this is okay because we will only enter this state when the filter is
                         // paginatable i.e. from block is set
                         let from_block = self.filter.get_from_block().unwrap();
-                        let to_block = min(from_block + self.page_size, last_block);
+                        let to_block = min(from_block + self.page_size - 1, last_block);
                         self.from_block = Some(to_block + 1);
 
                         let filter = self
@@ -159,13 +159,14 @@ where
                         rewake_with_new_state!(ctx, self, LogQueryState::Consume);
                     }
                     Err(err) => {
-                        if err.to_string().contains(TOO_MANY_LOGS_ERROR_MSG) {
-                            self.from_block = *from_block;
-                            self.page_size /= 2;
-                            rewake_with_new_state!(ctx, self, LogQueryState::Consume);
-                        } else {
-                            Poll::Ready(Some(Err(LogQueryError::LoadLogsError(err))))
+                        for msg in TOO_MANY_LOGS_ERROR_MSG.iter() {
+                            if err.to_string().contains(msg) {
+                                self.from_block = *from_block;
+                                self.page_size /= 2;
+                                rewake_with_new_state!(ctx, self, LogQueryState::Consume);
+                            }
                         }
+                        Poll::Ready(Some(Err(LogQueryError::LoadLogsError(err))))
                     }
                 }
             }
@@ -181,9 +182,9 @@ where
                         let from_block = self.from_block.unwrap();
                         let to_block = if let Some(l) = self.last_block {
                             // if last_block is not none, only getLogs from to_block to last_block
-                            min(from_block + self.page_size, l)
+                            min(from_block + self.page_size - 1, l)
                         } else {
-                            from_block + self.page_size
+                            from_block + self.page_size - 1
                         };
 
                         // no more pages to load, and everything is consumed
