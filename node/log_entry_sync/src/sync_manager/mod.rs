@@ -251,8 +251,8 @@ impl LogSyncManager {
             }
             std::cmp::Ordering::Greater => {
                 error!(
-                    "Unexpected transaction seq: next={} get={}",
-                    self.next_tx_seq, tx.seq
+                    "Unexpected transaction tx={:?}",
+                    tx,
                 );
                 false
             }
