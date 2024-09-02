@@ -339,8 +339,7 @@ impl LogSyncManager {
                 LogFetchProgress::Transaction(tx) => {
                     if !self.put_tx(tx.clone()).await {
                         // Unexpected error.
-                        error!("log sync write error");
-                        break;
+                        bail!("log sync write error");
                     }
                     if let Err(e) = self.event_send.send(LogSyncEvent::TxSynced { tx }) {
                         // TODO: Do we need to wait until all receivers are initialized?
