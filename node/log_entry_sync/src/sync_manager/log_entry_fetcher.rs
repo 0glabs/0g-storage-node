@@ -411,7 +411,7 @@ impl LogEntryFetcher {
             .to_block(to_block_number)
             .address(contract.address().into())
             .filter;
-        let mut stream = LogQuery::new(&provider, &filter, Duration::from_millis(10))
+        let mut stream = LogQuery::new(provider, &filter, Duration::from_millis(10))
             .with_page_size(log_page_size);
         let mut block_logs: BTreeMap<u64, Vec<Log>> = BTreeMap::new();
         while let Some(maybe_log) = stream.next().await {
