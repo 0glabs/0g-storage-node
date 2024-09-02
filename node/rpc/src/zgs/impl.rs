@@ -30,6 +30,7 @@ impl RpcServer for RpcServerImpl {
             connected_peers: self.ctx.network_globals.connected_peers(),
             log_sync_height: sync_progress.0,
             log_sync_block: sync_progress.1,
+            network_identity: self.ctx.network_globals.network_id(),
         })
     }
 
