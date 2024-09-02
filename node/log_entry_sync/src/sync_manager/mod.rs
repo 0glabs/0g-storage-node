@@ -306,7 +306,7 @@ impl LogSyncManager {
 
     async fn handle_data(&mut self, mut rx: UnboundedReceiver<LogFetchProgress>) -> Result<()> {
         while let Some(data) = rx.recv().await {
-            trace!("handle_data: data={:?}", data);
+            debug!("handle_data: data={:?}", data);
             match data {
                 LogFetchProgress::SyncedBlock((
                     block_number,

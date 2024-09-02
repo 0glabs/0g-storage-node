@@ -491,6 +491,8 @@ impl LogEntryFetcher {
 
                         log_events.push(submission_event_to_transaction(submit_filter));
                     }
+
+                    info!("synced {} events", log_events.len());
                 }
 
                 let new_progress = if block.hash.is_some() && block.number.is_some() {
