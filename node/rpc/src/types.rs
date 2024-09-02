@@ -7,7 +7,8 @@ use merkle_tree::RawLeafSha3Algorithm;
 use network::Multiaddr;
 use serde::{Deserialize, Serialize};
 use shared_types::{
-    compute_padded_chunk_size, compute_segment_size, DataRoot, FileProof, Transaction, CHUNK_SIZE,
+    compute_padded_chunk_size, compute_segment_size, DataRoot, FileProof, NetworkIdentity,
+    Transaction, CHUNK_SIZE,
 };
 use std::collections::HashSet;
 use std::hash::Hasher;
@@ -28,6 +29,7 @@ pub struct Status {
     pub connected_peers: usize,
     pub log_sync_height: u64,
     pub log_sync_block: H256,
+    pub network_identity: NetworkIdentity,
 }
 
 #[derive(Serialize, Deserialize)]
