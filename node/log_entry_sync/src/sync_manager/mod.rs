@@ -427,6 +427,7 @@ impl LogSyncManager {
                 &executor_clone,
                 Duration::from_millis(self.config.recover_query_delay),
             );
+            self.next_tx_seq = self.store.next_tx_seq();
             self.handle_data(recover_rx).await?;
         }
 
@@ -437,6 +438,7 @@ impl LogSyncManager {
             self.config.default_finalized_block_count,
             self.config.remove_finalized_block_interval_minutes,
         );
+
         Ok(())
     }
 }
