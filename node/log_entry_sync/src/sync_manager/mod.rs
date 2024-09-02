@@ -5,7 +5,7 @@ use anyhow::{anyhow, bail, Result};
 use ethereum_types::H256;
 use ethers::{prelude::Middleware, types::BlockNumber};
 use futures::FutureExt;
-use jsonrpsee::tracing::{debug, error, trace, warn};
+use jsonrpsee::tracing::{debug, error, warn};
 use shared_types::{ChunkArray, Transaction};
 use std::collections::BTreeMap;
 use std::fmt::Debug;
@@ -56,7 +56,7 @@ impl LogSyncManager {
         store: Arc<dyn Store>,
     ) -> Result<(broadcast::Sender<LogSyncEvent>, oneshot::Receiver<()>)> {
         let next_tx_seq = store.next_tx_seq();
-
+        debug!("LogSyncManager spawn next_tx_seq: {}", next_tx_seq);
         let executor_clone = executor.clone();
         let mut shutdown_sender = executor.shutdown_sender();
 
@@ -298,7 +298,7 @@ impl LogSyncManager {
 
     async fn handle_data(&mut self, mut rx: UnboundedReceiver<LogFetchProgress>) -> Result<()> {
         while let Some(data) = rx.recv().await {
-            trace!("handle_data: data={:?}", data);
+            debug!("handle_data: data={:?}", data);
             match data {
                 LogFetchProgress::SyncedBlock((
                     block_number,
@@ -387,7 +387,7 @@ impl LogSyncManager {
                 }
             }
             self.data_cache.garbage_collect(self.next_tx_seq);
-            self.next_tx_seq += 1;
+            self.next_tx_seq = self.store.next_tx_seq();
             true
         }
     }

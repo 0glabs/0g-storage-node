@@ -1,6 +1,6 @@
 use ethers::prelude::{Filter, JsonRpcClient, Log, Middleware, Provider, ProviderError, U64};
 use futures_core::stream::Stream;
-use jsonrpsee::tracing::{error, trace};
+use jsonrpsee::tracing::{debug, error, trace};
 use std::future::Future;
 use std::time::Duration;
 use std::{
@@ -152,6 +152,7 @@ where
                 }
             }
             LogQueryState::LoadLogs((from_block, fut)) => {
+                debug!("LoadLogs: loading logs from block={:?}", from_block);
                 match futures_util::ready!(fut.as_mut().poll(ctx)) {
                     Ok(logs) => {
                         self.current_logs = VecDeque::from(logs);
