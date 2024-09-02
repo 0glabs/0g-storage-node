@@ -102,7 +102,14 @@ impl LogSyncManager {
                         block_hash_cache,
                     };
 
-                    let (mut start_block_number, mut start_block_hash) =
+                    let (mut start_block_number, mut start_block_hash) = if log_sync_manager
+                        .config
+                        .force_log_sync_from_start_block_number
+                    {
+                        let block_number = log_sync_manager.config.start_block_number;
+                        let block_hash = log_sync_manager.get_block(block_number.into()).await?.1;
+                        (block_number, block_hash)
+                    } else {
                         match log_sync_manager.store.get_sync_progress()? {
                             // No previous progress, so just use config.
                             None => {
@@ -112,7 +119,8 @@ impl LogSyncManager {
                                 (block_number, block_hash)
                             }
                             Some((block_number, block_hash)) => (block_number, block_hash),
-                        };
+                        }
+                    };
 
                     let (mut finalized_block_number, mut finalized_block_hash) =
                         match log_sync_manager.get_block(BlockNumber::Finalized).await {
