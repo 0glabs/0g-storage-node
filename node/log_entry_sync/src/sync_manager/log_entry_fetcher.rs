@@ -290,6 +290,7 @@ impl LogEntryFetcher {
         let contract = ZgsFlow::new(self.contract_address, self.provider.clone());
         let provider = self.provider.clone();
         let confirmation_delay = self.confirmation_delay;
+        let log_page_size = self.log_page_size;
         executor.spawn(
             async move {
                 debug!("start_watch starts, start={}", start_block_number);
@@ -305,6 +306,7 @@ impl LogEntryFetcher {
                         confirmation_delay,
                         &contract,
                         &block_hash_cache,
+                        log_page_size,
                     )
                     .await
                     {
@@ -340,6 +342,7 @@ impl LogEntryFetcher {
         confirmation_delay: u64,
         contract: &ZgsFlow<Provider<RetryClient<Http>>>,
         block_hash_cache: &Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
+        log_page_size: u64,
     ) -> Result<Option<(u64, H256, Option<Option<u64>>)>> {
         let latest_block_number = provider.get_block_number().await?.as_u64();
         debug!(
@@ -408,8 +411,11 @@ impl LogEntryFetcher {
             .to_block(to_block_number)
             .address(contract.address().into())
             .filter;
+        let mut stream = LogQuery::new(provider, &filter, Duration::from_millis(10))
+            .with_page_size(log_page_size);
         let mut block_logs: BTreeMap<u64, Vec<Log>> = BTreeMap::new();
-        for log in provider.get_logs(&filter).await? {
+        while let Some(maybe_log) = stream.next().await {
+            let log = maybe_log?;
             let block_number = log
                 .block_number
                 .ok_or_else(|| anyhow!("block number missing"))?
@@ -496,18 +502,18 @@ impl LogEntryFetcher {
                 } else {
                     None
                 };
+                for log in log_events.into_iter() {
+                    if let Err(e) = watch_tx.send(log) {
+                        warn!("send LogFetchProgress::Transaction failed: {:?}", e);
+                        return Ok(progress);
+                    }
+                }
                 if let Some(p) = &new_progress {
                     if let Err(e) = watch_tx.send(LogFetchProgress::SyncedBlock(*p)) {
-                        warn!("send LogFetchProgress failed: {:?}", e);
+                        warn!("send LogFetchProgress::SyncedBlock failed: {:?}", e);
                         return Ok(progress);
                     } else {
                         block_hash_cache.write().await.insert(p.0, None);
-                    }
-                }
-                for log in log_events.into_iter() {
-                    if let Err(e) = watch_tx.send(log) {
-                        warn!("send log failed: {:?}", e);
-                        return Ok(progress);
                     }
                 }
                 progress = new_progress;
