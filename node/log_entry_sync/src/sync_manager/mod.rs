@@ -5,7 +5,7 @@ use anyhow::{anyhow, bail, Result};
 use ethereum_types::H256;
 use ethers::{prelude::Middleware, types::BlockNumber};
 use futures::FutureExt;
-use jsonrpsee::tracing::{debug, error, trace, warn};
+use jsonrpsee::tracing::{debug, error, warn};
 use shared_types::{ChunkArray, Transaction};
 use std::collections::BTreeMap;
 use std::fmt::Debug;
