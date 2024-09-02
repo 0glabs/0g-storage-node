@@ -1,6 +1,6 @@
 use ethers::prelude::{Filter, JsonRpcClient, Log, Middleware, Provider, ProviderError, U64};
 use futures_core::stream::Stream;
-use jsonrpsee::tracing::trace;
+use jsonrpsee::tracing::{error, trace};
 use std::future::Future;
 use std::time::Duration;
 use std::{
@@ -163,6 +163,10 @@ where
                             if err.to_string().contains(msg) {
                                 self.from_block = *from_block;
                                 self.page_size /= 2;
+                                error!(
+                                    "log_query: page size to large at {} reducing page size to {}",
+                                    self.from_block.unwrap(), self.page_size
+                                );
                                 rewake_with_new_state!(ctx, self, LogQueryState::Consume);
                             }
                         }
