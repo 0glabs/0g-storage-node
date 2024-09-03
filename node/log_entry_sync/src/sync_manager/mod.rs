@@ -103,16 +103,7 @@ impl LogSyncManager {
                     };
 
                     let (mut start_block_number, mut start_block_hash) =
-                        match log_sync_manager.store.get_sync_progress()? {
-                            // No previous progress, so just use config.
-                            None => {
-                                let block_number = log_sync_manager.config.start_block_number;
-                                let block_hash =
-                                    log_sync_manager.get_block(block_number.into()).await?.1;
-                                (block_number, block_hash)
-                            }
-                            Some((block_number, block_hash)) => (block_number, block_hash),
-                        };
+                        get_start_block_number_with_hash(&log_sync_manager).await?;
 
                     let (mut finalized_block_number, mut finalized_block_hash) =
                         match log_sync_manager.get_block(BlockNumber::Finalized).await {
@@ -306,6 +297,13 @@ impl LogSyncManager {
         mut rx: UnboundedReceiver<LogFetchProgress>,
         watch_progress_tx: &Option<UnboundedSender<u64>>,
     ) -> Result<()> {
+        let mut log_latest_block_number =
+            if let Some(block_number) = self.store.get_log_latest_block_number()? {
+                block_number
+            } else {
+                0
+            };
+
         while let Some(data) = rx.recv().await {
             trace!("handle_data: data={:?}", data);
             match data {
@@ -345,21 +343,24 @@ impl LogSyncManager {
                         }
                     }
                 }
-                LogFetchProgress::Transaction(tx) => {
+                LogFetchProgress::Transaction((tx, block_number)) => {
                     let mut stop = false;
                     match self.put_tx(tx.clone()).await {
                         Some(false) => stop = true,
-                        Some(true) => {}
+                        Some(true) => {
+                            if let Err(e) = self.store.put_log_latest_block_number(block_number) {
+                                warn!("failed to put log latest block number, error={:?}", e);
+                            }
+
+                            log_latest_block_number = block_number;
+                        }
                         _ => {
                             stop = true;
-
                             if let Some(progress_tx) = watch_progress_tx {
-                                if let Some((block_number, _)) = self.store.get_sync_progress()? {
-                                    if let Err(e) = progress_tx.send(block_number) {
-                                        error!("failed to send watch progress, error={:?}", e);
-                                    } else {
-                                        continue;
-                                    }
+                                if let Err(e) = progress_tx.send(log_latest_block_number) {
+                                    error!("failed to send watch progress, error={:?}", e);
+                                } else {
+                                    continue;
                                 }
                             }
                         }
@@ -466,6 +467,33 @@ impl LogSyncManager {
         );
         Ok(())
     }
+}
+
+async fn get_start_block_number_with_hash(
+    log_sync_manager: &LogSyncManager,
+) -> Result<(u64, H256), anyhow::Error> {
+    if let Some(block_number) = log_sync_manager.store.get_log_latest_block_number()? {
+        if let Some(Some(val)) = log_sync_manager
+            .block_hash_cache
+            .read()
+            .await
+            .get(&block_number)
+        {
+            return Ok((block_number, val.block_hash));
+        }
+    }
+
+    let (start_block_number, start_block_hash) = match log_sync_manager.store.get_sync_progress()? {
+        // No previous progress, so just use config.
+        None => {
+            let block_number = log_sync_manager.config.start_block_number;
+            let block_hash = log_sync_manager.get_block(block_number.into()).await?.1;
+            (block_number, block_hash)
+        }
+        Some((block_number, block_hash)) => (block_number, block_hash),
+    };
+
+    Ok((start_block_number, start_block_hash))
 }
 
 async fn run_and_log<R, E>(

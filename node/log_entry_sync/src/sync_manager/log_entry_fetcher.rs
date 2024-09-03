@@ -252,7 +252,10 @@ impl LogEntryFetcher {
                             }) {
                                 Ok(event) => {
                                     if let Err(e) = recover_tx
-                                        .send(submission_event_to_transaction(event))
+                                        .send(submission_event_to_transaction(
+                                            event,
+                                            log.block_number.expect("block number exist").as_u64(),
+                                        ))
                                         .and_then(|_| match sync_progress {
                                             Some(b) => recover_tx.send(b),
                                             None => Ok(()),
@@ -501,8 +504,11 @@ impl LogEntryFetcher {
                             first_submission_index = Some(submit_filter.submission_index.as_u64());
                         }
 
-                        log_events.push(submission_event_to_transaction(submit_filter));
+                        log_events
+                            .push(submission_event_to_transaction(submit_filter, block_number));
                     }
+
+                    info!("synced {} events", log_events.len());
                 }
 
                 let new_progress = if block.hash.is_some() && block.number.is_some() {
@@ -514,21 +520,26 @@ impl LogEntryFetcher {
                 } else {
                     None
                 };
-
-                if !log_events.is_empty() {
-                    info!("synced {} events", log_events.len());
-                    for log in log_events.into_iter() {
-                        if let Err(e) = watch_tx.send(log) {
-                            warn!("send LogFetchProgress::Transaction failed: {:?}", e);
-                            return Ok(progress);
-                        }
+                for log in log_events.into_iter() {
+                    if let Err(e) = watch_tx.send(log) {
+                        warn!("send LogFetchProgress::Transaction failed: {:?}", e);
+                        return Ok(progress);
                     }
-                    if let Some(p) = &new_progress {
-                        if let Err(e) = watch_tx.send(LogFetchProgress::SyncedBlock(*p)) {
-                            warn!("send LogFetchProgress::SyncedBlock failed: {:?}", e);
-                            return Ok(progress);
-                        } else {
-                            block_hash_cache.write().await.insert(p.0, None);
+                }
+
+                if let Some(p) = &new_progress {
+                    if let Err(e) = watch_tx.send(LogFetchProgress::SyncedBlock(*p)) {
+                        warn!("send LogFetchProgress::SyncedBlock failed: {:?}", e);
+                        return Ok(progress);
+                    } else {
+                        let mut cache = block_hash_cache.write().await;
+                        match cache.get(&p.0) {
+                            Some(Some(v))
+                                if v.block_hash == p.1
+                                    && v.first_submission_index == p.2.unwrap() => {}
+                            _ => {
+                                cache.insert(p.0, None);
+                            }
                         }
                     }
                 }
@@ -650,26 +661,29 @@ async fn revert_one_block(
 #[derive(Debug)]
 pub enum LogFetchProgress {
     SyncedBlock((u64, H256, Option<Option<u64>>)),
-    Transaction(Transaction),
+    Transaction((Transaction, u64)),
     Reverted(u64),
 }
 
-fn submission_event_to_transaction(e: SubmitFilter) -> LogFetchProgress {
-    LogFetchProgress::Transaction(Transaction {
-        stream_ids: vec![],
-        data: vec![],
-        data_merkle_root: nodes_to_root(&e.submission.nodes),
-        merkle_nodes: e
-            .submission
-            .nodes
-            .iter()
-            // the submission height is the height of the root node starting from height 0.
-            .map(|SubmissionNode { root, height }| (height.as_usize() + 1, root.into()))
-            .collect(),
-        start_entry_index: e.start_pos.as_u64(),
-        size: e.submission.length.as_u64(),
-        seq: e.submission_index.as_u64(),
-    })
+fn submission_event_to_transaction(e: SubmitFilter, block_number: u64) -> LogFetchProgress {
+    LogFetchProgress::Transaction((
+        Transaction {
+            stream_ids: vec![],
+            data: vec![],
+            data_merkle_root: nodes_to_root(&e.submission.nodes),
+            merkle_nodes: e
+                .submission
+                .nodes
+                .iter()
+                // the submission height is the height of the root node starting from height 0.
+                .map(|SubmissionNode { root, height }| (height.as_usize() + 1, root.into()))
+                .collect(),
+            start_entry_index: e.start_pos.as_u64(),
+            size: e.submission.length.as_u64(),
+            seq: e.submission_index.as_u64(),
+        },
+        block_number,
+    ))
 }
 
 fn nodes_to_root(node_list: &[SubmissionNode]) -> DataRoot {

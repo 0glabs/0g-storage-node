@@ -345,6 +345,10 @@ impl LogStoreWrite for LogManager {
         self.tx_store.put_progress(progress)
     }
 
+    fn put_log_latest_block_number(&self, block_number: u64) -> Result<()> {
+        self.tx_store.put_log_latest_block_number(block_number)
+    }
+
     /// Return the reverted Transactions in order.
     /// `tx_seq == u64::MAX` is a special case for reverting all transactions.
     fn revert_to(&self, tx_seq: u64) -> Result<Vec<Transaction>> {
@@ -532,6 +536,10 @@ impl LogStoreRead for LogManager {
 
     fn get_sync_progress(&self) -> Result<Option<(u64, H256)>> {
         self.tx_store.get_progress()
+    }
+
+    fn get_log_latest_block_number(&self) -> Result<Option<u64>> {
+        self.tx_store.get_log_latest_block_number()
     }
 
     fn get_block_hash_by_number(&self, block_number: u64) -> Result<Option<(H256, Option<u64>)>> {
