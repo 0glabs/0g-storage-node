@@ -17,9 +17,12 @@ use std::sync::Arc;
 use std::time::Duration;
 use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::TaskExecutor;
-use tokio::sync::{
-    mpsc::{UnboundedReceiver, UnboundedSender},
-    RwLock,
+use tokio::{
+    sync::{
+        mpsc::{UnboundedReceiver, UnboundedSender},
+        RwLock,
+    },
+    time::Instant,
 };
 
 pub struct LogEntryFetcher {
@@ -285,12 +288,14 @@ impl LogEntryFetcher {
         executor: &TaskExecutor,
         block_hash_cache: Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
         watch_loop_wait_time_ms: u64,
+        mut watch_progress_rx: UnboundedReceiver<u64>,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (watch_tx, watch_rx) = tokio::sync::mpsc::unbounded_channel();
         let contract = ZgsFlow::new(self.contract_address, self.provider.clone());
         let provider = self.provider.clone();
         let confirmation_delay = self.confirmation_delay;
         let log_page_size = self.log_page_size;
+        let mut progress_reset_history = BTreeMap::new();
         executor.spawn(
             async move {
                 debug!("start_watch starts, start={}", start_block_number);
@@ -298,6 +303,13 @@ impl LogEntryFetcher {
                 let mut parent_block_hash = parent_block_hash;
 
                 loop {
+                    check_watch_process(
+                        &mut watch_progress_rx,
+                        &mut progress,
+                        &mut progress_reset_history,
+                        watch_loop_wait_time_ms,
+                    );
+
                     match Self::watch_loop(
                         provider.as_ref(),
                         progress,
@@ -502,18 +514,22 @@ impl LogEntryFetcher {
                 } else {
                     None
                 };
-                for log in log_events.into_iter() {
-                    if let Err(e) = watch_tx.send(log) {
-                        warn!("send LogFetchProgress::Transaction failed: {:?}", e);
-                        return Ok(progress);
+
+                if !log_events.is_empty() {
+                    info!("synced {} events", log_events.len());
+                    for log in log_events.into_iter() {
+                        if let Err(e) = watch_tx.send(log) {
+                            warn!("send LogFetchProgress::Transaction failed: {:?}", e);
+                            return Ok(progress);
+                        }
                     }
-                }
-                if let Some(p) = &new_progress {
-                    if let Err(e) = watch_tx.send(LogFetchProgress::SyncedBlock(*p)) {
-                        warn!("send LogFetchProgress::SyncedBlock failed: {:?}", e);
-                        return Ok(progress);
-                    } else {
-                        block_hash_cache.write().await.insert(p.0, None);
+                    if let Some(p) = &new_progress {
+                        if let Err(e) = watch_tx.send(LogFetchProgress::SyncedBlock(*p)) {
+                            warn!("send LogFetchProgress::SyncedBlock failed: {:?}", e);
+                            return Ok(progress);
+                        } else {
+                            block_hash_cache.write().await.insert(p.0, None);
+                        }
                     }
                 }
                 progress = new_progress;
@@ -526,6 +542,59 @@ impl LogEntryFetcher {
     pub fn provider(&self) -> &Provider<RetryClient<Http>> {
         self.provider.as_ref()
     }
+}
+
+fn check_watch_process(
+    watch_progress_rx: &mut UnboundedReceiver<u64>,
+    progress: &mut u64,
+    progress_reset_history: &mut BTreeMap<u64, (Instant, usize)>,
+    watch_loop_wait_time_ms: u64,
+) {
+    let mut min_received_progress = None;
+    while let Ok(v) = watch_progress_rx.try_recv() {
+        min_received_progress = match min_received_progress {
+            Some(min) if min > v => Some(v),
+            None => Some(v),
+            _ => min_received_progress,
+        };
+    }
+
+    if let Some(v) = min_received_progress {
+        if *progress <= v {
+            error!(
+                "received unexpected progress, current {}, received {}",
+                *progress, v
+            );
+            return;
+        }
+
+        let now = Instant::now();
+        match progress_reset_history.get_mut(&v) {
+            Some((last_update, counter)) => {
+                if *counter >= 3 {
+                    error!("maximum reset attempts have been reached.");
+                    watch_progress_rx.close();
+                    return;
+                }
+
+                if now.duration_since(*last_update)
+                    >= Duration::from_millis(watch_loop_wait_time_ms * 30)
+                {
+                    info!("reset to progress from {} to {}", *progress, v);
+                    *progress = v;
+                    *last_update = now;
+                    *counter += 1;
+                }
+            }
+            None => {
+                info!("reset to progress from {} to {}", *progress, v);
+                *progress = v;
+                progress_reset_history.insert(v, (now, 1usize));
+            }
+        }
+    }
+
+    progress_reset_history.retain(|k, _| k + 1000 >= *progress);
 }
 
 async fn revert_one_block(
