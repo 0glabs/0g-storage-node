@@ -16,9 +16,9 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            max_entries_total: 256000,
+            max_entries_total: 1000000,
             max_entries_per_file: 4,
-            entry_expiration_time_secs: 3600,
+            entry_expiration_time_secs: 86400,
         }
     }
 }
