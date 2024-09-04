@@ -2,7 +2,10 @@ use super::{
     batcher::{Batcher, SyncResult},
     sync_store::SyncStore,
 };
-use crate::{auto_sync::metrics, Config, SyncSender};
+use crate::{
+    auto_sync::{metrics, sync_store::Queue},
+    Config, SyncSender,
+};
 use anyhow::Result;
 use log_entry_sync::LogSyncEvent;
 use serde::{Deserialize, Serialize};
@@ -200,7 +203,7 @@ impl SerialBatcher {
         }
 
         // otherwise, mark tx as ready for sync
-        if let Err(err) = self.sync_store.upgrade_tx_to_ready(announced_tx_seq).await {
+        if let Err(err) = self.sync_store.upgrade(announced_tx_seq).await {
             error!(%err, %announced_tx_seq, "Failed to promote announced tx to ready, state = {:?}", self.get_state().await);
         }
 
@@ -280,9 +283,21 @@ impl SerialBatcher {
 
     /// Schedule file sync in sequence.
     async fn schedule_next(&mut self) -> Result<bool> {
-        let next_tx_seq = self.next_tx_seq.load(Ordering::Relaxed);
+        let mut next_tx_seq = self.next_tx_seq.load(Ordering::Relaxed);
         if next_tx_seq > self.max_tx_seq.load(Ordering::Relaxed) {
             return Ok(false);
+        }
+
+        // If sequential sync disabled, delegate to random sync.
+        if self.config.max_sequential_workers == 0 {
+            self.sync_store.insert(next_tx_seq, Queue::Ready).await?;
+
+            next_tx_seq += 1;
+            self.sync_store.set_next_tx_seq(next_tx_seq).await?;
+            self.next_tx_seq.store(next_tx_seq, Ordering::Relaxed);
+            self.next_tx_seq_in_db.store(next_tx_seq, Ordering::Relaxed);
+
+            return Ok(true);
         }
 
         if !self.batcher.add(next_tx_seq).await? {
@@ -309,7 +324,7 @@ impl SerialBatcher {
 
             // downgrade to random sync if file sync failed or timeout
             if matches!(sync_result, SyncResult::Failed | SyncResult::Timeout) {
-                self.sync_store.add_pending_tx(current).await?;
+                self.sync_store.insert(current, Queue::Pending).await?;
             }
 
             // always move forward in db
