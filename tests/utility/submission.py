@@ -1,6 +1,6 @@
 import base64
 
-from eth_utils import encode_hex, decode_hex
+from eth_utils import decode_hex
 from math import log2
 from utility.merkle_tree import add_0x_prefix, Leaf, MerkleTree
 from utility.spec import ENTRY_SIZE, PORA_CHUNK_SIZE

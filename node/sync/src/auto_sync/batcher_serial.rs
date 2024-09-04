@@ -283,8 +283,13 @@ impl SerialBatcher {
 
     /// Schedule file sync in sequence.
     async fn schedule_next(&mut self) -> Result<bool> {
+        let max_tx_seq = self.max_tx_seq.load(Ordering::Relaxed);
+        if max_tx_seq == u64::MAX {
+            return Ok(false);
+        }
+
         let mut next_tx_seq = self.next_tx_seq.load(Ordering::Relaxed);
-        if next_tx_seq > self.max_tx_seq.load(Ordering::Relaxed) {
+        if next_tx_seq > max_tx_seq {
             return Ok(false);
         }
 

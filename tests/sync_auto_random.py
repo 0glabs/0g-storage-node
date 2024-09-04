@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+
+from test_framework.test_framework import TestFramework
+from utility.utils import wait_until
+
+class AutoRandomSyncTest(TestFramework):
+    def setup_params(self):
+        self.num_nodes = 2
+
+        # Enable random auto sync only
+        for i in range(self.num_nodes):
+            self.zgs_node_configs[i] = {
+                "sync": {
+                    "auto_sync_enabled": True,
+                    "max_sequential_workers": 0,
+                    "max_random_workers": 3,
+                }
+            }
+
+    def run_test(self):
+        # Submit and upload files on node 0
+        data_root_1 = self.__upload_file__(0, 256 * 1024)
+        data_root_2 = self.__upload_file__(0, 256 * 1024)
+
+        # Files should be available on node 1 via auto sync
+        wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_1) is not None)
+        wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_1)["finalized"])
+        wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_2) is not None)
+        wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_2)["finalized"])
+
+        assert 1 > 2
+
+if __name__ == "__main__":
+    AutoRandomSyncTest().main()

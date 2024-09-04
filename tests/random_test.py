@@ -5,18 +5,14 @@ import random
 from test_framework.test_framework import TestFramework
 from utility.submission import create_submission
 from utility.submission import submit_data
-from utility.utils import (
-    assert_equal,
-    wait_until,
-)
-
+from utility.utils import wait_until
 
 class RandomTest(TestFramework):
     def setup_params(self):
         self.num_blockchain_nodes = 1
         self.num_nodes = 4
         for i in range(self.num_nodes):
-            self.zgs_node_configs[i] = {"find_peer_timeout_secs": 1, "confirmation_block_count": 1, "sync": {"auto_sync_enabled": True}}
+            self.zgs_node_configs[i] = {"confirmation_block_count": 1, "sync": {"auto_sync_enabled": True}}
 
     def run_test(self):
         max_size = 256 * 1024 * 64
