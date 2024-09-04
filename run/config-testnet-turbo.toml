@@ -87,7 +87,7 @@ log_contract_address = "0xbD2C3F0E65eDF5582141C35969d66e34629cC768"
 log_sync_start_block_number = 595059
 
 # Number of blocks to confirm a transaction.
-confirmation_block_count = 6
+# confirmation_block_count = 3
 
 # Maximum number of event logs to poll at a time.
 # log_page_size = 999

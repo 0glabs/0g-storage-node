@@ -87,7 +87,7 @@
 # log_sync_start_block_number = 0
 
 # Number of blocks to confirm a transaction.
-# confirmation_block_count = 12
+# confirmation_block_count = 3
 
 # Maximum number of event logs to poll at a time.
 # log_page_size = 999
