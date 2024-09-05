@@ -194,9 +194,14 @@ def generate_merkle_tree_by_batch(data):
 
 
 def submit_data(client, data):
+    shard_config = client.rpc.zgs_getShardConfig()
+    shard_id = int(shard_config["shardId"])
+    num_shard = int(shard_config["numShard"])
+
     segments = data_to_segments(data)
-    for segment in segments:
-        client.zgs_upload_segment(segment)
+    for index, segment in enumerate(segments):
+        if index % num_shard == shard_id:
+            client.zgs_upload_segment(segment)
     return segments
 
 
