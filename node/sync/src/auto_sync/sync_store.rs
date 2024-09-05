@@ -8,6 +8,20 @@ use tokio::sync::RwLock;
 const KEY_NEXT_TX_SEQ: &str = "sync.manager.next_tx_seq";
 const KEY_MAX_TX_SEQ: &str = "sync.manager.max_tx_seq";
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum Queue {
+    Ready,
+    Pending,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum InsertResult {
+    NewAdded,      // new added in target queue
+    AlreadyExists, // already exists in target queue
+    Upgraded,      // upgraded from pending queue to ready queue
+    Downgraded,    // downgraged from ready queue to pending queue
+}
+
 pub struct SyncStore {
     store: Arc<RwLock<Store>>,
 
@@ -64,31 +78,69 @@ impl SyncStore {
         store.set_config_encoded(&KEY_MAX_TX_SEQ, &tx_seq)
     }
 
-    pub async fn add_pending_tx(&self, tx_seq: u64) -> Result<bool> {
-        let async_store = self.store.write().await;
+    pub async fn contains(&self, tx_seq: u64) -> Result<Option<Queue>> {
+        let async_store = self.store.read().await;
         let store = async_store.get_store();
 
-        // already in ready queue
         if self.ready_txs.has(store, tx_seq)? {
-            return Ok(false);
+            return Ok(Some(Queue::Ready));
         }
 
-        // always add in pending queue
-        self.pending_txs.add(store, None, tx_seq)
+        if self.pending_txs.has(store, tx_seq)? {
+            return Ok(Some(Queue::Pending));
+        }
+
+        Ok(None)
     }
 
-    pub async fn upgrade_tx_to_ready(&self, tx_seq: u64) -> Result<bool> {
+    pub async fn insert(&self, tx_seq: u64, queue: Queue) -> Result<InsertResult> {
         let async_store = self.store.write().await;
         let store = async_store.get_store();
 
         let mut tx = ConfigTx::default();
 
-        // not in pending queue
+        match queue {
+            Queue::Ready => {
+                if !self.ready_txs.add(store, Some(&mut tx), tx_seq)? {
+                    return Ok(InsertResult::AlreadyExists);
+                }
+
+                let removed = self.pending_txs.remove(store, Some(&mut tx), tx_seq)?;
+                store.exec_configs(tx)?;
+
+                if removed {
+                    Ok(InsertResult::Upgraded)
+                } else {
+                    Ok(InsertResult::NewAdded)
+                }
+            }
+            Queue::Pending => {
+                if !self.pending_txs.add(store, Some(&mut tx), tx_seq)? {
+                    return Ok(InsertResult::AlreadyExists);
+                }
+
+                let removed = self.ready_txs.remove(store, Some(&mut tx), tx_seq)?;
+                store.exec_configs(tx)?;
+
+                if removed {
+                    Ok(InsertResult::Downgraded)
+                } else {
+                    Ok(InsertResult::NewAdded)
+                }
+            }
+        }
+    }
+
+    pub async fn upgrade(&self, tx_seq: u64) -> Result<bool> {
+        let async_store = self.store.write().await;
+        let store = async_store.get_store();
+
+        let mut tx = ConfigTx::default();
+
         if !self.pending_txs.remove(store, Some(&mut tx), tx_seq)? {
             return Ok(false);
         }
 
-        // move from pending to ready queue
         let added = self.ready_txs.add(store, Some(&mut tx), tx_seq)?;
 
         store.exec_configs(tx)?;
@@ -96,26 +148,7 @@ impl SyncStore {
         Ok(added)
     }
 
-    pub async fn downgrade_tx_to_pending(&self, tx_seq: u64) -> Result<bool> {
-        let async_store = self.store.write().await;
-        let store = async_store.get_store();
-
-        let mut tx = ConfigTx::default();
-
-        // not in ready queue
-        if !self.ready_txs.remove(store, Some(&mut tx), tx_seq)? {
-            return Ok(false);
-        }
-
-        // move from ready to pending queue
-        let added = self.pending_txs.add(store, Some(&mut tx), tx_seq)?;
-
-        store.exec_configs(tx)?;
-
-        Ok(added)
-    }
-
-    pub async fn random_tx(&self) -> Result<Option<u64>> {
+    pub async fn random(&self) -> Result<Option<u64>> {
         let async_store = self.store.read().await;
         let store = async_store.get_store();
 
@@ -128,17 +161,21 @@ impl SyncStore {
         self.pending_txs.random(store)
     }
 
-    pub async fn remove_tx(&self, tx_seq: u64) -> Result<bool> {
+    pub async fn remove(&self, tx_seq: u64) -> Result<Option<Queue>> {
         let async_store = self.store.write().await;
         let store = async_store.get_store();
 
         // removed in ready queue
         if self.ready_txs.remove(store, None, tx_seq)? {
-            return Ok(true);
+            return Ok(Some(Queue::Ready));
         }
 
-        // otherwise, try to remove in pending queue
-        self.pending_txs.remove(store, None, tx_seq)
+        // removed in pending queue
+        if self.pending_txs.remove(store, None, tx_seq)? {
+            return Ok(Some(Queue::Pending));
+        }
+
+        Ok(None)
     }
 }
 
@@ -146,7 +183,7 @@ impl SyncStore {
 mod tests {
     use crate::test_util::tests::TestStoreRuntime;
 
-    use super::SyncStore;
+    use super::{InsertResult::*, Queue::*, SyncStore};
 
     #[tokio::test]
     async fn test_tx_seq_range() {
@@ -165,106 +202,79 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_add_pending_tx() {
+    async fn test_insert() {
         let runtime = TestStoreRuntime::default();
         let store = SyncStore::new(runtime.store.clone());
 
-        // add pending tx 3
-        assert!(store.add_pending_tx(3).await.unwrap());
+        assert_eq!(store.contains(1).await.unwrap(), None);
+        assert_eq!(store.insert(1, Pending).await.unwrap(), NewAdded);
+        assert_eq!(store.contains(1).await.unwrap(), Some(Pending));
+        assert_eq!(store.insert(1, Pending).await.unwrap(), AlreadyExists);
+        assert_eq!(store.insert(1, Ready).await.unwrap(), Upgraded);
+        assert_eq!(store.contains(1).await.unwrap(), Some(Ready));
 
-        // cannot add pending tx 3 again
-        assert!(!store.add_pending_tx(3).await.unwrap());
+        assert_eq!(store.insert(2, Ready).await.unwrap(), NewAdded);
+        assert_eq!(store.contains(2).await.unwrap(), Some(Ready));
+        assert_eq!(store.insert(2, Ready).await.unwrap(), AlreadyExists);
+        assert_eq!(store.insert(2, Pending).await.unwrap(), Downgraded);
+        assert_eq!(store.contains(2).await.unwrap(), Some(Pending));
     }
 
     #[tokio::test]
-    async fn test_upgrade_tx() {
+    async fn test_upgrade() {
         let runtime = TestStoreRuntime::default();
         let store = SyncStore::new(runtime.store.clone());
 
         // cannot upgrade by default
-        assert!(!store.upgrade_tx_to_ready(3).await.unwrap());
+        assert!(!store.upgrade(3).await.unwrap());
 
         // add pending tx 3
-        assert!(store.add_pending_tx(3).await.unwrap());
+        assert_eq!(store.insert(3, Pending).await.unwrap(), NewAdded);
 
         // can upgrade to ready
-        assert!(store.upgrade_tx_to_ready(3).await.unwrap());
-
-        // cannot add pending tx 3 again event upgraded to ready
-        assert!(!store.add_pending_tx(3).await.unwrap());
+        assert!(store.upgrade(3).await.unwrap());
+        assert_eq!(store.contains(3).await.unwrap(), Some(Ready));
 
         // cannot upgrade again
-        assert!(!store.upgrade_tx_to_ready(3).await.unwrap());
+        assert!(!store.upgrade(3).await.unwrap());
     }
 
     #[tokio::test]
-    async fn test_downgrade_tx() {
-        let runtime = TestStoreRuntime::default();
-        let store = SyncStore::new(runtime.store.clone());
-
-        // cannot downgrade by default
-        assert!(!store.downgrade_tx_to_pending(3).await.unwrap());
-
-        // add pending tx 3
-        assert!(store.add_pending_tx(3).await.unwrap());
-
-        // cannot downgrade for non-ready tx
-        assert!(!store.downgrade_tx_to_pending(3).await.unwrap());
-
-        // upgrade tx 3 to ready
-        assert!(store.upgrade_tx_to_ready(3).await.unwrap());
-
-        // can downgrade now
-        assert!(store.downgrade_tx_to_pending(3).await.unwrap());
-
-        // cannot downgrade now
-        assert!(!store.downgrade_tx_to_pending(3).await.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_random_tx() {
+    async fn test_random() {
         let runtime = TestStoreRuntime::default();
         let store = SyncStore::new(runtime.store.clone());
 
         // no tx by default
-        assert_eq!(store.random_tx().await.unwrap(), None);
+        assert_eq!(store.random().await.unwrap(), None);
 
         // add pending txs 1, 2, 3
-        assert!(store.add_pending_tx(1).await.unwrap());
-        assert!(store.add_pending_tx(2).await.unwrap());
-        assert!(store.add_pending_tx(3).await.unwrap());
-        let tx = store.random_tx().await.unwrap().unwrap();
+        assert_eq!(store.insert(1, Pending).await.unwrap(), NewAdded);
+        assert_eq!(store.insert(2, Pending).await.unwrap(), NewAdded);
+        assert_eq!(store.insert(3, Pending).await.unwrap(), NewAdded);
+        let tx = store.random().await.unwrap().unwrap();
         assert!((1..=3).contains(&tx));
 
-        // upgrade tx 1 to ready
-        assert!(store.upgrade_tx_to_ready(2).await.unwrap());
-        assert_eq!(store.random_tx().await.unwrap(), Some(2));
+        // upgrade tx 2 to ready
+        assert_eq!(store.insert(2, Ready).await.unwrap(), Upgraded);
+        assert_eq!(store.random().await.unwrap(), Some(2));
     }
 
     #[tokio::test]
-    async fn test_remove_tx() {
+    async fn test_remove() {
         let runtime = TestStoreRuntime::default();
         let store = SyncStore::new(runtime.store.clone());
 
         // cannot remove by default
-        assert!(!store.remove_tx(1).await.unwrap());
+        assert_eq!(store.remove(1).await.unwrap(), None);
 
-        // add pending tx 1, 2
-        assert!(store.add_pending_tx(1).await.unwrap());
-        assert!(store.add_pending_tx(2).await.unwrap());
+        // add tx 1, 2
+        assert_eq!(store.insert(1, Pending).await.unwrap(), NewAdded);
+        assert_eq!(store.insert(2, Ready).await.unwrap(), NewAdded);
 
-        // upgrade tx 1 to ready
-        assert!(store.upgrade_tx_to_ready(1).await.unwrap());
-        assert_eq!(store.random_tx().await.unwrap(), Some(1));
-
-        // remove tx 1
-        assert!(store.remove_tx(1).await.unwrap());
-        assert_eq!(store.random_tx().await.unwrap(), Some(2));
-        assert!(!store.remove_tx(1).await.unwrap());
-
-        // remove tx 2
-        assert!(store.remove_tx(2).await.unwrap());
-        assert_eq!(store.random_tx().await.unwrap(), None);
-        assert!(!store.remove_tx(2).await.unwrap());
+        // remove txs
+        assert_eq!(store.remove(1).await.unwrap(), Some(Pending));
+        assert_eq!(store.remove(1).await.unwrap(), None);
+        assert_eq!(store.remove(2).await.unwrap(), Some(Ready));
+        assert_eq!(store.remove(2).await.unwrap(), None);
     }
 }

@@ -63,3 +63,13 @@ TX_PARAMS1 = {
 
 NO_SEAL_FLAG = 0x1
 NO_MERKLE_PROOF_FLAG = 0x2
+
+def update_config(default: dict, custom: dict):
+    """
+    Supports to update configurations with dict value.
+    """
+    for (key, value) in custom.items():
+        if default.get(key) is None or type(value) != dict:
+            default[key] = value
+        else:
+            update_config(default[key], value)

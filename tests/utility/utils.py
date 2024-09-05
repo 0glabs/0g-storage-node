@@ -1,14 +1,9 @@
 import base64
 import inspect
-import os
 import platform
 import rtoml
 import time
 import sha3
-
-from config.node_config import ZGS_CONFIG
-from eth_utils import encode_hex
-
 
 class PortMin:
     # Must be initialized with a unique integer for each process

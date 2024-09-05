@@ -1,7 +1,5 @@
 from pathlib import Path
 import json
-from web3 import Web3
-
 
 def load_contract_metadata(path: str, name: str):
     path = Path(path)
