@@ -167,8 +167,8 @@ class TestFramework:
                 # sync_blocks(self.blockchain_nodes)
         elif self.blockchain_node_type == BlockChainNodeType.ZG:
             # wait for the first block
-            self.log.debug("Wait 3 seconds for 0gchain node to generate first block")
-            time.sleep(3)
+            self.log.debug("Wait for 0gchain node to generate first block")
+            time.sleep(0.5)
             for node in self.blockchain_nodes:
                 wait_until(lambda: node.net_peerCount() == self.num_blockchain_nodes - 1)
                 wait_until(lambda: node.eth_blockNumber() is not None)
