@@ -50,7 +50,11 @@ def run_single_test(py, script, test_dir, index, port_min, port_max):
         )
     except subprocess.CalledProcessError as err:
         print_testcase_result(RED, CROSS, script, start_time)
-        print("Output of " + script + "\n" + err.output.decode("utf-8"), flush=True)
+        try:
+            print("Output of " + script + "\n" + err.output.decode("utf-8"), flush=True)
+        except UnicodeDecodeError:
+            print("Output of " + script + "\n", flush=True)
+            print(err.output)
         raise err
     print_testcase_result(BLUE, TICK, script, start_time)
 
