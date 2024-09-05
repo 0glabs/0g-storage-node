@@ -4,8 +4,7 @@ import random
 import time
 
 from test_framework.test_framework import TestFramework
-from utility.submission import create_submission
-from utility.submission import submit_data, data_to_segments
+from utility.submission import data_to_segments
 from utility.utils import (
     assert_equal,
     wait_until,
@@ -13,9 +12,7 @@ from utility.utils import (
 
 class SyncTest(TestFramework):
     def setup_params(self):
-        self.num_blockchain_nodes = 2
         self.num_nodes = 2
-        self.__deployed_contracts = 0
 
     def run_test(self):
         # By default, auto_sync_enabled and sync_file_on_announcement_enabled are both false,
@@ -32,19 +29,8 @@ class SyncTest(TestFramework):
         # stop client2, preventing it from receiving AnnounceFile
         client2.shutdown()
 
-        # Create submission
-        chunk_data = random.randbytes(256 * 1024)
-        data_root = self.__create_submission(chunk_data)
+        data_root = self.__upload_file__(0, 256 * 1024)
 
-        # Ensure log entry sync from blockchain node
-        wait_until(lambda: client1.zgs_get_file_info(data_root) is not None)
-        assert_equal(client1.zgs_get_file_info(data_root)["finalized"], False)
-
-        # Upload file to storage node
-        segments = submit_data(client1, chunk_data)
-        self.log.info("segments: %s", [(s["root"], s["index"], s["proof"]) for s in segments])
-        wait_until(lambda: client1.zgs_get_file_info(data_root)["finalized"])
-        
         # restart client2
         client2.start()
         client2.wait_for_rpc_connection()
@@ -75,7 +61,7 @@ class SyncTest(TestFramework):
 
         # Prepare 3 segments to upload
         chunk_data = random.randbytes(256 * 1024 * 3)
-        data_root = self.__create_submission(chunk_data)
+        data_root = self.__submit_file__(chunk_data)
 
         # Ensure log entry sync from blockchain node
         wait_until(lambda: client1.zgs_get_file_info(data_root) is not None)
@@ -110,14 +96,6 @@ class SyncTest(TestFramework):
 
         # Validate data
         assert_equal(client2.zgs_download_segment_decoded(data_root, 1024, 2048), chunk_data[1024*256:2048*256])
-
-    def __create_submission(self, chunk_data: bytes) -> str:
-        submissions, data_root = create_submission(chunk_data)
-        self.contract.submit(submissions)
-        self.__deployed_contracts += 1
-        wait_until(lambda: self.contract.num_submissions() == self.__deployed_contracts)
-        self.log.info("Submission created, data root: %s, submissions(%s) = %s", data_root, len(submissions), submissions)
-        return data_root
 
 if __name__ == "__main__":
     SyncTest().main()

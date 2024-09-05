@@ -1,6 +1,6 @@
 use super::{batcher::Batcher, sync_store::SyncStore};
 use crate::{
-    auto_sync::{batcher::SyncResult, metrics},
+    auto_sync::{batcher::SyncResult, metrics, sync_store::Queue},
     Config, SyncSender,
 };
 use anyhow::Result;
@@ -108,16 +108,17 @@ impl RandomBatcher {
             SyncResult::Timeout => metrics::RANDOM_SYNC_RESULT_TIMEOUT.inc(1),
         }
 
-        match sync_result {
-            SyncResult::Completed => self.sync_store.remove_tx(tx_seq).await?,
-            _ => self.sync_store.downgrade_tx_to_pending(tx_seq).await?,
-        };
+        if matches!(sync_result, SyncResult::Completed) {
+            self.sync_store.remove(tx_seq).await?;
+        } else {
+            self.sync_store.insert(tx_seq, Queue::Pending).await?;
+        }
 
         Ok(true)
     }
 
     async fn schedule(&mut self) -> Result<bool> {
-        let tx_seq = match self.sync_store.random_tx().await? {
+        let tx_seq = match self.sync_store.random().await? {
             Some(v) => v,
             None => return Ok(false),
         };

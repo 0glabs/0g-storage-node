@@ -20,8 +20,9 @@ from test_framework.zgs_node import ZgsNode
 from test_framework.blockchain_node import BlockChainNodeType
 from test_framework.conflux_node import ConfluxNode, connect_sample_nodes
 from test_framework.zg_node import ZGNode, zg_node_init_genesis
-from utility.utils import PortMin, is_windows_platform, wait_until
+from utility.utils import PortMin, is_windows_platform, wait_until, assert_equal
 from utility.build_binary import build_cli
+from utility.submission import create_submission, submit_data
 
 __file_path__ = os.path.dirname(os.path.realpath(__file__))
 
@@ -40,8 +41,8 @@ class TestFramework:
         if "http_proxy" in os.environ:
             del os.environ["http_proxy"]
 
-        self.num_blockchain_nodes = None
-        self.num_nodes = None
+        self.num_blockchain_nodes = 1
+        self.num_nodes = 1
         self.blockchain_nodes = []
         self.nodes = []
         self.contract = None
@@ -53,6 +54,7 @@ class TestFramework:
         self.mine_period = 100
         self.lifetime_seconds = 3600
         self.launch_wait_seconds = 1
+        self.num_deployed_contracts = 0
 
         # Set default binary path
         binary_ext = ".exe" if is_windows_platform() else ""
@@ -397,6 +399,31 @@ class TestFramework:
         assert return_code == 0, "%s upload file failed, output: %s, log: %s" % (self.cli_binary, output_name, lines)
 
         return root
+
+    def __submit_file__(self, chunk_data: bytes) -> str:
+        submissions, data_root = create_submission(chunk_data)
+        self.contract.submit(submissions)
+        self.num_deployed_contracts += 1
+        wait_until(lambda: self.contract.num_submissions() == self.num_deployed_contracts)
+        self.log.info("Submission completed, data root: %s, submissions(%s) = %s", data_root, len(submissions), submissions)
+        return data_root
+
+    def __upload_file__(self, node_index: int, random_data_size: int) -> str:
+        # Create submission
+        chunk_data = random.randbytes(random_data_size)
+        data_root = self.__submit_file__(chunk_data)
+
+        # Ensure log entry sync from blockchain node
+        client = self.nodes[node_index]
+        wait_until(lambda: client.zgs_get_file_info(data_root) is not None)
+        assert_equal(client.zgs_get_file_info(data_root)["finalized"], False)
+
+        # Upload file to storage node
+        segments = submit_data(client, chunk_data)
+        self.log.info("segments: %s", [(s["root"], s["index"], s["proof"]) for s in segments])
+        wait_until(lambda: client.zgs_get_file_info(data_root)["finalized"])
+
+        return data_root
 
     def setup_params(self):
         self.num_blockchain_nodes = 1
