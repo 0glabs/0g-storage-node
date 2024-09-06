@@ -90,6 +90,14 @@ impl FlowStore {
         }
         self.db.delete_batch_list(batch_list)
     }
+
+    pub fn get_raw_batch(&self, batch_index: u64) -> Result<Option<EntryBatch>> {
+        self.db.get_entry_batch(batch_index)
+    }
+
+    pub fn get_batch_root(&self, batch_index: u64) -> Result<Option<DataRoot>> {
+        self.db.get_batch_root(batch_index)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -574,6 +582,13 @@ impl FlowDBStore {
             tx.delete(COL_ENTRY_BATCH, &i.to_be_bytes());
         }
         Ok(self.kvdb.write(tx)?)
+    }
+
+    fn get_batch_root(&self, batch_index: u64) -> Result<Option<DataRoot>> {
+        Ok(self
+            .kvdb
+            .get(COL_ENTRY_BATCH_ROOT, &batch_index.to_be_bytes())?
+            .map(|v| DataRoot::from_slice(&v)))
     }
 }
 

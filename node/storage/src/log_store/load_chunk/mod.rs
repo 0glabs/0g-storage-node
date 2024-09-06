@@ -23,7 +23,7 @@ use super::SealAnswer;
 use chunk_data::EntryBatchData;
 use seal::SealInfo;
 
-#[derive(Encode, Decode)]
+#[derive(Debug, Encode, Decode)]
 pub struct EntryBatch {
     seal: SealInfo,
     // the inner data

@@ -776,7 +776,21 @@ impl LogManager {
                     .gen_proof(flow_index as usize % PORA_CHUNK_SIZE)?,
             }
         };
-        entry_proof(&top_proof, &sub_proof)
+        let r = entry_proof(&top_proof, &sub_proof);
+        if r.is_err() {
+            let raw_batch = self.flow_store.get_raw_batch(seg_index as u64)?;
+            let db_root = self.flow_store.get_batch_root(seg_index as u64)?;
+            error!(
+                ?r,
+                ?raw_batch,
+                ?db_root,
+                ?seg_index,
+                "gen proof error: top_leaves={}, last={}",
+                merkle.pora_chunks_merkle.leaves(),
+                merkle.last_chunk_merkle.leaves()
+            );
+        }
+        r
     }
 
     #[instrument(skip(self, merkle))]

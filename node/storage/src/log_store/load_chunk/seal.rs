@@ -19,7 +19,7 @@ pub struct SealContextInfo {
 type ChunkSealBitmap = WrappedBitmap<SEALS_PER_LOAD>;
 const_assert!(SEALS_PER_LOAD <= u128::BITS as usize);
 
-#[derive(Default, DeriveEncode, DeriveDecode)]
+#[derive(Debug, Default, DeriveEncode, DeriveDecode)]
 pub struct SealInfo {
     // a bitmap specify which sealing chunks have been sealed
     bitmap: ChunkSealBitmap,

@@ -6,6 +6,7 @@ use std::mem;
 use tracing::error;
 use zgs_spec::{BYTES_PER_LOAD, BYTES_PER_SECTOR, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
+#[derive(Debug)]
 pub enum EntryBatchData {
     Complete(Vec<u8>),
     /// All `PartialBatch`s are ordered based on `start_index`.
