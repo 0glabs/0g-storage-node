@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
 use shared_types::{bytes_to_chunks, DataRoot};
 use ssz_derive::{Decode, Encode};
 use std::fmt::{Debug, Formatter};
@@ -6,14 +7,14 @@ use std::mem;
 use tracing::error;
 use zgs_spec::{BYTES_PER_LOAD, BYTES_PER_SECTOR, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum EntryBatchData {
     Complete(Vec<u8>),
     /// All `PartialBatch`s are ordered based on `start_index`.
     Incomplete(IncompleteData),
 }
 
-#[derive(Default, Debug, Encode, Decode)]
+#[derive(Default, Debug, Encode, Decode, Deserialize, Serialize)]
 pub struct IncompleteData {
     pub subtrees: Vec<Subtree>,
     pub known_data: Vec<PartialBatch>,
@@ -57,14 +58,14 @@ impl IncompleteData {
     }
 }
 
-#[derive(Default, Debug, Encode, Decode)]
+#[derive(Default, Debug, Encode, Decode, Deserialize, Serialize)]
 pub struct Subtree {
     pub start_sector: usize,
     pub subtree_height: usize,
     pub root: DataRoot,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Deserialize, Serialize)]
 pub struct PartialBatch {
     /// Offset in this batch.
     pub(super) start_sector: usize,

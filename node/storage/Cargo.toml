@@ -28,6 +28,7 @@ tiny-keccak = "*"
 itertools = "0.13.0"
 serde = { version = "1.0.197", features = ["derive"] }
 parking_lot = "0.12.3"
+serde_json = "1.0.127"
 
 [dev-dependencies]
 tempdir = "0.3.7"

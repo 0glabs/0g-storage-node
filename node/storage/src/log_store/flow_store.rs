@@ -587,7 +587,10 @@ impl FlowDBStore {
     fn get_batch_root(&self, batch_index: u64) -> Result<Option<DataRoot>> {
         Ok(self
             .kvdb
-            .get(COL_ENTRY_BATCH_ROOT, &batch_index.to_be_bytes())?
+            .get(
+                COL_ENTRY_BATCH_ROOT,
+                &encode_batch_root_key(batch_index as usize, 1),
+            )?
             .map(|v| DataRoot::from_slice(&v)))
     }
 }

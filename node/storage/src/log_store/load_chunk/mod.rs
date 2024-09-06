@@ -3,15 +3,16 @@ mod chunk_data;
 mod seal;
 mod serde;
 
+use ::serde::{Deserialize, Serialize};
 use std::cmp::min;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use ethereum_types::H256;
 use ssz_derive::{Decode, Encode};
 
 use crate::log_store::log_manager::data_to_merkle_leaves;
 use crate::try_option;
-use append_merkle::{Algorithm, MerkleTreeRead, Sha3Algorithm};
+use append_merkle::MerkleTreeRead;
 use shared_types::{ChunkArray, DataRoot, Merkle};
 use tracing::trace;
 use zgs_spec::{
@@ -23,7 +24,7 @@ use super::SealAnswer;
 use chunk_data::EntryBatchData;
 use seal::SealInfo;
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, Deserialize, Serialize)]
 pub struct EntryBatch {
     seal: SealInfo,
     // the inner data
@@ -243,6 +244,15 @@ impl EntryBatch {
         for subtree in self.data.get_subtree_list() {
             trace!(?subtree, "get subtree, leaves={}", merkle.leaves());
             if subtree.start_sector != merkle.leaves() {
+                println!(
+                    "start_sector={} leaves={}",
+                    subtree.start_sector,
+                    merkle.leaves()
+                );
+                let subtree_size = 1 << (subtree.subtree_height - 1);
+                if subtree.start_sector % subtree_size != 0 {
+                    bail!("error");
+                }
                 let leaf_data = try_option!(
                     self.get_unsealed_data(merkle.leaves(), subtree.start_sector - merkle.leaves())
                 );
@@ -257,13 +267,13 @@ impl EntryBatch {
             merkle.append_list(data_to_merkle_leaves(&leaf_data).expect("aligned"));
         }
         // TODO(zz): Optimize.
-        for index in 0..merkle.leaves() {
-            if merkle.leaf_at(index)?.is_none() {
-                if let Some(leaf_data) = self.get_unsealed_data(index, 1) {
-                    merkle.fill_leaf(index, Sha3Algorithm::leaf(&leaf_data));
-                }
-            }
-        }
+        // for index in 0..merkle.leaves() {
+        //     if merkle.leaf_at(index)?.is_none() {
+        //         if let Some(leaf_data) = self.get_unsealed_data(index, 1) {
+        //             merkle.fill_leaf(index, Sha3Algorithm::leaf(&leaf_data));
+        //         }
+        //     }
+        // }
         Ok(Some(merkle))
     }
 }
@@ -271,10 +281,14 @@ impl EntryBatch {
 #[cfg(test)]
 mod tests {
     use super::{EntryBatch, SealAnswer};
+    use crate::log_store::load_chunk::chunk_data::EntryBatchData::Incomplete;
+    use crate::log_store::load_chunk::chunk_data::{IncompleteData, PartialBatch, Subtree};
+    use append_merkle::MerkleTreeRead;
     use ethereum_types::H256;
     use zgs_spec::{
         BYTES_PER_SEAL, BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL,
     };
+
     const LOAD_INDEX: u64 = 1;
     fn seal(
         batch: &mut EntryBatch,
