@@ -13,7 +13,7 @@ class MineTest(TestFramework):
         self.zgs_node_configs[0] = {
             "miner_key": GENESIS_PRIV_KEY,
         }
-        self.mine_period = int(40 / self.block_time)
+        self.mine_period = int(45 / self.block_time)
         self.launch_wait_seconds = 15
         self.log.info("Contract Info: Est. block time %.2f, Mine period %d", self.block_time, self.mine_period)
 
@@ -34,6 +34,11 @@ class MineTest(TestFramework):
 
         self.log.info("flow address: %s", self.contract.address())
         self.log.info("mine address: %s", self.mine_contract.address())
+
+        first_block = self.contract.first_block()
+        self.log.info("Current block number %d", int(blockchain.eth_blockNumber(), 16))
+        self.log.info("Flow deployment block number %d, epoch 1 start %d", first_block, first_block + self.mine_period)
+        wait_until(lambda: self.contract.epoch() >= 1, timeout=180)
 
         quality = int(2**256 / 100 / estimate_st_performance())
         self.mine_contract.set_quality(quality)
@@ -70,6 +75,8 @@ class MineTest(TestFramework):
 
         self.log.info("Wait for the third mine answer")
         wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 3 and not self.mine_contract.can_submit(), timeout=180)
+
+        self.log.info("Current block number %d", int(blockchain.eth_blockNumber(), 16))
 
 
 if __name__ == "__main__":
