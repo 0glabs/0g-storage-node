@@ -472,6 +472,15 @@ impl LogSyncManager {
 async fn get_start_block_number_with_hash(
     log_sync_manager: &LogSyncManager,
 ) -> Result<(u64, H256), anyhow::Error> {
+    if log_sync_manager
+        .config
+        .force_log_sync_from_start_block_number
+    {
+        let block_number = log_sync_manager.config.start_block_number;
+        let block_hash = log_sync_manager.get_block(block_number.into()).await?.1;
+        return Ok((block_number, block_hash));
+    }
+
     if let Some(block_number) = log_sync_manager.store.get_log_latest_block_number()? {
         if let Some(Some(val)) = log_sync_manager
             .block_hash_cache
