@@ -80,8 +80,8 @@ impl Default for Config {
             // auto sync config
             auto_sync_idle_interval: Duration::from_secs(3),
             auto_sync_error_interval: Duration::from_secs(10),
-            max_sequential_workers: 24,
-            max_random_workers: 8,
+            max_sequential_workers: 0,
+            max_random_workers: 30,
             sequential_find_peer_timeout: Duration::from_secs(60),
             random_find_peer_timeout: Duration::from_secs(500),
         }

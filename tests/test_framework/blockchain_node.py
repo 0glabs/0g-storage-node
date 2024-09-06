@@ -2,9 +2,7 @@ import os
 import subprocess
 import tempfile
 import time
-import rlp
 
-from eth_utils import decode_hex, keccak
 from web3 import Web3, HTTPProvider
 from web3.middleware import construct_sign_and_send_raw_middleware
 from enum import Enum, unique
@@ -12,7 +10,6 @@ from config.node_config import (
     GENESIS_PRIV_KEY,
     GENESIS_PRIV_KEY1,
     TX_PARAMS,
-    MINER_ID,
 )
 from utility.simple_rpc_proxy import SimpleRpcProxy
 from utility.utils import (

@@ -19,6 +19,7 @@ use tracing::{error, instrument};
 
 const LOG_SYNC_PROGRESS_KEY: &str = "log_sync_progress";
 const NEXT_TX_KEY: &str = "next_tx_seq";
+const LOG_LATEST_BLOCK_NUMBER_KEY: &str = "log_latest_block_number_key";
 
 const TX_STATUS_FINALIZED: u8 = 0;
 const TX_STATUS_PRUNED: u8 = 1;
@@ -210,6 +211,25 @@ impl TransactionStore {
             <(u64, H256)>::from_ssz_bytes(&try_option!(self
                 .kvdb
                 .get(COL_MISC, LOG_SYNC_PROGRESS_KEY.as_bytes())?))
+            .map_err(Error::from)?,
+        ))
+    }
+
+    #[instrument(skip(self))]
+    pub fn put_log_latest_block_number(&self, block_number: u64) -> Result<()> {
+        Ok(self.kvdb.put(
+            COL_MISC,
+            LOG_LATEST_BLOCK_NUMBER_KEY.as_bytes(),
+            &block_number.as_ssz_bytes(),
+        )?)
+    }
+
+    #[instrument(skip(self))]
+    pub fn get_log_latest_block_number(&self) -> Result<Option<u64>> {
+        Ok(Some(
+            <u64>::from_ssz_bytes(&try_option!(self
+                .kvdb
+                .get(COL_MISC, LOG_LATEST_BLOCK_NUMBER_KEY.as_bytes())?))
             .map_err(Error::from)?,
         ))
     }

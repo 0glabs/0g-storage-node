@@ -370,6 +370,7 @@ impl TryFrom<FileProof> for FlowProof {
 #[derive(
     DeriveEncode, DeriveDecode, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct NetworkIdentity {
     /// The chain id of the blockchain network.
     pub chain_id: u64,
@@ -384,6 +385,7 @@ pub struct NetworkIdentity {
 #[derive(
     DeriveEncode, DeriveDecode, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct ProtocolVersion {
     pub major: u8,
     pub minor: u8,

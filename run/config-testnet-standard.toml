@@ -87,7 +87,7 @@ log_contract_address = "0x0460aA47b41a66694c0a73f667a1b795A5ED3556"
 log_sync_start_block_number = 595059
 
 # Number of blocks to confirm a transaction.
-confirmation_block_count = 6
+# confirmation_block_count = 3
 
 # Maximum number of event logs to poll at a time.
 # log_page_size = 999
@@ -264,10 +264,10 @@ auto_sync_enabled = true
 # peer_chunks_download_timeout = "15s"
 
 # Maximum threads to sync files in sequence.
-# max_sequential_workers = 24
+# max_sequential_workers = 0
 
 # Maximum threads to sync files randomly.
-# max_random_workers = 8
+# max_random_workers = 30
 
 # Timeout to terminate a file sync in sequence.
 # sequential_find_peer_timeout = "60s"
@@ -287,14 +287,14 @@ auto_sync_enabled = true
 # When the cache is full, the storage position information with oldest timestamp will be replaced.
 
 # Global cache capacity.
-# max_entries_total = 256000
+# max_entries_total = 1000000
 
 # Location information capacity for each file.
 # max_entries_per_file = 4
 
 # Validity period of location information.
 # If the timestamp in the storage location information exceeds this duration from the current time, it will be removed from the cache.
-# entry_expiration_time_secs = 3600
+# entry_expiration_time_secs = 86400
 
 #######################################################################
 ###                      Metrics Options                            ###
