@@ -59,6 +59,8 @@ pub trait LogStoreRead: LogStoreChunkRead {
 
     fn get_sync_progress(&self) -> Result<Option<(u64, H256)>>;
 
+    fn get_log_latest_block_number(&self) -> Result<Option<u64>>;
+
     fn get_block_hash_by_number(&self, block_number: u64) -> Result<Option<(H256, Option<u64>)>>;
 
     fn get_block_hashes(&self) -> Result<Vec<(u64, BlockHashAndSubmissionIndex)>>;
@@ -125,6 +127,9 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
 
     /// Store the progress of synced block number and its hash.
     fn put_sync_progress(&self, progress: (u64, H256, Option<Option<u64>>)) -> Result<()>;
+
+    /// Store the latest block number which has log
+    fn put_log_latest_block_number(&self, block_number: u64) -> Result<()>;
 
     /// Revert the log state to a given tx seq.
     /// This is needed when transactions are reverted because of chain reorg.

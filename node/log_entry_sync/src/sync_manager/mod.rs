@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::{ShutdownReason, TaskExecutor};
 use tokio::sync::broadcast;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, RwLock};
 
 const RETRY_WAIT_MS: u64 = 500;
@@ -103,16 +103,7 @@ impl LogSyncManager {
                     };
 
                     let (mut start_block_number, mut start_block_hash) =
-                        match log_sync_manager.store.get_sync_progress()? {
-                            // No previous progress, so just use config.
-                            None => {
-                                let block_number = log_sync_manager.config.start_block_number;
-                                let block_hash =
-                                    log_sync_manager.get_block(block_number.into()).await?.1;
-                                (block_number, block_hash)
-                            }
-                            Some((block_number, block_hash)) => (block_number, block_hash),
-                        };
+                        get_start_block_number_with_hash(&log_sync_manager).await?;
 
                     let (mut finalized_block_number, mut finalized_block_hash) =
                         match log_sync_manager.get_block(BlockNumber::Finalized).await {
@@ -146,7 +137,7 @@ impl LogSyncManager {
                             &executor_clone,
                             log_sync_manager.block_hash_cache.clone(),
                         );
-                        log_sync_manager.handle_data(reorg_rx).await?;
+                        log_sync_manager.handle_data(reorg_rx, &None).await?;
                         if let Some((block_number, block_hash)) =
                             log_sync_manager.store.get_sync_progress()?
                         {
@@ -223,15 +214,20 @@ impl LogSyncManager {
                         warn!("catch_up_end send fails, possibly auto_sync is not enabled");
                     }
 
+                    let (watch_progress_tx, watch_progress_rx) =
+                        tokio::sync::mpsc::unbounded_channel();
                     let watch_rx = log_sync_manager.log_fetcher.start_watch(
                         start_block_number,
                         parent_block_hash,
                         &executor_clone,
                         log_sync_manager.block_hash_cache.clone(),
                         log_sync_manager.config.watch_loop_wait_time_ms,
+                        watch_progress_rx,
                     );
                     // Syncing `watch_rx` is supposed to block forever.
-                    log_sync_manager.handle_data(watch_rx).await?;
+                    log_sync_manager
+                        .handle_data(watch_rx, &Some(watch_progress_tx))
+                        .await?;
                     Ok::<(), anyhow::Error>(())
                 },
             )
@@ -241,20 +237,20 @@ impl LogSyncManager {
         Ok((event_send_cloned, catch_up_end_receiver))
     }
 
-    async fn put_tx(&mut self, tx: Transaction) -> bool {
+    async fn put_tx(&mut self, tx: Transaction) -> Option<bool> {
         // We call this after process chain reorg, so the sequence number should match.
         match tx.seq.cmp(&self.next_tx_seq) {
-            std::cmp::Ordering::Less => true,
+            std::cmp::Ordering::Less => Some(true),
             std::cmp::Ordering::Equal => {
                 debug!("log entry sync get entry: {:?}", tx);
-                self.put_tx_inner(tx).await
+                Some(self.put_tx_inner(tx).await)
             }
             std::cmp::Ordering::Greater => {
                 error!(
                     "Unexpected transaction seq: next={} get={}",
                     self.next_tx_seq, tx.seq
                 );
-                false
+                None
             }
         }
     }
@@ -296,7 +292,18 @@ impl LogSyncManager {
         let _ = self.event_send.send(LogSyncEvent::Reverted { tx_seq });
     }
 
-    async fn handle_data(&mut self, mut rx: UnboundedReceiver<LogFetchProgress>) -> Result<()> {
+    async fn handle_data(
+        &mut self,
+        mut rx: UnboundedReceiver<LogFetchProgress>,
+        watch_progress_tx: &Option<UnboundedSender<u64>>,
+    ) -> Result<()> {
+        let mut log_latest_block_number =
+            if let Some(block_number) = self.store.get_log_latest_block_number()? {
+                block_number
+            } else {
+                0
+            };
+
         while let Some(data) = rx.recv().await {
             trace!("handle_data: data={:?}", data);
             match data {
@@ -336,8 +343,30 @@ impl LogSyncManager {
                         }
                     }
                 }
-                LogFetchProgress::Transaction(tx) => {
-                    if !self.put_tx(tx.clone()).await {
+                LogFetchProgress::Transaction((tx, block_number)) => {
+                    let mut stop = false;
+                    match self.put_tx(tx.clone()).await {
+                        Some(false) => stop = true,
+                        Some(true) => {
+                            if let Err(e) = self.store.put_log_latest_block_number(block_number) {
+                                warn!("failed to put log latest block number, error={:?}", e);
+                            }
+
+                            log_latest_block_number = block_number;
+                        }
+                        _ => {
+                            stop = true;
+                            if let Some(progress_tx) = watch_progress_tx {
+                                if let Err(e) = progress_tx.send(log_latest_block_number) {
+                                    error!("failed to send watch progress, error={:?}", e);
+                                } else {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
+                    if stop {
                         // Unexpected error.
                         bail!("log sync write error");
                     }
@@ -426,7 +455,7 @@ impl LogSyncManager {
                 &executor_clone,
                 Duration::from_millis(self.config.recover_query_delay),
             );
-            self.handle_data(recover_rx).await?;
+            self.handle_data(recover_rx, &None).await?;
         }
 
         self.log_fetcher.start_remove_finalized_block_task(
@@ -438,6 +467,33 @@ impl LogSyncManager {
         );
         Ok(())
     }
+}
+
+async fn get_start_block_number_with_hash(
+    log_sync_manager: &LogSyncManager,
+) -> Result<(u64, H256), anyhow::Error> {
+    if let Some(block_number) = log_sync_manager.store.get_log_latest_block_number()? {
+        if let Some(Some(val)) = log_sync_manager
+            .block_hash_cache
+            .read()
+            .await
+            .get(&block_number)
+        {
+            return Ok((block_number, val.block_hash));
+        }
+    }
+
+    let (start_block_number, start_block_hash) = match log_sync_manager.store.get_sync_progress()? {
+        // No previous progress, so just use config.
+        None => {
+            let block_number = log_sync_manager.config.start_block_number;
+            let block_hash = log_sync_manager.get_block(block_number.into()).await?.1;
+            (block_number, block_hash)
+        }
+        Some((block_number, block_hash)) => (block_number, block_hash),
+    };
+
+    Ok((start_block_number, start_block_hash))
 }
 
 async fn run_and_log<R, E>(
