@@ -238,6 +238,10 @@ impl PoraService {
             return Err("too many mine shards");
         }
 
+        if puzzle.context.flow_length <= U256::one() {
+            return Err("no data submitted");
+        }
+
         if self.mine_range.shard_config.num_shard as u64 > puzzle.context.flow_length.as_u64() {
             return Err("Not enough flow length to shard");
         }

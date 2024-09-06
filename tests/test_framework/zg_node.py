@@ -78,6 +78,7 @@ class ZGNode(BlockchainNode):
             "--rpc.laddr", "tcp://127.0.0.1:%s" % arrange_port(ZGNODE_PORT_CATEGORY_RPC, index),
             # overwrite pprof port: 6060
             "--rpc.pprof_laddr", "127.0.0.1:%s" % arrange_port(ZGNODE_PORT_CATEGORY_PPROF, index),
+            "--log_level", "debug"
         ]
 
         for k, v in updated_config.items():

@@ -30,9 +30,9 @@ class BlockChainNodeType(Enum):
         if self == BlockChainNodeType.Conflux:
             return 0.5
         elif self == BlockChainNodeType.BSC:
-            return 25 / estimate_st_performance()
+            return 32 / estimate_st_performance()
         else:
-            return 3.0
+            return 5.0
 
 @unique
 class NodeType(Enum):

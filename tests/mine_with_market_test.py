@@ -21,7 +21,7 @@ class MineTest(TestFramework):
             "shard_position": "3 / 8",
         }
         self.enable_market = True
-        self.mine_period = int(45 / self.block_time)
+        self.mine_period = int(50 / self.block_time)
         self.launch_wait_seconds = 15
         self.log.info("Contract Info: Est. block time %.2f, Mine period %d", self.block_time, self.mine_period)
 
@@ -50,6 +50,10 @@ class MineTest(TestFramework):
 
         SECTORS_PER_PRICING = int(8 * ( 2 ** 30 ) / 256)
 
+        first_block = self.contract.first_block()
+        self.log.info("Current block number %d", int(blockchain.eth_blockNumber(), 16))
+        self.log.info("Flow deployment block number %d, epoch 1 start %d, wait for epoch 1 start", first_block, first_block + self.mine_period)
+        wait_until(lambda: self.contract.epoch() >= 1, timeout=180)
 
         self.log.info("Submit the actual data chunk (256 MB)")
         self.submit_data(b"\x11", int(SECTORS_PER_PRICING / 32))
@@ -97,6 +101,8 @@ class MineTest(TestFramework):
         self.log.info("Received reward %d Gwei", secondReward / (10**9))
 
         assert_greater_than(secondReward, 100 * firstReward / (start_epoch + 1))
+
+        self.log.info("Current block number %d", int(blockchain.eth_blockNumber(), 16))
 
 
 if __name__ == "__main__":
