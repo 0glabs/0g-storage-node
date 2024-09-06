@@ -75,7 +75,8 @@ impl MineRangeConfig {
         let minable_length =
             (context.flow_length.as_u64() / SECTORS_PER_LOAD as u64) * SECTORS_PER_LOAD as u64;
 
-        let mining_length = std::cmp::min(minable_length, SECTORS_PER_MAX_MINING_RANGE as u64);
+        let num_shards = 1u64 << self.shard_config.miner_shard_mask().count_zeros();
+        let mining_length = std::cmp::min(minable_length, (SECTORS_PER_MAX_MINING_RANGE as u64).saturating_mul(num_shards));
 
         let start_position = std::cmp::min(self_start_position, minable_length - mining_length);
         let start_position =
