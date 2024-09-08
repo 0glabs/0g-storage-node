@@ -3,6 +3,7 @@ mod chunk_data;
 mod seal;
 mod serde;
 
+use ::serde::{Deserialize, Serialize};
 use std::cmp::min;
 
 use anyhow::Result;
@@ -23,7 +24,7 @@ use super::SealAnswer;
 use chunk_data::EntryBatchData;
 use seal::SealInfo;
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, Deserialize, Serialize)]
 pub struct EntryBatch {
     seal: SealInfo,
     // the inner data
@@ -275,6 +276,7 @@ mod tests {
     use zgs_spec::{
         BYTES_PER_SEAL, BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL,
     };
+
     const LOAD_INDEX: u64 = 1;
     fn seal(
         batch: &mut EntryBatch,

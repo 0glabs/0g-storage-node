@@ -1,4 +1,5 @@
 use ethereum_types::H256;
+use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 use static_assertions::const_assert;
 use tracing::info;
@@ -8,7 +9,7 @@ use zgs_spec::{SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
 use super::bitmap::WrappedBitmap;
 
-#[derive(Debug, DeriveEncode, DeriveDecode)]
+#[derive(Debug, DeriveEncode, DeriveDecode, Deserialize, Serialize)]
 pub struct SealContextInfo {
     /// The context digest for this seal group
     context_digest: H256,
@@ -19,9 +20,10 @@ pub struct SealContextInfo {
 type ChunkSealBitmap = WrappedBitmap<SEALS_PER_LOAD>;
 const_assert!(SEALS_PER_LOAD <= u128::BITS as usize);
 
-#[derive(Debug, Default, DeriveEncode, DeriveDecode)]
+#[derive(Debug, Default, DeriveEncode, DeriveDecode, Deserialize, Serialize)]
 pub struct SealInfo {
     // a bitmap specify which sealing chunks have been sealed
+    #[serde(skip)]
     bitmap: ChunkSealBitmap,
     // the batch_offset (seal chunks) of the EntryBatch this seal info belongs to
     load_index: u64,

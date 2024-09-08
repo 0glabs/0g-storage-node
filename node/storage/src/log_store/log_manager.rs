@@ -778,16 +778,16 @@ impl LogManager {
         };
         let r = entry_proof(&top_proof, &sub_proof);
         if r.is_err() {
-            let raw_batch = self.flow_store.get_raw_batch(seg_index as u64)?;
+            let raw_batch = self.flow_store.get_raw_batch(seg_index as u64)?.unwrap();
             let db_root = self.flow_store.get_batch_root(seg_index as u64)?;
             error!(
                 ?r,
-                ?raw_batch,
                 ?db_root,
                 ?seg_index,
-                "gen proof error: top_leaves={}, last={}",
+                "gen proof error: top_leaves={}, last={}, raw_batch={}",
                 merkle.pora_chunks_merkle.leaves(),
-                merkle.last_chunk_merkle.leaves()
+                merkle.last_chunk_merkle.leaves(),
+                serde_json::to_string(&raw_batch).unwrap(),
             );
         }
         r

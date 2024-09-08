@@ -3,6 +3,7 @@ use std::ops::{Deref, DerefMut};
 use ssz::{Decode, DecodeError, Encode};
 
 use bitmaps::{Bitmap, Bits, BitsImpl};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Default, Debug)]
 pub struct WrappedBitmap<const N: usize>(pub Bitmap<N>)
@@ -69,6 +70,24 @@ where
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl<'a> Deserialize<'a> for WrappedBitmap<64> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a>,
+    {
+        Ok(Self(Bitmap::from_value(u64::deserialize(deserializer)?)))
+    }
+}
+
+impl Serialize for WrappedBitmap<64> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u64(self.0.into_value())
     }
 }
 
