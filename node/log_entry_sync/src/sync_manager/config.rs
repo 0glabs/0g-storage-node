@@ -32,6 +32,8 @@ pub struct LogSyncConfig {
     pub remove_finalized_block_interval_minutes: u64,
     // watch_loop (eth_getLogs) trigger interval
     pub watch_loop_wait_time_ms: u64,
+    // force to sync log from start block number
+    pub force_log_sync_from_start_block_number: bool,
 }
 
 #[derive(Clone)]
@@ -58,6 +60,7 @@ impl LogSyncConfig {
         default_finalized_block_count: u64,
         remove_finalized_block_interval_minutes: u64,
         watch_loop_wait_time_ms: u64,
+        force_log_sync_from_start_block_number: bool,
     ) -> Self {
         Self {
             rpc_endpoint_url,
@@ -73,6 +76,7 @@ impl LogSyncConfig {
             default_finalized_block_count,
             remove_finalized_block_interval_minutes,
             watch_loop_wait_time_ms,
+            force_log_sync_from_start_block_number,
         }
     }
 }
