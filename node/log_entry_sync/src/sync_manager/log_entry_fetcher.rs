@@ -313,7 +313,8 @@ impl LogEntryFetcher {
                         &mut progress_reset_history,
                         watch_loop_wait_time_ms,
                         &block_hash_cache,
-                    ).await;
+                    )
+                    .await;
 
                     match Self::watch_loop(
                         provider.as_ref(),
