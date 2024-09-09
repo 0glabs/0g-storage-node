@@ -13,6 +13,7 @@ use crate::types::{GossipEncoding, GossipKind, GossipTopic, SnappyTransform};
 use crate::{error, metrics, Enr, NetworkGlobals, PubsubMessage, TopicHash};
 use futures::stream::StreamExt;
 use libp2p::gossipsub::error::PublishError;
+use libp2p::gossipsub::TopicScoreParams;
 use libp2p::{
     core::{
         connection::ConnectionId, identity::Keypair, multiaddr::Protocol as MProtocol, Multiaddr,
@@ -226,7 +227,30 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
 
         // trace!(behaviour_log, "Using peer score params"; "params" => ?params);
 
-        let params = libp2p::gossipsub::PeerScoreParams::default();
+        let mut params = libp2p::gossipsub::PeerScoreParams::default();
+        let get_hash = |kind: GossipKind| -> TopicHash {
+            let topic: Topic = GossipTopic::new(kind, GossipEncoding::default()).into();
+            topic.hash()
+        };
+        params
+            .topics
+            .insert(get_hash(GossipKind::FindFile), TopicScoreParams::default());
+        params.topics.insert(
+            get_hash(GossipKind::FindChunks),
+            TopicScoreParams::default(),
+        );
+        params.topics.insert(
+            get_hash(GossipKind::AnnounceFile),
+            TopicScoreParams::default(),
+        );
+        params.topics.insert(
+            get_hash(GossipKind::AnnounceShardConfig),
+            TopicScoreParams::default(),
+        );
+        params.topics.insert(
+            get_hash(GossipKind::AnnounceChunks),
+            TopicScoreParams::default(),
+        );
 
         // Set up a scoring update interval
         let update_gossipsub_scores = tokio::time::interval(params.decay_interval);
