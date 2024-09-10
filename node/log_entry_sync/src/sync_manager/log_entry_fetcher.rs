@@ -362,7 +362,13 @@ impl LogEntryFetcher {
         block_hash_cache: &Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
         log_page_size: u64,
     ) -> Result<Option<(u64, H256, Option<Option<u64>>)>> {
-        let latest_block_number = provider.get_block_number().await?.as_u64();
+        let latest_block_number = provider
+            .get_block(BlockNumber::Latest)
+            .await?
+            .ok_or(anyhow!("failed to get latest block"))?
+            .number
+            .ok_or(anyhow!("latest block number is none"))?
+            .as_u64();
         debug!(
             "from block number {}, latest block number {}, confirmation delay {}",
             from_block_number, latest_block_number, confirmation_delay
@@ -382,6 +388,9 @@ impl LogEntryFetcher {
                 from_block_number,
                 block.number
             );
+        }
+        if block.logs_bloom.is_none() {
+            bail!("block {:?} logs bloom is none", block.number);
         }
 
         if from_block_number > 0 && block.parent_hash != parent_block_hash {
@@ -412,13 +421,22 @@ impl LogEntryFetcher {
                     block.number
                 );
             }
-            if Some(block.parent_hash) != parent_block_hash {
+            if parent_block_hash.is_none() || Some(block.parent_hash) != parent_block_hash {
                 bail!(
                     "parent block hash mismatch, expected {:?}, actual {}",
                     parent_block_hash,
                     block.parent_hash
                 );
             }
+
+            if block_number == to_block_number && block.hash.is_none() {
+                bail!("block {:?} hash is none", block.number);
+            }
+
+            if block.logs_bloom.is_none() {
+                bail!("block {:?} logs bloom is none", block.number);
+            }
+
             parent_block_hash = block.hash;
             blocks.insert(block_number, block);
         }
@@ -470,7 +488,7 @@ impl LogEntryFetcher {
                         }
 
                         let tx = txs_hm[&log.transaction_index];
-                        if log.transaction_hash != Some(tx.hash) {
+                        if log.transaction_hash.is_none() || log.transaction_hash != Some(tx.hash) {
                             warn!(
                             "log tx hash mismatch, log transaction {:?}, block transaction {:?}",
                             log.transaction_hash,
@@ -478,7 +496,9 @@ impl LogEntryFetcher {
                         );
                             return Ok(progress);
                         }
-                        if log.transaction_index != tx.transaction_index {
+                        if log.transaction_index.is_none()
+                            || log.transaction_index != tx.transaction_index
+                        {
                             warn!(
                             "log tx index mismatch, log tx index {:?}, block transaction index {:?}",
                             log.transaction_index,
