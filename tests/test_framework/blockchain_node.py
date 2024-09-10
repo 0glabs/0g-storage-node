@@ -31,8 +31,10 @@ class BlockChainNodeType(Enum):
             return 0.5
         elif self == BlockChainNodeType.BSC:
             return 32 / estimate_st_performance()
+        elif self == BlockChainNodeType.ZG:
+            return 0.3
         else:
-            return 5.0
+            raise AssertionError("Unsupported blockchain type")
 
 @unique
 class NodeType(Enum):

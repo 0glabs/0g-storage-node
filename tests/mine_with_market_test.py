@@ -106,4 +106,4 @@ class MineTest(TestFramework):
 
 
 if __name__ == "__main__":
-    MineTest(blockchain_node_type=BlockChainNodeType.BSC).main()
+    MineTest().main()
