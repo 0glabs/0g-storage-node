@@ -210,7 +210,7 @@ impl PoraService {
                     let timer = time::Instant::now();
 
                     if let Some(answer) = miner.batch_iteration(nonce, self.iter_batch).await {
-                        debug!("Hit Pora answer {:?}", answer);
+                        info!("Hit Pora answer {:?}", answer);
                         if self.mine_answer_sender.send(answer).is_err() {
                             warn!("Mine submitter channel closed");
                         }
