@@ -100,7 +100,7 @@ async fn request_miner_id(
         .retries(3)
         .await
         .map_err(|e| format!("Fail to execute mine answer transaction: {:?}", e))?
-        .ok_or("Request miner id transaction dropped after 3 retires")?;
+        .ok_or("Request miner id transaction dropped after 3 retries")?;
 
     let first_log = receipt
         .logs

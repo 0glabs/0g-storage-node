@@ -167,7 +167,7 @@ impl Submitter {
             .await
             .map_err(|e| format!("Fail to execute mine answer transaction: {:?}", e))?
             .ok_or(format!(
-                "Mine answer transaction dropped after {} retires",
+                "Mine answer transaction dropped after {} retries",
                 SUBMISSION_RETIES
             ))?;
 
