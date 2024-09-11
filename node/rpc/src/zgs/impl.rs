@@ -137,6 +137,33 @@ impl RpcServer for RpcServerImpl {
         }))
     }
 
+    async fn get_chunks_with_proof_by_tx_and_index_range(
+        &self,
+        tx_seq: u64,
+        start_index: usize,
+        end_index: usize,
+    ) -> RpcResult<Option<SegmentWithProof>> {
+        info!(%tx_seq, %start_index, %end_index, "zgs_getChunksWithProofByTxAndIndexRange");
+
+        let segment = try_option!(
+            self.ctx
+                .log_store
+                .get_chunks_with_proof_by_tx_and_index_range(tx_seq, start_index, end_index, None)
+                .await?
+        );
+
+        let tx = try_option!(self.ctx.log_store.get_tx_by_seq_number(tx_seq).await?);
+        let proof = tx.compute_segment_proof(&segment, self.ctx.config.chunks_per_segment)?;
+
+        Ok(Some(SegmentWithProof {
+            root: tx.data_merkle_root,
+            data: segment.chunks.data,
+            index: start_index / self.ctx.config.chunks_per_segment,
+            proof,
+            file_size: tx.size as usize,
+        }))
+    }
+
     async fn get_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>> {
         debug!(%data_root, "zgs_getFileInfo");
 

@@ -30,6 +30,14 @@ pub trait Rpc {
         index: usize,
     ) -> RpcResult<Option<SegmentWithProof>>;
 
+    #[method(name = "getChunksWithProofByTxAndIndexRange")]
+    async fn get_chunks_with_proof_by_tx_and_index_range(
+        &self,
+        tx_seq: u64,
+        start_index: usize,
+        end_index: usize,
+    ) -> RpcResult<Option<SegmentWithProof>>;
+
     #[method(name = "getFileInfo")]
     async fn get_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>>;
 
