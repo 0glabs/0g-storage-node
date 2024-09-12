@@ -989,16 +989,16 @@ impl LogManager {
     }
 
     // FIXME(zz): Implement padding.
-    pub fn padding(len: usize) -> Vec<Vec<u8>> {
+    pub fn padding(len: usize) -> Box<dyn Iterator<Item = Vec<u8>>> {
         let remainder = len % PAD_MAX_SIZE;
         let n = len / PAD_MAX_SIZE;
-        let mut pad_data = vec![Self::padding_raw(PAD_MAX_SIZE); n];
+        let iter = (0..n).map(|_| Self::padding_raw(PAD_MAX_SIZE));
         if remainder == 0 {
-            pad_data
+            Box::new(iter)
         } else {
             // insert the remainder to the front, so the rest are processed with alignment.
-            pad_data.insert(0, Self::padding_raw(remainder));
-            pad_data
+            let new_iter = iter.chain(vec![Self::padding_raw(remainder)].into_iter());
+            Box::new(new_iter)
         }
     }
 
