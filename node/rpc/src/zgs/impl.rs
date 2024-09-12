@@ -5,7 +5,7 @@ use crate::Context;
 use chunk_pool::{FileID, SegmentInfo};
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
-use shared_types::{DataRoot, FlowProof, Transaction, CHUNK_SIZE};
+use shared_types::{DataRoot, FlowProof, Transaction, TxSeqOrRoot, CHUNK_SIZE};
 use std::fmt::{Debug, Formatter, Result};
 use storage::config::ShardConfig;
 use storage::try_option;
@@ -135,6 +135,31 @@ impl RpcServer for RpcServerImpl {
             proof,
             file_size: tx.size as usize,
         }))
+    }
+
+    async fn check_file_finalized(&self, tx_seq_or_root: TxSeqOrRoot) -> RpcResult<Option<bool>> {
+        debug!(?tx_seq_or_root, "zgs_checkFileFinalized");
+
+        let seq = match tx_seq_or_root {
+            TxSeqOrRoot::TxSeq(v) => v,
+            TxSeqOrRoot::Root(v) => {
+                try_option!(self.ctx.log_store.get_tx_seq_by_data_root(&v).await?)
+            }
+        };
+
+        if self.ctx.log_store.check_tx_completed(seq).await? {
+            Ok(Some(true))
+        } else if self
+            .ctx
+            .log_store
+            .get_tx_by_seq_number(seq)
+            .await?
+            .is_some()
+        {
+            Ok(Some(false))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn get_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>> {

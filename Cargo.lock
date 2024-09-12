@@ -7017,6 +7017,7 @@ dependencies = [
  "merkle_light",
  "merkle_tree",
  "serde",
+ "serde_json",
  "tiny-keccak",
  "tracing",
  "typenum",

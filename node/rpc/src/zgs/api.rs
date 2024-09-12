@@ -1,7 +1,7 @@
 use crate::types::{FileInfo, Segment, SegmentWithProof, Status};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use shared_types::{DataRoot, FlowProof};
+use shared_types::{DataRoot, FlowProof, TxSeqOrRoot};
 use storage::config::ShardConfig;
 
 #[rpc(server, client, namespace = "zgs")]
@@ -29,6 +29,9 @@ pub trait Rpc {
         data_root: DataRoot,
         index: usize,
     ) -> RpcResult<Option<SegmentWithProof>>;
+
+    #[method(name = "checkFileFinalized")]
+    async fn check_file_finalized(&self, tx_seq_or_root: TxSeqOrRoot) -> RpcResult<Option<bool>>;
 
     #[method(name = "getFileInfo")]
     async fn get_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>>;
