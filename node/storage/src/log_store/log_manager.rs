@@ -997,7 +997,7 @@ impl LogManager {
             Box::new(iter)
         } else {
             // insert the remainder to the front, so the rest are processed with alignment.
-            let new_iter = iter.chain(vec![Self::padding_raw(remainder)].into_iter());
+            let new_iter = vec![Self::padding_raw(remainder)].into_iter().chain(iter);
             Box::new(new_iter)
         }
     }
