@@ -76,6 +76,14 @@ pub trait LogStoreRead: LogStoreChunkRead {
 
     /// Return flow root and length.
     fn get_context(&self) -> Result<(DataRoot, u64)>;
+
+    fn pull_seal_chunk(&self, seal_index_max: usize) -> Result<Option<Vec<SealTask>>>;
+
+    fn get_num_entries(&self) -> Result<u64>;
+
+    fn load_sealed_data(&self, chunk_index: u64) -> Result<Option<MineLoadChunk>>;
+
+    fn get_shard_config(&self) -> ShardConfig;
 }
 
 pub trait LogStoreChunkRead {
@@ -145,6 +153,10 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
     ) -> Result<bool>;
 
     fn delete_block_hash_by_number(&self, block_number: u64) -> Result<()>;
+
+    fn update_shard_config(&self, shard_config: ShardConfig);
+
+    fn submit_seal_result(&self, answers: Vec<SealAnswer>) -> Result<()>;
 }
 
 pub trait LogStoreChunkWrite {
@@ -168,18 +180,13 @@ pub trait LogChunkStore: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 
 impl<T: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static> LogChunkStore for T {}
 
 pub trait Store:
-    LogStoreRead + LogStoreWrite + LogStoreInner + config::Configurable + Send + Sync + 'static
+    LogStoreRead + LogStoreWrite + config::Configurable + Send + Sync + 'static
 {
 }
 impl<
-        T: LogStoreRead + LogStoreWrite + LogStoreInner + config::Configurable + Send + Sync + 'static,
+        T: LogStoreRead + LogStoreWrite + config::Configurable + Send + Sync + 'static,
     > Store for T
 {
-}
-
-pub trait LogStoreInner {
-    fn flow(&self) -> &dyn Flow;
-    fn flow_mut(&mut self) -> &mut dyn Flow;
 }
 
 pub struct MineLoadChunk {

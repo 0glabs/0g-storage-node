@@ -423,7 +423,7 @@ impl Libp2pEventHandler {
         let addr = self.get_listen_addr_or_add().await?;
 
         let timestamp = timestamp_now();
-        let shard_config = self.store.get_store().flow().get_shard_config();
+        let shard_config = self.store.get_store().get_shard_config();
 
         let msg = AnnounceFile {
             tx_ids,
@@ -699,7 +699,7 @@ impl Libp2pEventHandler {
         }
 
         // notify sync layer if shard config matches
-        let my_shard_config = self.store.get_store().flow().get_shard_config();
+        let my_shard_config = self.store.get_store().get_shard_config();
         if my_shard_config.intersect(&announced_shard_config) {
             for tx_id in msg.tx_ids.iter() {
                 self.send_to_sync(SyncMessage::AnnounceFileGossip {

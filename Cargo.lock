@@ -7281,6 +7281,7 @@ dependencies = [
  "shared_types",
  "static_assertions",
  "tiny-keccak",
+ "tokio",
  "tracing",
  "typenum",
  "zgs_seal",
