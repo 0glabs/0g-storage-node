@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::{ShutdownReason, TaskExecutor};
+use thiserror::Error;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, RwLock};
@@ -24,6 +25,17 @@ const RETRY_WAIT_MS: u64 = 500;
 // Each tx has less than 10KB, so the cache size should be acceptable.
 const BROADCAST_CHANNEL_CAPACITY: usize = 25000;
 const CATCH_UP_END_GAP: u64 = 10;
+
+/// Errors while handle data
+#[derive(Error, Debug)]
+pub enum HandleDataError {
+    /// Sequence Error
+    #[error("transaction seq is great than expected, expect block number {0}")]
+    SeqError(u64),
+    /// Other Errors
+    #[error("{0}")]
+    CommonError(#[from] anyhow::Error),
+}
 
 #[derive(Clone, Debug)]
 pub enum LogSyncEvent {
@@ -189,13 +201,51 @@ impl LogSyncManager {
                     } else {
                         // Keep catching-up data until we are close to the latest height.
                         loop {
-                            log_sync_manager
+                            // wait tx receipt is ready
+                            if let Ok(Some(block)) = log_sync_manager
+                                .log_fetcher
+                                .provider()
+                                .get_block_with_txs(finalized_block_number)
+                                .await
+                            {
+                                if let Some(tx) = block.transactions.first() {
+                                    loop {
+                                        match log_sync_manager
+                                            .log_fetcher
+                                            .provider()
+                                            .get_transaction_receipt(tx.hash)
+                                            .await
+                                        {
+                                            Ok(Some(_)) => break,
+                                            _ => {
+                                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            while let Err(e) = log_sync_manager
                                 .catch_up_data(
                                     executor_clone.clone(),
                                     start_block_number,
                                     finalized_block_number,
                                 )
-                                .await?;
+                                .await
+                            {
+                                match e {
+                                    HandleDataError::SeqError(block_number) => {
+                                        warn!("seq error occurred, retry from {}", block_number);
+                                        start_block_number = block_number;
+                                        tokio::time::sleep(Duration::from_secs(1)).await;
+                                    }
+                                    _ => {
+                                        return Err(e.into());
+                                    }
+                                }
+                            }
+
                             start_block_number = finalized_block_number.saturating_add(1);
 
                             let new_finalized_block =
@@ -296,7 +346,7 @@ impl LogSyncManager {
         &mut self,
         mut rx: UnboundedReceiver<LogFetchProgress>,
         watch_progress_tx: &Option<UnboundedSender<u64>>,
-    ) -> Result<()> {
+    ) -> Result<(), HandleDataError> {
         let mut log_latest_block_number =
             if let Some(block_number) = self.store.get_log_latest_block_number()? {
                 block_number
@@ -362,13 +412,15 @@ impl LogSyncManager {
                                 } else {
                                     continue;
                                 }
+                            } else {
+                                return Err(HandleDataError::SeqError(log_latest_block_number));
                             }
                         }
                     }
 
                     if stop {
                         // Unexpected error.
-                        bail!("log sync write error");
+                        return Err(anyhow!("log sync write error").into());
                     }
                     if let Err(e) = self.event_send.send(LogSyncEvent::TxSynced { tx }) {
                         // TODO: Do we need to wait until all receivers are initialized?
@@ -447,7 +499,7 @@ impl LogSyncManager {
         executor_clone: TaskExecutor,
         start_block_number: u64,
         finalized_block_number: u64,
-    ) -> Result<()> {
+    ) -> Result<(), HandleDataError> {
         if start_block_number < finalized_block_number {
             let recover_rx = self.log_fetcher.start_recover(
                 start_block_number,
