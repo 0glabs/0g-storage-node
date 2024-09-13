@@ -1,3 +1,4 @@
+use crate::config::ShardConfig;
 use crate::log_store::flow_store::{batch_iter_sharded, FlowConfig, FlowStore};
 use crate::log_store::tx_store::TransactionStore;
 use crate::log_store::{
@@ -21,10 +22,12 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
+use std::thread;
+use std::sync::mpsc;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use super::tx_store::BlockHashAndSubmissionIndex;
-use super::LogStoreInner;
+use super::{FlowSeal, MineLoadChunk, SealAnswer, SealTask};
 
 /// 256 Bytes
 pub const ENTRY_SIZE: usize = 256;
@@ -45,11 +48,18 @@ pub const COL_NUM: u32 = 9;
 // Process at most 1M entries (256MB) pad data at a time.
 const PAD_MAX_SIZE: usize = 1 << 20;
 
+pub struct UpdateFlowMessage {
+    pub root_map: BTreeMap<usize, (H256, usize)>,
+    pub pad_data: Vec<u8>,
+    pub tx_start_flow_index: u64,
+}
+
 pub struct LogManager {
     pub(crate) db: Arc<dyn ZgsKeyValueDB>,
     tx_store: TransactionStore,
-    flow_store: FlowStore,
+    flow_store: Arc<FlowStore>,
     merkle: RwLock<MerkleManager>,
+    sender: mpsc::Sender<UpdateFlowMessage>,
 }
 
 struct MerkleManager {
@@ -137,16 +147,6 @@ impl MerkleManager {
 #[derive(Clone, Default)]
 pub struct LogConfig {
     pub flow: FlowConfig,
-}
-
-impl LogStoreInner for LogManager {
-    fn flow(&self) -> &dyn super::Flow {
-        &self.flow_store
-    }
-
-    fn flow_mut(&mut self) -> &mut dyn super::Flow {
-        &mut self.flow_store
-    }
 }
 
 impl LogStoreChunkWrite for LogManager {
@@ -389,6 +389,14 @@ impl LogStoreWrite for LogManager {
     fn delete_block_hash_by_number(&self, block_number: u64) -> Result<()> {
         self.tx_store.delete_block_hash_by_number(block_number)
     }
+
+    fn update_shard_config(&self, shard_config: ShardConfig) {
+        self.flow_store.update_shard_config(shard_config)
+    }
+    
+    fn submit_seal_result(&self, answers: Vec<SealAnswer>) -> Result<()> {
+        self.flow_store.submit_seal_result(answers)
+    }
 }
 
 impl LogStoreChunkRead for LogManager {
@@ -579,6 +587,22 @@ impl LogStoreRead for LogManager {
     fn check_tx_pruned(&self, tx_seq: u64) -> crate::error::Result<bool> {
         self.tx_store.check_tx_pruned(tx_seq)
     }
+
+    fn pull_seal_chunk(&self, seal_index_max: usize) -> Result<Option<Vec<SealTask>>> {
+        self.flow_store.pull_seal_chunk(seal_index_max)
+    }
+
+    fn get_num_entries(&self) -> Result<u64> {
+        self.flow_store.get_num_entries()
+    }
+
+    fn load_sealed_data(&self, chunk_index: u64) -> Result<Option<MineLoadChunk>> {
+        self.flow_store.load_sealed_data(chunk_index)
+    }
+
+    fn get_shard_config(&self) -> ShardConfig {
+        self.flow_store.get_shard_config()
+    }
 }
 
 impl LogManager {
@@ -596,7 +620,7 @@ impl LogManager {
 
     fn new(db: Arc<dyn ZgsKeyValueDB>, config: LogConfig) -> Result<Self> {
         let tx_store = TransactionStore::new(db.clone())?;
-        let flow_store = FlowStore::new(db.clone(), config.flow);
+        let flow_store = Arc::new(FlowStore::new(db.clone(), config.flow));
         let mut initial_data = flow_store.get_chunk_root_list()?;
         // If the last tx `put_tx` does not complete, we will revert it in `initial_data.subtree_list`
         // first and call `put_tx` later. The known leaves in its data will be saved in `extra_leaves`
@@ -700,12 +724,18 @@ impl LogManager {
             pora_chunks_merkle,
             last_chunk_merkle,
         });
-        let log_manager = Self {
+
+        let (sender, receiver) = mpsc::channel();
+
+        let mut log_manager = Self {
             db,
             tx_store,
             flow_store,
             merkle,
+            sender
         };
+
+        log_manager.start_receiver(receiver);
 
         if let Some(tx) = last_tx_to_insert {
             log_manager.put_tx(tx)?;
@@ -725,6 +755,30 @@ impl LogManager {
             .write()
             .try_initialize(&log_manager.flow_store)?;
         Ok(log_manager)
+    }
+
+    fn start_receiver(&mut self, rx: mpsc::Receiver<UpdateFlowMessage>) {
+        let flow_store = self.flow_store.clone();
+        thread::spawn(move || -> Result<(), anyhow::Error> {
+            loop {
+                match rx.recv() {
+                    std::result::Result::Ok(data) => {
+                        // Update the root index.
+                        flow_store.put_batch_root_list(data.root_map).unwrap();
+                        // Update the flow database.
+                        // This should be called before `complete_last_chunk_merkle` so that we do not save
+                        // subtrees with data known.
+                        flow_store.append_entries(ChunkArray {
+                            data: data.pad_data,
+                            start_index: data.tx_start_flow_index,
+                        }).unwrap();
+                    }
+                    std::result::Result::Err(_) => {
+                        bail!("Receiver error");
+                    }
+                }
+            }
+        });
     }
 
     fn gen_proof(&self, flow_index: u64, maybe_root: Option<DataRoot>) -> Result<FlowProof> {
@@ -910,15 +964,12 @@ impl LogManager {
                     assert_eq!(pad_data.len(), start_index * ENTRY_SIZE);
                 }
 
-                // Update the root index.
-                self.flow_store.put_batch_root_list(root_map)?;
-                // Update the flow database.
-                // This should be called before `complete_last_chunk_merkle` so that we do not save
-                // subtrees with data known.
+
                 let data_size = pad_data.len() / ENTRY_SIZE;
-                self.flow_store.append_entries(ChunkArray {
-                    data: pad_data,
-                    start_index: tx_start_flow_index,
+                self.sender.send(UpdateFlowMessage {
+                    root_map,
+                    pad_data: pad_data.to_vec(),
+                    tx_start_flow_index,
                 })?;
                 tx_start_flow_index += data_size as u64;
                 if let Some(index) = completed_chunk_index {

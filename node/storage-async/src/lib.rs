@@ -95,22 +95,22 @@ impl Store {
         &self,
         seal_index_max: usize,
     ) -> anyhow::Result<Option<Vec<SealTask>>> {
-        self.spawn(move |store| store.flow().pull_seal_chunk(seal_index_max))
+        self.spawn(move |store| store.pull_seal_chunk(seal_index_max))
             .await
     }
 
     pub async fn submit_seal_result(&self, answers: Vec<SealAnswer>) -> anyhow::Result<()> {
-        self.spawn(move |store| store.flow().submit_seal_result(answers))
+        self.spawn(move |store| store.submit_seal_result(answers))
             .await
     }
 
     pub async fn load_sealed_data(&self, chunk_index: u64) -> Result<Option<MineLoadChunk>> {
-        self.spawn(move |store| store.flow().load_sealed_data(chunk_index))
+        self.spawn(move |store| store.load_sealed_data(chunk_index))
             .await
     }
 
     pub async fn get_num_entries(&self) -> Result<u64> {
-        self.spawn(move |store| store.flow().get_num_entries())
+        self.spawn(move |store| store.get_num_entries())
             .await
     }
 
@@ -122,7 +122,7 @@ impl Store {
 
     pub async fn update_shard_config(&self, shard_config: ShardConfig) {
         self.spawn(move |store| {
-            store.flow().update_shard_config(shard_config);
+            store.update_shard_config(shard_config);
             Ok(())
         })
         .await

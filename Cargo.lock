@@ -7243,6 +7243,7 @@ dependencies = [
  "static_assertions",
  "tempdir",
  "tiny-keccak",
+ "tokio",
  "tracing",
  "typenum",
  "zgs_seal",

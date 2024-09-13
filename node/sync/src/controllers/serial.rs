@@ -478,7 +478,7 @@ impl SerialSyncController {
 
         metrics::SERIAL_SYNC_SEGMENT_LATENCY.update_since(since.0);
 
-        let shard_config = self.store.get_store().flow().get_shard_config();
+        let shard_config = self.store.get_store().get_shard_config();
         let next_chunk = segment_to_sector(shard_config.next_segment_index(
             sector_to_segment(from_chunk),
             sector_to_segment(self.tx_start_chunk_in_flow),
