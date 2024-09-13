@@ -29,6 +29,7 @@ pub struct Status {
     pub connected_peers: usize,
     pub log_sync_height: u64,
     pub log_sync_block: H256,
+    pub next_tx_seq: u64,
     pub network_identity: NetworkIdentity,
 }
 
