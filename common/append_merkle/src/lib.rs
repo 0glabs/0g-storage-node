@@ -137,13 +137,20 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         }
     }
 
-    /// Return the new merkle root.
     pub fn append(&mut self, new_leaf: E) {
+        if new_leaf == E::null() {
+            // appending null is not allowed.
+            return;
+        }
         self.layers[0].push(new_leaf);
         self.recompute_after_append_leaves(self.leaves() - 1);
     }
 
     pub fn append_list(&mut self, mut leaf_list: Vec<E>) {
+        if leaf_list.contains(&E::null()) {
+            // appending null is not allowed.
+            return;
+        }
         let start_index = self.leaves();
         self.layers[0].append(&mut leaf_list);
         self.recompute_after_append_leaves(start_index);
@@ -155,6 +162,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     /// Other nodes in the subtree will be set to `null` nodes.
     /// TODO: Optimize to avoid storing the `null` nodes?
     pub fn append_subtree(&mut self, subtree_depth: usize, subtree_root: E) -> Result<()> {
+        if subtree_root == E::null() {
+            // appending null is not allowed.
+            bail!("subtree_root is null");
+        }
         let start_index = self.leaves();
         self.append_subtree_inner(subtree_depth, subtree_root)?;
         self.recompute_after_append_subtree(start_index, subtree_depth - 1);
@@ -162,6 +173,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     pub fn append_subtree_list(&mut self, subtree_list: Vec<(usize, E)>) -> Result<()> {
+        if subtree_list.iter().any(|(_, root)| root == &E::null()) {
+            // appending null is not allowed.
+            bail!("subtree_list contains null");
+        }
         for (subtree_depth, subtree_root) in subtree_list {
             let start_index = self.leaves();
             self.append_subtree_inner(subtree_depth, subtree_root)?;
@@ -173,6 +188,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     /// Change the value of the last leaf and return the new merkle root.
     /// This is needed if our merkle-tree in memory only keeps intermediate nodes instead of real leaves.
     pub fn update_last(&mut self, updated_leaf: E) {
+        if updated_leaf == E::null() {
+            // updating to null is not allowed.
+            return;
+        }
         if self.layers[0].is_empty() {
             // Special case for the first data.
             self.layers[0].push(updated_leaf);
@@ -183,10 +202,13 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     /// Fill an unknown `null` leaf with its real value.
-    /// Panics if the leaf changes the merkle root or the index is out of range.
+    /// Panics if the leaf is already set and different or the index is out of range.
     /// TODO: Batch computing intermediate nodes.
     pub fn fill_leaf(&mut self, index: usize, leaf: E) {
-        if self.layers[0][index] == E::null() {
+        if leaf == E::null() {
+            // fill leaf with null is not allowed.
+            return;
+        } else if self.layers[0][index] == E::null() {
             self.layers[0][index] = leaf;
             self.recompute_after_fill_leaves(index, index + 1);
         } else if self.layers[0][index] != leaf {
@@ -349,7 +371,6 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                 right_most_nodes.push((layer.len() - 1, layer.last().unwrap().clone()));
             }
             let root = self.root().clone();
-            assert_eq!(root, right_most_nodes.last().unwrap().1);
             self.delta_nodes_map
                 .insert(tx_seq, DeltaNodes::new(right_most_nodes));
             self.root_to_tx_seq_map.insert(root, tx_seq);

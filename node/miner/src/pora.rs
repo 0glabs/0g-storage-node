@@ -79,7 +79,7 @@ impl<'a> Miner<'a> {
         inc_counter(&LOADING_COUNT);
         let MineLoadChunk {
             loaded_chunk,
-            avalibilities,
+            availabilities,
         } = self
             .loader
             .load_sealed_data(recall_position / SECTORS_PER_LOAD as u64)
@@ -92,7 +92,7 @@ impl<'a> Miner<'a> {
             .into_iter()
             .enumerate()
             .zip(scratch_pad.iter().cycle())
-            .zip(avalibilities.into_iter())
+            .zip(availabilities.into_iter())
             .filter_map(|(data, avaliable)| avaliable.then_some(data))
         {
             inc_counter(&PAD_MIX_COUNT);

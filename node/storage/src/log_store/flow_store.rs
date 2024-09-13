@@ -203,7 +203,7 @@ impl FlowRead for FlowStore {
         for (seal_index, (sealed, validity)) in mine_chunk
             .loaded_chunk
             .iter_mut()
-            .zip(mine_chunk.avalibilities.iter_mut())
+            .zip(mine_chunk.availabilities.iter_mut())
             .enumerate()
         {
             if let Some(data) = batch.get_sealed_data(seal_index as u16) {

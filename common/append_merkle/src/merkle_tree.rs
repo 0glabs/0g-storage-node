@@ -74,10 +74,7 @@ pub trait MerkleTreeRead {
             bail!("Not ready to generate proof for leaf_index={}", leaf_index);
         }
         if self.height() == 1 {
-            return Ok(Proof::new(
-                vec![self.root().clone(), self.root().clone()],
-                vec![],
-            ));
+            return Proof::new(vec![self.root().clone(), self.root().clone()], vec![]);
         }
         let mut lemma: Vec<Self::E> = Vec::with_capacity(self.height()); // path + root
         let mut path: Vec<bool> = Vec::with_capacity(self.height() - 2); // path - 1
@@ -112,7 +109,7 @@ pub trait MerkleTreeRead {
                 path
             );
         }
-        Ok(Proof::new(lemma, path))
+        Proof::new(lemma, path)
     }
 
     fn gen_range_proof(&self, start_index: usize, end_index: usize) -> Result<RangeProof<Self::E>> {

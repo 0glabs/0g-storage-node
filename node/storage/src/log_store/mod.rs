@@ -185,14 +185,14 @@ pub trait LogStoreInner {
 pub struct MineLoadChunk {
     // Use `Vec` instead of array to avoid thread stack overflow.
     pub loaded_chunk: Vec<[u8; BYTES_PER_SEAL]>,
-    pub avalibilities: [bool; SEALS_PER_LOAD],
+    pub availabilities: [bool; SEALS_PER_LOAD],
 }
 
 impl Default for MineLoadChunk {
     fn default() -> Self {
         Self {
             loaded_chunk: vec![[0u8; BYTES_PER_SEAL]; SEALS_PER_LOAD],
-            avalibilities: [false; SEALS_PER_LOAD],
+            availabilities: [false; SEALS_PER_LOAD],
         }
     }
 }
