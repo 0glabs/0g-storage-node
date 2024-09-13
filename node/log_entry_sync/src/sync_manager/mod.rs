@@ -264,6 +264,18 @@ impl LogSyncManager {
                         warn!("catch_up_end send fails, possibly auto_sync is not enabled");
                     }
 
+                    log_sync_manager
+                        .log_fetcher
+                        .start_remove_finalized_block_task(
+                            &executor_clone,
+                            log_sync_manager.store.clone(),
+                            log_sync_manager.block_hash_cache.clone(),
+                            log_sync_manager.config.default_finalized_block_count,
+                            log_sync_manager
+                                .config
+                                .remove_finalized_block_interval_minutes,
+                        );
+
                     let (watch_progress_tx, watch_progress_rx) =
                         tokio::sync::mpsc::unbounded_channel();
                     let watch_rx = log_sync_manager.log_fetcher.start_watch(
@@ -509,14 +521,6 @@ impl LogSyncManager {
             );
             self.handle_data(recover_rx, &None).await?;
         }
-
-        self.log_fetcher.start_remove_finalized_block_task(
-            &executor_clone,
-            self.store.clone(),
-            self.block_hash_cache.clone(),
-            self.config.default_finalized_block_count,
-            self.config.remove_finalized_block_interval_minutes,
-        );
         Ok(())
     }
 }
@@ -541,6 +545,10 @@ async fn get_start_block_number_with_hash(
             .get(&block_number)
         {
             return Ok((block_number, val.block_hash));
+        } else {
+            warn!("get block hash for block {} from RPC", block_number);
+            let block_hash = log_sync_manager.get_block(block_number.into()).await?.1;
+            return Ok((block_number, block_hash));
         }
     }
 

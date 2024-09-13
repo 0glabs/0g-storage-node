@@ -145,6 +145,15 @@ impl LogEntryFetcher {
                         }
                     };
 
+                    let log_latest_block_number = match store.get_log_latest_block_number() {
+                        Ok(Some(b)) => b,
+                        Ok(None) => 0,
+                        Err(e) => {
+                            error!("get log latest block number error: e={:?}", e);
+                            0
+                        }
+                    };
+
                     if let Some(processed_block_number) = processed_block_number {
                         let finalized_block_number =
                             match provider.get_block(BlockNumber::Finalized).await {
@@ -168,25 +177,24 @@ impl LogEntryFetcher {
                             };
 
                         if let Some(finalized_block_number) = finalized_block_number {
-                            if processed_block_number >= finalized_block_number {
-                                let mut pending_keys = vec![];
-                                for (key, _) in block_hash_cache.read().await.iter() {
-                                    if *key < finalized_block_number {
-                                        pending_keys.push(*key);
-                                    } else {
-                                        break;
-                                    }
+                            let safe_block_number = std::cmp::min(
+                                std::cmp::min(log_latest_block_number, finalized_block_number),
+                                processed_block_number,
+                            );
+                            let mut pending_keys = vec![];
+                            for (key, _) in block_hash_cache.read().await.iter() {
+                                if *key < safe_block_number {
+                                    pending_keys.push(*key);
+                                } else {
+                                    break;
                                 }
+                            }
 
-                                for key in pending_keys.into_iter() {
-                                    if let Err(e) = store.delete_block_hash_by_number(key) {
-                                        error!(
-                                            "remove block tx for number {} error: e={:?}",
-                                            key, e
-                                        );
-                                    } else {
-                                        block_hash_cache.write().await.remove(&key);
-                                    }
+                            for key in pending_keys.into_iter() {
+                                if let Err(e) = store.delete_block_hash_by_number(key) {
+                                    error!("remove block tx for number {} error: e={:?}", key, e);
+                                } else {
+                                    block_hash_cache.write().await.remove(&key);
                                 }
                             }
                         }
@@ -313,6 +321,7 @@ impl LogEntryFetcher {
                         &mut progress_reset_history,
                         watch_loop_wait_time_ms,
                         &block_hash_cache,
+                        provider.as_ref(),
                     )
                     .await;
 
@@ -580,6 +589,7 @@ async fn check_watch_process(
     progress_reset_history: &mut BTreeMap<u64, (Instant, usize)>,
     watch_loop_wait_time_ms: u64,
     block_hash_cache: &Arc<RwLock<BTreeMap<u64, Option<BlockHashAndSubmissionIndex>>>>,
+    provider: &Provider<RetryClient<Http>>,
 ) {
     let mut min_received_progress = None;
     while let Ok(v) = watch_progress_rx.try_recv() {
@@ -641,7 +651,21 @@ async fn check_watch_process(
                     tokio::time::sleep(Duration::from_secs(RETRY_WAIT_MS)).await;
                 }
             } else {
-                panic!("parent block {} expect exist", *progress - 1);
+                warn!(
+                    "get block hash for block {} from RPC, assume there is no org",
+                    *progress - 1
+                );
+                match provider.get_block(*progress - 1).await {
+                    Ok(Some(v)) => {
+                        v.hash.expect("parent block hash expect exist");
+                    }
+                    Ok(None) => {
+                        panic!("parent block {} expect exist", *progress - 1);
+                    }
+                    Err(e) => {
+                        panic!("parent block {} expect exist, error {}", *progress - 1, e);
+                    }
+                }
             }
         };
     }
