@@ -43,6 +43,9 @@ pub struct Config {
     pub peer_wait_outgoing_connection_timeout: Duration,
     #[serde(deserialize_with = "deserialize_duration")]
     pub peer_next_chunks_request_wait_timeout: Duration,
+    pub max_bandwidth_bytes: u64,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub bandwidth_wait_timeout: Duration,
 
     // auto sync config
     #[serde(deserialize_with = "deserialize_duration")]
@@ -76,6 +79,8 @@ impl Default for Config {
             peer_chunks_download_timeout: Duration::from_secs(15),
             peer_wait_outgoing_connection_timeout: Duration::from_secs(10),
             peer_next_chunks_request_wait_timeout: Duration::from_secs(3),
+            max_bandwidth_bytes: 0,
+            bandwidth_wait_timeout: Duration::from_secs(5),
 
             // auto sync config
             auto_sync_idle_interval: Duration::from_secs(3),

@@ -11,6 +11,7 @@ use network::{
 };
 use rand::Rng;
 use shared_types::{timestamp_now, ChunkArrayWithProof, TxID, CHUNK_SIZE};
+use ssz::Encode;
 use std::{sync::Arc, time::Instant};
 use storage::log_store::log_manager::{sector_to_segment, segment_to_sector, PORA_CHUNK_SIZE};
 use storage_async::Store;
@@ -255,6 +256,17 @@ impl SerialSyncController {
 
     /// Randomly select a peer to sync the next segment.
     fn try_request_next(&mut self) {
+        // limits network bandwidth if configured
+        if self.config.max_bandwidth_bytes > 0 {
+            let m1 = metrics::SERIAL_SYNC_SEGMENT_BANDWIDTH.rate1() as u64;
+            if m1 > self.config.max_bandwidth_bytes {
+                self.state = SyncState::AwaitingDownload {
+                    since: (Instant::now() + self.config.bandwidth_wait_timeout).into(),
+                };
+                return;
+            }
+        }
+
         // request next chunk array
         let from_chunk = self.next_chunk;
         let to_chunk = std::cmp::min(from_chunk + PORA_CHUNK_SIZE as u64, self.goal.index_end);
@@ -407,6 +419,8 @@ impl SerialSyncController {
     }
 
     pub async fn on_response(&mut self, from_peer_id: PeerId, response: ChunkArrayWithProof) {
+        metrics::SERIAL_SYNC_SEGMENT_BANDWIDTH.mark(response.ssz_bytes_len());
+
         if self.handle_on_response_mismatch(from_peer_id) {
             return;
         }

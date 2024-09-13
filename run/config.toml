@@ -277,6 +277,10 @@
 # Timeout to download data from remote peer.
 # peer_chunks_download_timeout = "15s"
 
+# Maximum network bandwidth (B/s) to sync files. Default value is 0,
+# which indicates no limitation.
+# max_bandwidth_bytes = 0
+
 # Maximum threads to sync files in sequence.
 # max_sequential_workers = 0
 
