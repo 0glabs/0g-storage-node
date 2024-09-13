@@ -207,7 +207,6 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     pub fn fill_leaf(&mut self, index: usize, leaf: E) {
         if leaf == E::null() {
             // fill leaf with null is not allowed.
-            return;
         } else if self.layers[0][index] == E::null() {
             self.layers[0][index] = leaf;
             self.recompute_after_fill_leaves(index, index + 1);
