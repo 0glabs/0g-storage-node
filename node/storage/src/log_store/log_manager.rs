@@ -50,7 +50,7 @@ const PAD_MAX_SIZE: usize = 1 << 20;
 
 pub struct UpdateFlowMessage {
     pub root_map: BTreeMap<usize, (H256, usize)>,
-    pub pad_data: Vec<u8>,
+    pub pad_data: usize,
     pub tx_start_flow_index: u64,
 }
 
@@ -770,7 +770,7 @@ impl LogManager {
                         // subtrees with data known.
                         flow_store
                             .append_entries(ChunkArray {
-                                data: data.pad_data,
+                                data: vec![0; data.pad_data],
                                 start_index: data.tx_start_flow_index,
                             })
                             .unwrap();
@@ -973,7 +973,7 @@ impl LogManager {
                 if is_full_empty {
                     self.sender.send(UpdateFlowMessage {
                         root_map,
-                        pad_data: pad_data.to_vec(),
+                        pad_data: pad_data.len(),
                         tx_start_flow_index,
                     })?;
                 } else {
