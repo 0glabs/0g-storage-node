@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1.0.58", features = ["backtrace"] }
-clap = { version = "3.2.5", features = ["cargo"] }
+clap = { version = "4.5.17", features = ["cargo"] }
 ctrlc = "3.2.2"
 error-chain = "0.12.4"
 ethereum-types = "0.14"

@@ -1,6 +1,6 @@
 use clap::{arg, command, Command};
 
-pub fn cli_app<'a>() -> Command<'a> {
+pub fn cli_app() -> Command {
     command!()
         .arg(arg!(-c --config <FILE> "Sets a custom config file"))
         .arg(arg!(--"log-config-file" [FILE] "Sets log configuration file (Default: log_config)"))

@@ -48,7 +48,7 @@ macro_rules! build_config{
                 let mut config = RawConfiguration::default();
 
                 // read from config file
-                if let Some(config_file) = matches.value_of("config") {
+                if let Some(config_file) = matches.get_one::<String>("config") {
                     let config_value = std::fs::read_to_string(config_file)
                         .map_err(|e| format!("failed to read configuration file: {:?}", e))?
                         .parse::<toml::Value>()
@@ -67,7 +67,7 @@ macro_rules! build_config{
                 // read from command line
                 $(
                     #[allow(unused_variables)]
-                    if let Some(value) = matches.value_of(underscore_to_hyphen!(stringify!($name))) {
+                    if let Some(value) = matches.get_one::<String>(&underscore_to_hyphen!(stringify!($name))) {
                         if_not_vector!($($type)+, THEN {
                             config.$name = if_option!($($type)+,
                                 THEN{ Some(value.parse().map_err(|_| concat!("Invalid ", stringify!($name)).to_owned())?) }
