@@ -110,8 +110,7 @@ impl Store {
     }
 
     pub async fn get_num_entries(&self) -> Result<u64> {
-        self.spawn(move |store| store.get_num_entries())
-            .await
+        self.spawn(move |store| store.get_num_entries()).await
     }
 
     pub async fn remove_chunks_batch(&self, batch_list: &[u64]) -> Result<()> {
