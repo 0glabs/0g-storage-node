@@ -11,9 +11,11 @@ pub struct Proof<T: HashElement> {
 
 impl<T: HashElement> Proof<T> {
     /// Creates new MT inclusion proof
-    pub fn new(hash: Vec<T>, path: Vec<bool>) -> Proof<T> {
-        assert_eq!(hash.len() - 2, path.len());
-        Proof { lemma: hash, path }
+    pub fn new(hash: Vec<T>, path: Vec<bool>) -> Result<Proof<T>> {
+        if hash.len() != path.len() + 2 {
+            bail!("hash and path length mismatch");
+        }
+        Ok(Proof { lemma: hash, path })
     }
 
     pub fn new_empty() -> Proof<T> {
@@ -58,10 +60,10 @@ impl<T: HashElement> Proof<T> {
             bail!("Invalid proof");
         }
         if *item != self.item() {
-            bail!("Proof item unmatch");
+            bail!("Proof item mismatch");
         }
         if position != self.position() {
-            bail!("Proof position unmatch");
+            bail!("Proof position mismatch");
         }
         Ok(())
     }
@@ -88,7 +90,7 @@ impl<T: HashElement> Proof<T> {
 
     /// Return `Vec<(index_in_layer, data)>`.
     pub fn proof_nodes_in_tree(&self) -> Vec<(usize, T)> {
-        let mut r = Vec::with_capacity(self.lemma.len());
+        let mut r = Vec::with_capacity(self.lemma.len() - 1);
         let mut pos = 0;
         r.push((0, self.root()));
         for (i, is_left) in self.path.iter().rev().enumerate() {
@@ -108,7 +110,7 @@ impl<T: HashElement> Proof<T> {
         tx_merkle_nodes: Vec<(usize, T)>,
         tx_merkle_nodes_size: usize,
     ) -> Vec<(usize, T)> {
-        let mut r = Vec::with_capacity(self.lemma.len());
+        let mut r = Vec::with_capacity(self.path.len());
         let mut subtree_pos = 0;
         let mut root_pos = 0;
         let mut in_subtree = tx_merkle_nodes_size == 1;
@@ -222,7 +224,7 @@ impl<E: HashElement> RangeProof<E> {
             }
             children_layer = parent_layer;
         }
-        assert_eq!(children_layer.len(), 1);
+        ensure_eq!(children_layer.len(), 1);
         let computed_root = children_layer.pop().unwrap();
         ensure_eq!(computed_root, self.root());
 

@@ -364,7 +364,7 @@ impl TryFrom<FileProof> for FlowProof {
         if lemma.len() != value.path.len() + 2 {
             Err(anyhow!("invalid file proof"))
         } else {
-            Ok(Self::new(lemma, value.path))
+            Self::new(lemma, value.path)
         }
     }
 }

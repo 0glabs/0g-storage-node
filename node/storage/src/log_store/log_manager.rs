@@ -252,7 +252,7 @@ impl LogStoreWrite for LogManager {
                 debug!("recovery with tx_seq={}", tx.seq);
             } else {
                 // This is not supposed to happen since we have checked the tx seq in log entry sync.
-                error!("tx unmatch, expected={} get={:?}", expected_seq, tx);
+                error!("tx mismatch, expected={} get={:?}", expected_seq, tx);
                 bail!("unexpected tx!");
             }
         }
@@ -1173,7 +1173,7 @@ pub fn sub_merkle_tree(leaf_data: &[u8]) -> Result<FileMerkleTree> {
 
 pub fn data_to_merkle_leaves(leaf_data: &[u8]) -> Result<Vec<H256>> {
     if leaf_data.len() % ENTRY_SIZE != 0 {
-        bail!("merkle_tree: unmatch data size");
+        bail!("merkle_tree: mismatched data size");
     }
     // If the data size is small, using `rayon` would introduce more overhead.
     let r = if leaf_data.len() >= ENTRY_SIZE * 8 {
@@ -1211,7 +1211,7 @@ fn entry_proof(top_proof: &FlowProof, sub_proof: &FlowProof) -> Result<FlowProof
     assert!(lemma.pop().is_some());
     lemma.extend_from_slice(&top_proof.lemma()[1..]);
     path.extend_from_slice(top_proof.path());
-    Ok(FlowProof::new(lemma, path))
+    FlowProof::new(lemma, path)
 }
 
 pub fn split_nodes(data_size: usize) -> Vec<usize> {
