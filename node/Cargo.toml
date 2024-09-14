@@ -35,7 +35,7 @@ chunk_pool = { path = "./chunk_pool" }
 itertools = "0.10.5"
 serde = { version = "1.0.137", features = ["derive"] }
 duration-str = "0.5.1"
-config = "0.13.1"
+config = "0.14"
 public-ip = "0.2"
 ethers = "2.0.14"
 metrics = { workspace = true }

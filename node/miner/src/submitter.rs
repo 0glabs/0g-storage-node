@@ -18,7 +18,7 @@ use crate::watcher::MineContextMessage;
 
 use zgs_spec::{BYTES_PER_SEAL, SECTORS_PER_SEAL};
 
-const SUBMISSION_RETIES: usize = 15;
+const SUBMISSION_RETRIES: usize = 15;
 
 pub struct Submitter {
     mine_answer_receiver: mpsc::UnboundedReceiver<AnswerWithoutProof>,
@@ -154,7 +154,7 @@ impl Submitter {
         let pending_transaction: PendingTransaction<'_, _> = submission_call
             .send()
             .await
-            .map_err(|e| format!("Fail to send mine answer transaction: {:?}", e))?;
+            .map_err(|e| format!("Fail to send PoRA submission transaction: {:?}", e))?;
 
         debug!(
             "Signed submission transaction hash: {:?}",
@@ -162,13 +162,13 @@ impl Submitter {
         );
 
         let receipt = pending_transaction
-            .retries(SUBMISSION_RETIES)
+            .retries(SUBMISSION_RETRIES)
             .interval(Duration::from_secs(2))
             .await
-            .map_err(|e| format!("Fail to execute mine answer transaction: {:?}", e))?
+            .map_err(|e| format!("Fail to execute PoRA submission transaction: {:?}", e))?
             .ok_or(format!(
-                "Mine answer transaction dropped after {} retries",
-                SUBMISSION_RETIES
+                "PoRA submission transaction dropped after {} retries",
+                SUBMISSION_RETRIES
             ))?;
 
         info!("Submit PoRA success, receipt: {:?}", receipt);
