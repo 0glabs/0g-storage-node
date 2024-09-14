@@ -74,8 +74,6 @@ impl<'de> Deserialize<'de> for PeerIdSerialized {
 
 pub use crate::types::{error, Enr, GossipTopic, NetworkGlobals, PubsubMessage};
 
-pub use prometheus_client;
-
 pub use behaviour::{BehaviourEvent, Gossipsub, PeerRequestId, Request, Response};
 pub use config::Config as NetworkConfig;
 pub use discovery::{CombinedKeyExt, EnrExt};

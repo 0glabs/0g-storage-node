@@ -31,12 +31,13 @@ impl RecallRange {
     }
 
     pub fn load_position(&self, seed: [u8; 32]) -> Option<u64> {
-        let (_, origin_recall_offset) = U256::from_big_endian(&seed)
-            .div_mod(U256::from((self.mining_length as usize) / SECTORS_PER_LOAD));
+        let origin_recall_offset = U256::from_big_endian(&seed)
+            .checked_rem(U256::from((self.mining_length as usize) / SECTORS_PER_LOAD))?;
         let origin_recall_offset = origin_recall_offset.as_u64();
         let recall_offset = (origin_recall_offset & self.shard_mask) | self.shard_id;
 
-        Some(self.start_position + recall_offset * SECTORS_PER_LOAD as u64)
+        self.start_position
+            .checked_add(recall_offset * SECTORS_PER_LOAD as u64)
     }
 
     pub fn difficulty_scale_x64(&self, flow_length: u64) -> U256 {

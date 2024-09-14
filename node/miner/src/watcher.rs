@@ -47,8 +47,6 @@ impl MineContextWatcher {
         provider: Arc<MineServiceMiddleware>,
         config: &MinerConfig,
     ) -> broadcast::Receiver<MineContextMessage> {
-        let provider = provider;
-
         let mine_contract = PoraMine::new(config.mine_address, provider.clone());
         let flow_contract = ZgsFlow::new(config.flow_address, provider.clone());
 

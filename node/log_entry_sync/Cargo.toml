@@ -11,7 +11,7 @@ append_merkle = { path = "../../common/append_merkle" }
 async-trait = "0.1.56"
 ethereum-types = "0.14"
 futures = "0.3.21"
-jsonrpsee = { version = "0.14.0", features = ["full"] }
+jsonrpsee = { version = "0.14", features = ["full"] }
 shared_types = { path = "../shared_types" }
 task_executor = { path = "../../common/task_executor" }
 tokio = "1.19.2"

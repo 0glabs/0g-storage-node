@@ -98,7 +98,7 @@ impl MineRangeConfig {
         let self_start_position = self.start_position?;
         let self_end_position = self.end_position?;
 
-        if self.start_position >= self.end_position {
+        if self_start_position >= self_end_position {
             return Some(false);
         }
         Some(
