@@ -26,10 +26,13 @@ impl RpcServer for RpcServerImpl {
             .get_sync_progress()?
             .unwrap_or_default();
 
+        let next_tx_seq = self.ctx.log_store.get_store().next_tx_seq();
+
         Ok(Status {
             connected_peers: self.ctx.network_globals.connected_peers(),
             log_sync_height: sync_progress.0,
             log_sync_block: sync_progress.1,
+            next_tx_seq,
             network_identity: self.ctx.network_globals.network_id(),
         })
     }
