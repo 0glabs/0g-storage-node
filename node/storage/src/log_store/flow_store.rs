@@ -491,16 +491,15 @@ impl FlowDBStore {
                         }
                     }
                 }
-            } else if expected_index == batch_index {
+            } else {
+                while batch_index > expected_index {
+                    // Fill the gap with empty leaves.
+                    root_list.push((1, empty_root));
+                    expected_index += 1;
+                }
                 range_root = Some(BatchRoot::Multiple((subtree_depth, root)));
                 root_list.push((subtree_depth, root));
                 expected_index += 1 << (subtree_depth - 1);
-            } else {
-                bail!(
-                    "unexpected range root: expected={} get={}",
-                    expected_index,
-                    batch_index
-                );
             }
         }
         let extra_node_list = self.get_mpt_node_list()?;
