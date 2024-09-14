@@ -183,11 +183,7 @@ pub trait Store:
     LogStoreRead + LogStoreWrite + config::Configurable + Send + Sync + 'static
 {
 }
-impl<
-        T: LogStoreRead + LogStoreWrite + config::Configurable + Send + Sync + 'static,
-    > Store for T
-{
-}
+impl<T: LogStoreRead + LogStoreWrite + config::Configurable + Send + Sync + 'static> Store for T {}
 
 pub struct MineLoadChunk {
     // Use `Vec` instead of array to avoid thread stack overflow.
