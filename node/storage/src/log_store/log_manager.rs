@@ -50,7 +50,7 @@ const PAD_MAX_SIZE: usize = 1 << 20;
 
 pub struct UpdateFlowMessage {
     pub root_map: BTreeMap<usize, (H256, usize)>,
-    pub pad_data: Vec<u8>,
+    pub pad_data: usize,
     pub tx_start_flow_index: u64,
 }
 
@@ -759,7 +759,7 @@ impl LogManager {
 
     fn start_receiver(&mut self, rx: mpsc::Receiver<UpdateFlowMessage>) {
         let flow_store = self.flow_store.clone();
-        thread::spawn(move || -> Result<(), anyhow::Error> {
+        let handle = thread::spawn(move || -> Result<(), anyhow::Error> {
             loop {
                 match rx.recv() {
                     std::result::Result::Ok(data) => {
@@ -770,7 +770,7 @@ impl LogManager {
                         // subtrees with data known.
                         flow_store
                             .append_entries(ChunkArray {
-                                data: data.pad_data,
+                                data: vec![0; data.pad_data],
                                 start_index: data.tx_start_flow_index,
                             })
                             .unwrap();
@@ -781,6 +781,8 @@ impl LogManager {
                 }
             }
         });
+        // Wait for the spawned thread to finish
+        let _ = handle.join().expect("Thread panicked");
     }
 
     fn gen_proof(&self, flow_index: u64, maybe_root: Option<DataRoot>) -> Result<FlowProof> {
@@ -973,7 +975,7 @@ impl LogManager {
                 if is_full_empty {
                     self.sender.send(UpdateFlowMessage {
                         root_map,
-                        pad_data: pad_data.to_vec(),
+                        pad_data: pad_data.len(),
                         tx_start_flow_index,
                     })?;
                 } else {
