@@ -6,12 +6,13 @@ use ethereum_types::H256;
 use ethers::{prelude::Middleware, types::BlockNumber};
 use futures::FutureExt;
 use jsonrpsee::tracing::{debug, error, warn};
-use shared_types::{ChunkArray, Transaction};
+use shared_types::{bytes_to_chunks, ChunkArray, Transaction};
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use storage::log_store::log_manager::sector_to_segment;
 use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::{ShutdownReason, TaskExecutor};
 use thiserror::Error;
@@ -476,6 +477,17 @@ impl LogSyncManager {
                 {
                     error!("put_tx data error: e={:?}", e);
                     return false;
+                }
+            } else {
+                let store = self.store.clone();
+                let shard_config = store.flow().get_shard_config();
+                if sector_to_segment(bytes_to_chunks(tx.size as usize) as u64)
+                    < shard_config.shard_id
+                {
+                    if let Err(e) = store.finalize_tx_with_hash(tx.seq, tx.hash()) {
+                        error!("finalize file that does not need to store: e={:?}", e);
+                        return false;
+                    }
                 }
             }
             self.data_cache.garbage_collect(self.next_tx_seq);
