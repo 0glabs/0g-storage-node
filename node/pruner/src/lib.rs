@@ -198,7 +198,7 @@ impl Pruner {
             ))),
             Ordering::Equal => Ok(None),
             Ordering::Greater => {
-                bail!(
+                warn!(
                     "Unexpected first_rewardable_chunk revert: old={} new={}",
                     self.first_rewardable_chunk,
                     new_first_rewardable
