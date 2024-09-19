@@ -261,30 +261,30 @@ mod tests {
     #[test]
     fn test_shard_intersect() {
         // 1 shard
-        assert_eq!(new_config(0, 1).intersect(&new_config(0, 1)), true);
+        assert!(new_config(0, 1).intersect(&new_config(0, 1)));
 
         // either is 1 shard
-        assert_eq!(new_config(0, 1).intersect(&new_config(0, 2)), true);
-        assert_eq!(new_config(0, 1).intersect(&new_config(1, 2)), true);
-        assert_eq!(new_config(0, 2).intersect(&new_config(0, 1)), true);
-        assert_eq!(new_config(1, 2).intersect(&new_config(0, 1)), true);
+        assert!(new_config(0, 1).intersect(&new_config(0, 2)));
+        assert!(new_config(0, 1).intersect(&new_config(1, 2)));
+        assert!(new_config(0, 2).intersect(&new_config(0, 1)));
+        assert!(new_config(1, 2).intersect(&new_config(0, 1)));
 
         // same shards
-        assert_eq!(new_config(1, 4).intersect(&new_config(0, 4)), false);
-        assert_eq!(new_config(1, 4).intersect(&new_config(1, 4)), true);
-        assert_eq!(new_config(1, 4).intersect(&new_config(2, 4)), false);
-        assert_eq!(new_config(1, 4).intersect(&new_config(3, 4)), false);
+        assert!(!new_config(1, 4).intersect(&new_config(0, 4)));
+        assert!(new_config(1, 4).intersect(&new_config(1, 4)));
+        assert!(!new_config(1, 4).intersect(&new_config(2, 4)));
+        assert!(!new_config(1, 4).intersect(&new_config(3, 4)));
 
         // left shards is less
-        assert_eq!(new_config(1, 2).intersect(&new_config(0, 4)), false);
-        assert_eq!(new_config(1, 2).intersect(&new_config(1, 4)), false);
-        assert_eq!(new_config(1, 2).intersect(&new_config(2, 4)), true);
-        assert_eq!(new_config(1, 2).intersect(&new_config(3, 4)), true);
+        assert!(!new_config(1, 2).intersect(&new_config(0, 4)));
+        assert!(!new_config(1, 2).intersect(&new_config(1, 4)));
+        assert!(new_config(1, 2).intersect(&new_config(2, 4)));
+        assert!(new_config(1, 2).intersect(&new_config(3, 4)));
 
         // right shards is less
-        assert_eq!(new_config(1, 4).intersect(&new_config(0, 2)), true);
-        assert_eq!(new_config(1, 4).intersect(&new_config(1, 2)), false);
-        assert_eq!(new_config(2, 4).intersect(&new_config(0, 2)), false);
-        assert_eq!(new_config(2, 4).intersect(&new_config(1, 2)), true);
+        assert!(new_config(1, 4).intersect(&new_config(0, 2)));
+        assert!(!new_config(1, 4).intersect(&new_config(1, 2)));
+        assert!(!new_config(2, 4).intersect(&new_config(0, 2)));
+        assert!(new_config(2, 4).intersect(&new_config(1, 2)));
     }
 }

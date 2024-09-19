@@ -1,6 +1,7 @@
 import os
 import subprocess
 import tempfile
+import platform
 
 from test_framework.blockchain_node import BlockChainNodeType, BlockchainNode
 from utility.utils import blockchain_rpc_port, arrange_port
@@ -21,6 +22,13 @@ def zg_node_init_genesis(binary: str, root_dir: str, num_nodes: int):
         os.path.dirname(os.path.realpath(__file__)), # test_framework folder
         "..", "config", "0gchain-init-genesis.sh"
     )
+    sys = platform.system().lower()
+    if sys == "darwin":
+        shell_script = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), # test_framework folder
+            "..", "config", "0gchain-init-genesis-mac.sh"
+        )
+
 
     zgchaind_dir = os.path.join(root_dir, "0gchaind")
     os.mkdir(zgchaind_dir)
