@@ -16,7 +16,7 @@ mkdir -p $ROOT_DIR
 SED_I="sed -i"
 OS_NAME=`uname -o`
 if [[ "$OS_NAME" = "Darwin" ]]; then
-	SED_I=sed -i ''
+	SED_I="sed -i ''"
 fi
 
 # Init configs
@@ -66,17 +66,17 @@ for ((i=0; i<$NUM_NODES; i++)) do
 
 	# Change config.toml
 	CONFIG_TOML=$ROOT_DIR/node$i/config/config.toml
-	$SED_I '/seeds = /c\seeds = ""' $CONFIG_TOML
+	# $SED_I '/seeds = /c\seeds = ""' $CONFIG_TOML
 	$SED_I 's/addr_book_strict = true/addr_book_strict = false/' $CONFIG_TOML
 
 	# Change block time to very small
-	$SED_I '/timeout_propose = "3s"/c\timeout_propose = "300ms"' $CONFIG_TOML
-	$SED_I '/timeout_propose_delta = "500ms"/c\timeout_propose_delta = "50ms"' $CONFIG_TOML
-	$SED_I '/timeout_prevote = "1s"/c\timeout_prevote = "100ms"' $CONFIG_TOML
-	$SED_I '/timeout_prevote_delta = "500ms"/c\timeout_prevote_delta = "50ms"' $CONFIG_TOML
-	$SED_I '/timeout_precommit = "1s"/c\timeout_precommit = "100ms"' $CONFIG_TOML
-	$SED_I '/timeout_precommit_delta = "500ms"/c\timeout_precommit_delta = "50ms"' $CONFIG_TOML
-	$SED_I '/timeout_commit = "5s"/c\timeout_commit = "500ms"' $CONFIG_TOML
+	$SED_I 's/timeout_propose = "3s"/timeout_propose = "300ms"/' $CONFIG_TOML
+	$SED_I 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "50ms"/' $CONFIG_TOML
+	$SED_I 's/timeout_prevote = "1s"/timeout_prevote = "100ms"/' $CONFIG_TOML
+	$SED_I 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "50ms"/' $CONFIG_TOML
+	$SED_I 's/timeout_precommit = "1s"/timeout_precommit = "100ms"/' $CONFIG_TOML
+	$SED_I 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "50ms"/' $CONFIG_TOML
+	$SED_I 's/timeout_commit = "5s"/timeout_commit = "500ms"/' $CONFIG_TOML
 done
 
 # Update persistent_peers in config.toml
@@ -88,7 +88,7 @@ for ((i=1; i<$NUM_NODES; i++)) do
 		P2P_PORT=$(($P2P_PORT_START+$j))
 		PERSISTENT_NODES=$PERSISTENT_NODES$NODE_ID@127.0.0.1:$P2P_PORT
 	done
-	$SED_I "/persistent_peers = /c\persistent_peers = \"$PERSISTENT_NODES\"" $ROOT_DIR/node$i/config/config.toml
+	$SED_I "s/persistent_peers = \"\"/persistent_peers = \"$PERSISTENT_NODES\"/" $ROOT_DIR/node$i/config/config.toml
 done
 
 # Create genesis with a single validator
