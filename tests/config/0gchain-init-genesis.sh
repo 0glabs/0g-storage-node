@@ -13,6 +13,12 @@ jq --version >/dev/null 2>&1 || sudo snap install jq -y
 
 mkdir -p $ROOT_DIR
 
+SED_I="sed -i"
+OS_NAME=`uname -o`
+if [[ "$OS_NAME" = "Darwin" ]]; then
+	SED_I=sed -i ''
+fi
+
 # Init configs
 for ((i=0; i<$NUM_NODES; i++)) do
 	$BINARY init node$i --home $ROOT_DIR/node$i --chain-id $CHAIN_ID
@@ -22,10 +28,10 @@ for ((i=0; i<$NUM_NODES; i++)) do
 	TMP_GENESIS=$ROOT_DIR/node$i/config/tmp_genesis.json
 
 	# Replace stake with neuron
-	sed -in-place='' 's/stake/ua0gi/g' "$GENESIS"
+	$SED_I 's/stake/ua0gi/g' "$GENESIS"
 
 	# Replace the default evm denom of aphoton with neuron
-	sed -in-place='' 's/aphoton/neuron/g' "$GENESIS"
+	$SED_I 's/aphoton/neuron/g' "$GENESIS"
 
 	cat $GENESIS | jq '.consensus_params.block.max_gas = "25000000"' >$TMP_GENESIS && mv $TMP_GENESIS $GENESIS
 
@@ -53,24 +59,24 @@ for ((i=0; i<$NUM_NODES; i++)) do
 
 	# Change app.toml
 	APP_TOML=$ROOT_DIR/node$i/config/app.toml
-	sed -i 's/minimum-gas-prices = "0ua0gi"/minimum-gas-prices = "1000000000neuron"/' $APP_TOML
-	sed -i '/\[grpc\]/,/^\[/ s/enable = true/enable = false/' $APP_TOML
-	sed -i '/\[grpc-web\]/,/^\[/ s/enable = true/enable = false/' $APP_TOML
-	sed -i '/\[json-rpc\]/,/^\[/ s/enable = false/enable = true/' $APP_TOML
+	$SED_I 's/minimum-gas-prices = "0ua0gi"/minimum-gas-prices = "1000000000neuron"/' $APP_TOML
+	$SED_I '/\[grpc\]/,/^\[/ s/enable = true/enable = false/' $APP_TOML
+	$SED_I '/\[grpc-web\]/,/^\[/ s/enable = true/enable = false/' $APP_TOML
+	$SED_I '/\[json-rpc\]/,/^\[/ s/enable = false/enable = true/' $APP_TOML
 
 	# Change config.toml
 	CONFIG_TOML=$ROOT_DIR/node$i/config/config.toml
-	sed -i '/seeds = /c\seeds = ""' $CONFIG_TOML
-	sed -i 's/addr_book_strict = true/addr_book_strict = false/' $CONFIG_TOML
+	$SED_I '/seeds = /c\seeds = ""' $CONFIG_TOML
+	$SED_I 's/addr_book_strict = true/addr_book_strict = false/' $CONFIG_TOML
 
 	# Change block time to very small
-	sed -i '/timeout_propose = "3s"/c\timeout_propose = "300ms"' $CONFIG_TOML
-	sed -i '/timeout_propose_delta = "500ms"/c\timeout_propose_delta = "50ms"' $CONFIG_TOML
-	sed -i '/timeout_prevote = "1s"/c\timeout_prevote = "100ms"' $CONFIG_TOML
-	sed -i '/timeout_prevote_delta = "500ms"/c\timeout_prevote_delta = "50ms"' $CONFIG_TOML
-	sed -i '/timeout_precommit = "1s"/c\timeout_precommit = "100ms"' $CONFIG_TOML
-	sed -i '/timeout_precommit_delta = "500ms"/c\timeout_precommit_delta = "50ms"' $CONFIG_TOML
-	sed -i '/timeout_commit = "5s"/c\timeout_commit = "500ms"' $CONFIG_TOML
+	$SED_I '/timeout_propose = "3s"/c\timeout_propose = "300ms"' $CONFIG_TOML
+	$SED_I '/timeout_propose_delta = "500ms"/c\timeout_propose_delta = "50ms"' $CONFIG_TOML
+	$SED_I '/timeout_prevote = "1s"/c\timeout_prevote = "100ms"' $CONFIG_TOML
+	$SED_I '/timeout_prevote_delta = "500ms"/c\timeout_prevote_delta = "50ms"' $CONFIG_TOML
+	$SED_I '/timeout_precommit = "1s"/c\timeout_precommit = "100ms"' $CONFIG_TOML
+	$SED_I '/timeout_precommit_delta = "500ms"/c\timeout_precommit_delta = "50ms"' $CONFIG_TOML
+	$SED_I '/timeout_commit = "5s"/c\timeout_commit = "500ms"' $CONFIG_TOML
 done
 
 # Update persistent_peers in config.toml
@@ -82,7 +88,7 @@ for ((i=1; i<$NUM_NODES; i++)) do
 		P2P_PORT=$(($P2P_PORT_START+$j))
 		PERSISTENT_NODES=$PERSISTENT_NODES$NODE_ID@127.0.0.1:$P2P_PORT
 	done
-	sed -i "/persistent_peers = /c\persistent_peers = \"$PERSISTENT_NODES\"" $ROOT_DIR/node$i/config/config.toml
+	$SED_I "/persistent_peers = /c\persistent_peers = \"$PERSISTENT_NODES\"" $ROOT_DIR/node$i/config/config.toml
 done
 
 # Create genesis with a single validator
