@@ -1,5 +1,6 @@
 //! A collection of variables that are accessible outside of the network thread itself.
 use crate::peer_manager::peerdb::PeerDB;
+use crate::peer_manager::peerdb::PeerDBConfig;
 use crate::Client;
 use crate::EnrExt;
 use crate::{Enr, GossipTopic, Multiaddr, PeerId};
@@ -34,6 +35,7 @@ impl NetworkGlobals {
         tcp_port: u16,
         udp_port: u16,
         trusted_peers: Vec<PeerId>,
+        peer_db_config: PeerDBConfig,
         network_id: NetworkIdentity,
     ) -> Self {
         NetworkGlobals {
@@ -42,7 +44,7 @@ impl NetworkGlobals {
             listen_multiaddrs: RwLock::new(Vec::new()),
             listen_port_tcp: AtomicU16::new(tcp_port),
             listen_port_udp: AtomicU16::new(udp_port),
-            peers: RwLock::new(PeerDB::new(trusted_peers)),
+            peers: RwLock::new(PeerDB::new(peer_db_config, trusted_peers)),
             gossipsub_subscriptions: RwLock::new(HashSet::new()),
             network_id: RwLock::new(network_id),
         }
@@ -110,6 +112,13 @@ impl NetworkGlobals {
         let enr_key: discv5::enr::CombinedKey =
             discv5::enr::CombinedKey::from_libp2p(&keypair).unwrap();
         let enr = discv5::enr::EnrBuilder::new("v4").build(&enr_key).unwrap();
-        NetworkGlobals::new(enr, 9000, 9000, vec![], Default::default())
+        NetworkGlobals::new(
+            enr,
+            9000,
+            9000,
+            vec![],
+            Default::default(),
+            Default::default(),
+        )
     }
 }

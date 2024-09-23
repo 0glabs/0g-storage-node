@@ -5002,6 +5002,7 @@ dependencies = [
  "directory",
  "dirs 4.0.0",
  "discv5",
+ "duration-str",
  "error-chain",
  "eth2_ssz",
  "eth2_ssz_derive",

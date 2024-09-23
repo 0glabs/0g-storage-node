@@ -3,13 +3,15 @@ use crate::{
     multiaddr::{Multiaddr, Protocol},
     Enr, Gossipsub, PeerId,
 };
+use duration_str::deserialize_duration;
 use peer_info::{ConnectionDirection, PeerConnectionStatus, PeerInfo};
 use rand::seq::SliceRandom;
 use score::{PeerAction, ReportSource, Score, ScoreState};
-use std::cmp::Ordering;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, SocketAddr};
 use std::time::Instant;
+use std::{cmp::Ordering, time::Duration};
 use sync_status::SyncStatus;
 
 pub mod client;
@@ -17,21 +19,41 @@ pub mod peer_info;
 pub mod score;
 pub mod sync_status;
 
-/// Max number of disconnected nodes to remember.
-const MAX_DC_PEERS: usize = 500;
-/// The maximum number of banned nodes to remember.
-pub const MAX_BANNED_PEERS: usize = 1000;
 /// We ban an IP if there are more than `BANNED_PEERS_PER_IP_THRESHOLD` banned peers with this IP.
 const BANNED_PEERS_PER_IP_THRESHOLD: usize = 5;
-/// Relative factor of peers that are allowed to have a negative gossipsub score without penalizing
-/// them in lighthouse.
-const ALLOWED_NEGATIVE_GOSSIPSUB_FACTOR: f32 = 0.1;
-/// The time we allow peers to be in the dialing state in our PeerDb before we revert them to a
-/// disconnected state.
-const DIAL_TIMEOUT: u64 = 15;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PeerDBConfig {
+    /// The maximum number of disconnected nodes to remember.
+    pub max_disconnected_peers: usize,
+    /// The maximum number of banned nodes to remember.
+    pub max_banned_peers: usize,
+    /// We ban an IP if there are more than `BANNED_PEERS_PER_IP_THRESHOLD` banned peers with this IP.
+    pub banned_peers_per_ip_threshold: usize,
+    /// Relative factor of peers that are allowed to have a negative gossipsub score without penalizing them in lighthouse.
+    pub allowed_negative_gossipsub_factor: f32,
+    /// The time we allow peers to be in the dialing state in our PeerDb before we revert them to a disconnected state.
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub dail_timeout: Duration,
+}
+
+impl Default for PeerDBConfig {
+    fn default() -> Self {
+        Self {
+            max_disconnected_peers: 500,
+            max_banned_peers: 1000,
+            banned_peers_per_ip_threshold: 5,
+            allowed_negative_gossipsub_factor: 0.1,
+            dail_timeout: Duration::from_secs(15),
+        }
+    }
+}
 
 /// Storage of known peers, their reputation and information
 pub struct PeerDB {
+    config: PeerDBConfig,
+
     /// The collection of known connected peers, their status and reputation
     peers: HashMap<PeerId, PeerInfo>,
     /// The number of disconnected nodes in the database.
@@ -41,13 +63,14 @@ pub struct PeerDB {
 }
 
 impl PeerDB {
-    pub fn new(trusted_peers: Vec<PeerId>) -> Self {
+    pub fn new(config: PeerDBConfig, trusted_peers: Vec<PeerId>) -> Self {
         // Initialize the peers hashmap with trusted peers
         let peers = trusted_peers
             .into_iter()
             .map(|peer_id| (peer_id, PeerInfo::trusted_peer_info()))
             .collect();
         Self {
+            config,
             disconnected_peers: 0,
             banned_peers_count: BannedPeersCount::default(),
             peers,
@@ -316,9 +339,7 @@ impl PeerDB {
             .iter()
             .filter_map(|(peer_id, info)| {
                 if let PeerConnectionStatus::Dialing { since } = info.connection_status() {
-                    if (*since) + std::time::Duration::from_secs(DIAL_TIMEOUT)
-                        < std::time::Instant::now()
-                    {
+                    if (*since) + self.config.dail_timeout < std::time::Instant::now() {
                         return Some(*peer_id);
                     }
                 }
@@ -422,7 +443,7 @@ impl PeerDB {
         peers.sort_unstable_by(|(.., s1), (.., s2)| s2.partial_cmp(s1).unwrap_or(Ordering::Equal));
 
         let mut to_ignore_negative_peers =
-            (target_peers as f32 * ALLOWED_NEGATIVE_GOSSIPSUB_FACTOR).ceil() as usize;
+            (target_peers as f32 * self.config.allowed_negative_gossipsub_factor).ceil() as usize;
 
         for (peer_id, info, score) in peers {
             let previous_state = info.score_state();
@@ -946,11 +967,11 @@ impl PeerDB {
         let excess_peers = self
             .banned_peers_count
             .banned_peers()
-            .saturating_sub(MAX_BANNED_PEERS);
+            .saturating_sub(self.config.max_banned_peers);
         let mut unbanned_peers = Vec::with_capacity(excess_peers);
 
         // Remove excess banned peers
-        while self.banned_peers_count.banned_peers() > MAX_BANNED_PEERS {
+        while self.banned_peers_count.banned_peers() > self.config.max_banned_peers {
             if let Some((to_drop, unbanned_ips)) = if let Some((id, info, _)) = self
                 .peers
                 .iter()
@@ -982,7 +1003,7 @@ impl PeerDB {
         }
 
         // Remove excess disconnected peers
-        while self.disconnected_peers > MAX_DC_PEERS {
+        while self.disconnected_peers > self.config.max_disconnected_peers {
             if let Some(to_drop) = self
                 .peers
                 .iter()
@@ -1210,7 +1231,7 @@ mod tests {
     }
 
     fn get_db() -> PeerDB {
-        PeerDB::new(vec![])
+        PeerDB::new(PeerDBConfig::default(), vec![])
     }
 
     #[test]
@@ -1265,7 +1286,7 @@ mod tests {
 
         use std::collections::BTreeMap;
         let mut peer_list = BTreeMap::new();
-        for id in 0..MAX_DC_PEERS + 1 {
+        for id in 0..pdb.config.max_disconnected_peers + 1 {
             let new_peer = PeerId::random();
             pdb.connect_ingoing(&new_peer, "/ip4/0.0.0.0".parse().unwrap(), None);
             peer_list.insert(id, new_peer);
@@ -1276,11 +1297,15 @@ mod tests {
             pdb.inject_disconnect(p);
             // Allow the timing to update correctly
         }
-        assert_eq!(pdb.disconnected_peers, MAX_DC_PEERS);
+        assert_eq!(pdb.disconnected_peers, pdb.config.max_disconnected_peers);
         assert_eq!(pdb.disconnected_peers, pdb.disconnected_peers().count());
 
         // Only the oldest peer should have been removed
-        for (id, peer_id) in peer_list.iter().rev().take(MAX_DC_PEERS) {
+        for (id, peer_id) in peer_list
+            .iter()
+            .rev()
+            .take(pdb.config.max_disconnected_peers)
+        {
             println!("Testing id {}", id);
             assert!(
                 pdb.peer_info(peer_id).is_some(),
@@ -1301,7 +1326,7 @@ mod tests {
 
         use std::collections::BTreeMap;
         let mut peer_list = BTreeMap::new();
-        for id in 0..MAX_DC_PEERS + 20 {
+        for id in 0..pdb.config.max_disconnected_peers + 20 {
             let new_peer = PeerId::random();
             pdb.connect_ingoing(&new_peer, "/ip4/0.0.0.0".parse().unwrap(), None);
             peer_list.insert(id, new_peer);
@@ -1314,7 +1339,7 @@ mod tests {
         println!("{}", pdb.disconnected_peers);
 
         peer_list.clear();
-        for id in 0..MAX_DC_PEERS + 20 {
+        for id in 0..pdb.config.max_disconnected_peers + 20 {
             let new_peer = PeerId::random();
             pdb.connect_ingoing(&new_peer, "/ip4/0.0.0.0".parse().unwrap(), None);
             peer_list.insert(id, new_peer);
@@ -1345,7 +1370,7 @@ mod tests {
     fn test_disconnected_are_bounded() {
         let mut pdb = get_db();
 
-        for _ in 0..MAX_DC_PEERS + 1 {
+        for _ in 0..pdb.config.max_disconnected_peers + 1 {
             let p = PeerId::random();
             pdb.connect_ingoing(&p, "/ip4/0.0.0.0".parse().unwrap(), None);
         }
@@ -1356,14 +1381,14 @@ mod tests {
         }
         assert_eq!(pdb.disconnected_peers, pdb.disconnected_peers().count());
 
-        assert_eq!(pdb.disconnected_peers, MAX_DC_PEERS);
+        assert_eq!(pdb.disconnected_peers, pdb.config.max_disconnected_peers);
     }
 
     #[test]
     fn test_banned_are_bounded() {
         let mut pdb = get_db();
 
-        for _ in 0..MAX_BANNED_PEERS + 1 {
+        for _ in 0..pdb.config.max_banned_peers + 1 {
             let p = PeerId::random();
             pdb.connect_ingoing(&p, "/ip4/0.0.0.0".parse().unwrap(), None);
         }
@@ -1374,7 +1399,10 @@ mod tests {
             pdb.inject_disconnect(&p);
         }
 
-        assert_eq!(pdb.banned_peers_count.banned_peers(), MAX_BANNED_PEERS);
+        assert_eq!(
+            pdb.banned_peers_count.banned_peers(),
+            pdb.config.max_banned_peers
+        );
     }
 
     #[test]
@@ -1908,7 +1936,7 @@ mod tests {
     #[allow(clippy::float_cmp)]
     fn test_trusted_peers_score() {
         let trusted_peer = PeerId::random();
-        let mut pdb: PeerDB = PeerDB::new(vec![trusted_peer]);
+        let mut pdb: PeerDB = PeerDB::new(PeerDBConfig::default(), vec![trusted_peer]);
 
         pdb.connect_ingoing(&trusted_peer, "/ip4/0.0.0.0".parse().unwrap(), None);
 
