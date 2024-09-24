@@ -219,6 +219,18 @@ reward_contract_address = "0x0496D0817BD8519e0de4894Dc379D35c35275609"
 # prune_batch_wait_time_ms = 1000
 
 #######################################################################
+###                Network Peer DB Config Options                   ###
+#######################################################################
+
+# [network_peer_db]
+
+# The maximum number of disconnected nodes to remember.
+# max_disconnected_peers = 500
+
+# The maximum number of banned nodes to remember.
+# max_banned_peers = 1000
+
+#######################################################################
 ###                   Router Config Options                         ###
 #######################################################################
 

@@ -91,6 +91,9 @@ build_config! {
 pub struct ZgsConfig {
     pub raw_conf: RawConfiguration,
 
+    /// Network peer db config, configured by [network_peer_db] section by `config` crate.
+    pub network_peer_db: network::peer_manager::peerdb::PeerDBConfig,
+
     // router config, configured by [router] section by `config` crate.
     pub router: router::Config,
 

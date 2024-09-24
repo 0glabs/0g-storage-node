@@ -40,6 +40,7 @@ unsigned-varint = { version = "=0.7.1", features = ["codec"] }
 if-addrs = "0.10.1"
 slog = "2.7.0"
 igd = "0.12.1"
+duration-str = "0.5.1"
 
 [dependencies.libp2p]
 version = "0.45.1"

@@ -96,6 +96,8 @@ impl ZgsConfig {
         network_config.target_peers = self.network_target_peers;
         network_config.private = self.network_private;
 
+        network_config.peer_db = self.network_peer_db;
+
         Ok(network_config)
     }
 

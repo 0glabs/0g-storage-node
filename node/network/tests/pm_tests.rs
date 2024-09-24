@@ -9,7 +9,7 @@ use common::{
     swarm,
 };
 use network::{
-    peer_manager::{self, config::Config, PeerManagerEvent},
+    peer_manager::{config::Config, peerdb::PeerDBConfig, PeerManagerEvent},
     NetworkGlobals, PeerAction, PeerInfo, PeerManager, ReportSource,
 };
 
@@ -101,7 +101,7 @@ async fn banned_peers_consistency() {
     };
 
     let excess_banned_peers = 15;
-    let peers_to_ban = peer_manager::peerdb::MAX_BANNED_PEERS + excess_banned_peers;
+    let peers_to_ban = PeerDBConfig::default().max_banned_peers + excess_banned_peers;
 
     // Build all the dummy peers needed.
     let (mut swarm_pool, peers) = {

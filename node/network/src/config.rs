@@ -1,3 +1,4 @@
+use crate::peer_manager::peerdb::PeerDBConfig;
 use crate::types::GossipKind;
 use crate::{Enr, PeerIdSerialized};
 use directory::{
@@ -126,6 +127,8 @@ pub struct Config {
 
     /// The id of the storage network.
     pub network_id: NetworkIdentity,
+
+    pub peer_db: PeerDBConfig,
 }
 
 impl Default for Config {
@@ -204,6 +207,7 @@ impl Default for Config {
             topics: Vec::new(),
             metrics_enabled: false,
             network_id: Default::default(),
+            peer_db: Default::default(),
         }
     }
 }
