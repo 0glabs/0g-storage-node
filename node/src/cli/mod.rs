@@ -10,4 +10,5 @@ pub fn cli_app() -> Command {
         )
         .arg(arg!(--"db-max-num-chunks" [NUM] "Sets the max number of chunks to store in db (Default: None)"))
         .allow_external_subcommands(true)
+        .version(zgs_version::VERSION)
 }
