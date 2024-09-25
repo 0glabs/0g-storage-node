@@ -48,14 +48,6 @@ build_config! {
     (remove_finalized_block_interval_minutes, (u64), 30)
     (watch_loop_wait_time_ms, (u64), 500)
 
-    // rpc
-    (rpc_enabled, (bool), true)
-    (rpc_listen_address, (String), "0.0.0.0:5678".to_string())
-    (rpc_listen_address_admin, (String), "127.0.0.1:5679".to_string())
-    (max_request_body_size, (u32), 100*1024*1024) // 100MB
-    (rpc_chunks_per_segment, (usize), 1024)
-    (rpc_max_cache_file_size, (usize), 10*1024*1024) //10MB
-
     // chunk pool
     (chunk_pool_write_window_size, (usize), 4)
     (chunk_pool_max_cached_chunks_all, (usize), 4*1024*1024)    // 1G
@@ -102,6 +94,9 @@ pub struct ZgsConfig {
 
     // file location cache config, configured by [file_location_cache] section by `config` crate.
     pub file_location_cache: file_location_cache::Config,
+
+    // rpc config, configured by [rpc] section by `config` crate.
+    pub rpc: rpc::RPCConfig,
 
     // metrics config, configured by [metrics] section by `config` crate.
     pub metrics: metrics::MetricsConfiguration,

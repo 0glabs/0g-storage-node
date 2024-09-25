@@ -20,7 +20,6 @@ use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
 use network::NetworkGlobals;
 use network::NetworkMessage;
 use std::error::Error;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use storage_async::Store;
 use sync::{SyncRequest, SyncResponse, SyncSender};
@@ -69,9 +68,10 @@ impl Context {
 pub async fn run_server(
     ctx: Context,
 ) -> Result<(HttpServerHandle, Option<HttpServerHandle>), Box<dyn Error>> {
-    let handles = match ctx.config.listen_address_admin {
-        Some(listen_addr_private) => run_server_public_private(ctx, listen_addr_private).await?,
-        None => (run_server_all(ctx).await?, None),
+    let handles = if ctx.config.listen_address.port() != ctx.config.listen_address_admin.port() {
+        run_server_public_private(ctx).await?
+    } else {
+        (run_server_all(ctx).await?, None)
     };
 
     info!("Server started");
@@ -107,7 +107,6 @@ async fn run_server_all(ctx: Context) -> Result<HttpServerHandle, Box<dyn Error>
 /// Run 2 RPC servers (public & private) for different namespace RPCs.
 async fn run_server_public_private(
     ctx: Context,
-    listen_addr_private: SocketAddr,
 ) -> Result<(HttpServerHandle, Option<HttpServerHandle>), Box<dyn Error>> {
     // public rpc
     let zgs = (zgs::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
@@ -127,7 +126,7 @@ async fn run_server_public_private(
         .start(zgs)?;
 
     let handle_private = server_builder(ctx.clone())
-        .build(listen_addr_private)
+        .build(ctx.config.listen_address_admin)
         .await?
         .start(admin)?;
 

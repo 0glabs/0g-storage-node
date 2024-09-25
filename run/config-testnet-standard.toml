@@ -121,28 +121,6 @@ log_sync_start_block_number = 595059
 # watch_loop_wait_time_ms = 500
 
 #######################################################################
-###                     RPC Config Options                          ###
-#######################################################################
-
-# Whether to provide RPC service.
-# rpc_enabled = true
-
-# HTTP server address to bind for public RPC.
-# rpc_listen_address = "0.0.0.0:5678"
-
-# HTTP server address to bind for admin and debug RPC.
-# rpc_listen_address_admin = "127.0.0.1:5679"
-
-# Maximum data size of RPC request body (by default, 100MB).
-# max_request_body_size = 104857600
-
-# Number of chunks for a single segment.
-# rpc_chunks_per_segment = 1024
-
-# Maximum file size that allowed to cache in memory (by default, 10MB).
-# rpc_max_cache_file_size = 10485760
-
-#######################################################################
 ###                     Chunk Pool Config Options                   ###
 #######################################################################
 
@@ -311,6 +289,30 @@ auto_sync_enabled = true
 # Validity period of location information.
 # If the timestamp in the storage location information exceeds this duration from the current time, it will be removed from the cache.
 # entry_expiration_time_secs = 86400
+
+#######################################################################
+###                     RPC Config Options                          ###
+#######################################################################
+
+# [rpc]
+
+# Whether to provide RPC service.
+# enabled = true
+
+# HTTP server address to bind for public RPC.
+# listen_address = "0.0.0.0:5678"
+
+# HTTP server address to bind for admin and debug RPC.
+# listen_address_admin = "127.0.0.1:5679"
+
+# Number of chunks for a single segment.
+# chunks_per_segment = 1024
+
+# Maximum data size of RPC request body (by default, 100MB).
+# max_request_body_size = 104857600
+
+# Maximum file size that allowed to cache in memory (by default, 10MB).
+# max_cache_file_size = 10485760
 
 #######################################################################
 ###                      Metrics Options                            ###
