@@ -1,4 +1,5 @@
 use super::load_chunk::EntryBatch;
+use super::seal_task_manager::SealTaskManager;
 use super::{MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
 use crate::error::Error;
@@ -24,11 +25,7 @@ use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_S
 
 pub struct FlowStore {
     db: FlowDBStore,
-    // TODO(kevin): This is an in-memory cache for recording which chunks are ready for sealing. It should be persisted on disk.
-    to_seal_set: RwLock<BTreeMap<usize, usize>>,
-    // Data sealing is an asynchronized process.
-    // The sealing service uses the version number to distinguish if revert happens during sealing.
-    to_seal_version: RwLock<usize>,
+    seal_manager: SealTaskManager,
     config: FlowConfig,
 }
 
@@ -36,8 +33,7 @@ impl FlowStore {
     pub fn new(db: Arc<dyn ZgsKeyValueDB>, config: FlowConfig) -> Self {
         Self {
             db: FlowDBStore::new(db),
-            to_seal_set: Default::default(),
-            to_seal_version: RwLock::new(0),
+            seal_manager: Default::default(),
             config,
         }
     }
@@ -80,14 +76,7 @@ impl FlowStore {
     }
 
     pub fn delete_batch_list(&self, batch_list: &[u64]) -> Result<()> {
-        let mut to_seal_set = self.to_seal_set.write();
-        for batch_index in batch_list {
-            for seal_index in (*batch_index as usize) * SEALS_PER_LOAD
-                ..(*batch_index as usize + 1) * SEALS_PER_LOAD
-            {
-                to_seal_set.remove(&seal_index);
-            }
-        }
+        self.seal_manager.delete_batch_list(batch_list);
         self.db.delete_batch_list(batch_list)
     }
 
@@ -232,7 +221,7 @@ impl FlowWrite for FlowStore {
     /// Return the roots of completed chunks. The order is guaranteed to be increasing
     /// by chunk index.
     fn append_entries(&self, data: ChunkArray) -> Result<Vec<(u64, DataRoot)>> {
-        let mut to_seal_set = self.to_seal_set.write();
+        let mut to_seal_set = self.seal_manager.to_seal_set.write();
         trace!("append_entries: {} {}", data.start_index, data.data.len());
         if data.data.len() % BYTES_PER_SECTOR != 0 {
             bail!("append_entries: invalid data size, len={}", data.data.len());
@@ -263,12 +252,14 @@ impl FlowWrite for FlowStore {
                 (chunk.start_index % self.config.batch_size as u64) as usize,
                 chunk.data,
             )?;
-            completed_seals.into_iter().for_each(|x| {
-                to_seal_set.insert(
-                    chunk_index as usize * SEALS_PER_LOAD + x as usize,
-                    *self.to_seal_version.read(),
-                );
-            });
+            if self.seal_manager.seal_worker_available() {
+                completed_seals.into_iter().for_each(|x| {
+                    to_seal_set.insert(
+                        chunk_index as usize * SEALS_PER_LOAD + x as usize,
+                        self.seal_manager.to_seal_version(),
+                    );
+                });
+            }
 
             batch_list.push((chunk_index, batch));
         }
@@ -276,15 +267,14 @@ impl FlowWrite for FlowStore {
     }
 
     fn truncate(&self, start_index: u64) -> crate::error::Result<()> {
-        let mut to_seal_set = self.to_seal_set.write();
-        let mut to_seal_version = self.to_seal_version.write();
+        let mut to_seal_set = self.seal_manager.to_seal_set.write();
         let to_reseal = self.db.truncate(start_index, self.config.batch_size)?;
 
         to_seal_set.split_off(&(start_index as usize / SECTORS_PER_SEAL));
-        *to_seal_version += 1;
+        let new_seal_version = self.seal_manager.inc_seal_version();
 
         to_reseal.into_iter().for_each(|x| {
-            to_seal_set.insert(x, *to_seal_version);
+            to_seal_set.insert(x, new_seal_version);
         });
         Ok(())
     }
@@ -296,7 +286,9 @@ impl FlowWrite for FlowStore {
 
 impl FlowSeal for FlowStore {
     fn pull_seal_chunk(&self, seal_index_max: usize) -> Result<Option<Vec<SealTask>>> {
-        let to_seal_set = self.to_seal_set.read();
+        let to_seal_set = self.seal_manager.to_seal_set.read();
+        self.seal_manager.update_pull_time();
+
         let mut to_seal_iter = to_seal_set.iter();
         let (&first_index, &first_version) = try_option!(to_seal_iter.next());
         if first_index >= seal_index_max {
@@ -330,7 +322,7 @@ impl FlowSeal for FlowStore {
     }
 
     fn submit_seal_result(&self, answers: Vec<SealAnswer>) -> Result<()> {
-        let mut to_seal_set = self.to_seal_set.write();
+        let mut to_seal_set = self.seal_manager.to_seal_set.write();
         let is_consistent = |answer: &SealAnswer| {
             to_seal_set
                 .get(&(answer.seal_index as usize))
