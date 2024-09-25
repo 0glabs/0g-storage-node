@@ -34,11 +34,15 @@ class ZgsNode(TestNode):
                 for i in range(index):
                     libp2p_nodes.append(f"/ip4/127.0.0.1/tcp/{p2p_port(i)}")
 
+        rpc_listen_address = f"127.0.0.1:{rpc_port(index)}"
+
         indexed_config = {
             "network_libp2p_port": p2p_port(index),
             "network_discovery_port": p2p_port(index),
-            "rpc_listen_address": f"127.0.0.1:{rpc_port(index)}",
-            "rpc_listen_address_admin": "",
+            "rpc": {
+                "listen_address": rpc_listen_address,
+                "listen_address_admin": rpc_listen_address,
+            },
             "network_libp2p_nodes": libp2p_nodes,
             "log_contract_address": log_contract_address,
             "mine_contract_address": mine_contract_address,
@@ -50,7 +54,7 @@ class ZgsNode(TestNode):
         # Overwrite with personalized configs.
         update_config(local_conf, updated_config)
         data_dir = os.path.join(root_dir, "zgs_node" + str(index))
-        rpc_url = "http://" + local_conf["rpc_listen_address"]
+        rpc_url = "http://" + rpc_listen_address
         super().__init__(
             NodeType.Zgs,
             index,

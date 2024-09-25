@@ -13,7 +13,6 @@ use std::error::Error;
 async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client, String> {
     let network_config = config.network_config().await?;
     let storage_config = config.storage_config()?;
-    let rpc_config = config.rpc_config()?;
     let log_sync_config = config.log_sync_config()?;
     let miner_config = config.mine_config()?;
     let router_config = config.router_config(&network_config)?;
@@ -33,7 +32,7 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
         .await?
         .with_pruner(pruner_config)
         .await?
-        .with_rpc(rpc_config, config.chunk_pool_config()?)
+        .with_rpc(config.rpc, config.chunk_pool_config()?)
         .await?
         .with_router(router_config)?
         .build()
