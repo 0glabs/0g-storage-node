@@ -99,6 +99,8 @@ pub struct Libp2pEventHandler {
     file_batcher: RwLock<Batcher<TxID>>,
     /// Announcements to publish in batch
     announcement_batcher: RwLock<Batcher<SignedAnnounceFile>>,
+
+    since: Instant,
 }
 
 impl Libp2pEventHandler {
@@ -138,6 +140,7 @@ impl Libp2pEventHandler {
             peers,
             file_batcher,
             announcement_batcher,
+            since: Instant::now(),
         }
     }
 
@@ -325,14 +328,17 @@ impl Libp2pEventHandler {
                 self.on_find_chunks(msg).await
             }
             PubsubMessage::AnnounceFile(msgs) => {
-                let txs = msgs
-                    .iter()
-                    .map(|file| file.tx_ids.iter().map(|x| x.seq).collect::<Vec<u64>>())
-                    .collect::<Vec<Vec<u64>>>();
-                info!(
-                    "qbit: received file announcement, propagation={}, source={}, txs={:?}",
-                    propagation_source, source, txs
-                );
+                let elapsed = self.since.elapsed().as_secs();
+                if elapsed > 600 && elapsed < 1200 {
+                    let txs = msgs
+                        .iter()
+                        .map(|file| file.tx_ids.iter().map(|x| x.seq).collect::<Vec<u64>>())
+                        .collect::<Vec<Vec<u64>>>();
+                    info!(
+                        "qbit: received file announcement, propagation={}, source={}, txs={:?}",
+                        propagation_source, source, txs
+                    );
+                }
 
                 metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE.mark(1);
 
