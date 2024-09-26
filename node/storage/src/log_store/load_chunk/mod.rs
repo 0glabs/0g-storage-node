@@ -127,6 +127,14 @@ impl EntryBatch {
     /// Return `Error` if the new data overlaps with old data.
     /// Convert `Incomplete` to `Completed` if the chunk is completed after the insertion.
     pub fn insert_data(&mut self, offset: usize, data: Vec<u8>) -> Result<Vec<u16>> {
+        if data.is_empty()
+            || self
+                .get_unsealed_data(offset, data.len() / BYTES_PER_SECTOR)
+                .as_ref()
+                == Some(&data)
+        {
+            return Ok(vec![]);
+        }
         self.data.insert_data(offset * BYTES_PER_SECTOR, data)
     }
 

@@ -708,6 +708,7 @@ impl LogManager {
         };
 
         if let Some(tx) = last_tx_to_insert {
+            log_manager.revert_to(tx.seq - 1)?;
             log_manager.put_tx(tx)?;
             let mut merkle = log_manager.merkle.write();
             for (index, h) in extra_leaves {

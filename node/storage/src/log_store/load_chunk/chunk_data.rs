@@ -189,15 +189,8 @@ impl EntryBatchData {
     }
 
     pub fn insert_data(&mut self, start_byte: usize, mut data: Vec<u8>) -> Result<Vec<u16>> {
-        assert!(start_byte % BYTES_PER_SECTOR == 0);
-        assert!(data.len() % BYTES_PER_SECTOR == 0);
-
-        if data.is_empty() || self.get(start_byte, data.len()) == Some(&data) {
-            // TODO(zz): This assumes the caller has processed chain reorg (truncate flow) before
-            //  inserting new data, and the data of the same file are always inserted with the
-            //  same pattern.
-            return Ok(vec![]);
-        }
+        assert_eq!(start_byte % BYTES_PER_SECTOR, 0);
+        assert_eq!(data.len() % BYTES_PER_SECTOR, 0);
 
         // Check if the entry is completed
         let (list, subtree_list) = if let EntryBatchData::Incomplete(x) = self {
