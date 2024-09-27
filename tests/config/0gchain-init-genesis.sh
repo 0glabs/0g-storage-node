@@ -28,7 +28,7 @@ for ((i=0; i<$NUM_NODES; i++)) do
 	TMP_GENESIS=$ROOT_DIR/node$i/config/tmp_genesis.json
 
 	# Replace stake with neuron
-	$SED_I 's/stake/ua0gi/g' "$GENESIS"
+	$SED_I 's/"stake"/"ua0gi"/g' "$GENESIS"
 
 	# Replace the default evm denom of aphoton with neuron
 	$SED_I 's/aphoton/neuron/g' "$GENESIS"
