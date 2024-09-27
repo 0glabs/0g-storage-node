@@ -66,7 +66,7 @@ impl Default for Config {
             // sync service config
             heartbeat_interval: Duration::from_secs(5),
             auto_sync_enabled: false,
-            max_sync_files: 32,
+            max_sync_files: 8,
             sync_file_by_rpc_enabled: true,
             sync_file_on_announcement_enabled: false,
 
@@ -86,7 +86,7 @@ impl Default for Config {
             auto_sync_idle_interval: Duration::from_secs(3),
             auto_sync_error_interval: Duration::from_secs(10),
             max_sequential_workers: 0,
-            max_random_workers: 30,
+            max_random_workers: 2,
             sequential_find_peer_timeout: Duration::from_secs(60),
             random_find_peer_timeout: Duration::from_secs(500),
         }

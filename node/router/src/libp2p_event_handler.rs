@@ -948,8 +948,14 @@ mod tests {
             let keypair = Keypair::generate_secp256k1();
             let enr_key = CombinedKey::from_libp2p(&keypair).unwrap();
             let enr = EnrBuilder::new("v4").build(&enr_key).unwrap();
-            let network_globals =
-                NetworkGlobals::new(enr, 30000, 30000, vec![], Default::default());
+            let network_globals = NetworkGlobals::new(
+                enr,
+                30000,
+                30000,
+                vec![],
+                Default::default(),
+                Default::default(),
+            );
 
             let listen_addr: Multiaddr = "/ip4/127.0.0.1/tcp/30000".parse().unwrap();
             network_globals.listen_multiaddrs.write().push(listen_addr);

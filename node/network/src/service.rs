@@ -84,6 +84,7 @@ impl<AppReqId: ReqId> Service<AppReqId> {
                 .iter()
                 .map(|x| PeerId::from(x.clone()))
                 .collect(),
+            config.peer_db,
             config.network_id.clone(),
         ));
 
