@@ -484,7 +484,7 @@ impl LogSyncManager {
                 let shard_config = store.flow().get_shard_config();
                 let start_segment_index = tx.start_entry_index as usize / PORA_CHUNK_SIZE;
                 let end_segment_index = start_segment_index
-                    + sector_to_segment(bytes_to_chunks(tx.size as usize) as u64)
+                    + ((sector_index + PORA_CHUNK_SIZE - 1) / PORA_CHUNK_SIZE)
                     - 1;
                 let mut can_finalize = false;
                 if end_segment_index < shard_config.shard_id {
