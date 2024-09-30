@@ -12,7 +12,7 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use storage::log_store::log_manager::{PORA_CHUNK_SIZE};
+use storage::log_store::log_manager::PORA_CHUNK_SIZE;
 use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::{ShutdownReason, TaskExecutor};
 use thiserror::Error;
