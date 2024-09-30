@@ -75,7 +75,7 @@ def build_zg(dir: str) -> BuildBinaryResult:
         dir=dir,
         binary_name=ZG_BINARY,
         github_url="https://github.com/0glabs/0g-chain.git",
-        build_cmd="make install; cp $(go env GOPATH)/bin/0gchaind .",
+        build_cmd="git fetch origin pull/74/head:pr-74; git checkout pr-74; make install; cp $(go env GOPATH)/bin/0gchaind .",
         compiled_relative_path=[],
     )
 
