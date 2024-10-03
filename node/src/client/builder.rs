@@ -89,9 +89,10 @@ impl ClientBuilder {
 
     /// Initializes in-memory storage.
     pub fn with_memory_store(mut self) -> Result<Self, String> {
+        let executor = require!("sync", self, runtime_context).clone().executor;
         // TODO(zz): Set config.
         let store = Arc::new(
-            LogManager::memorydb(LogConfig::default())
+            LogManager::memorydb(LogConfig::default(), executor)
                 .map_err(|e| format!("Unable to start in-memory store: {:?}", e))?,
         );
 
@@ -109,8 +110,9 @@ impl ClientBuilder {
 
     /// Initializes RocksDB storage.
     pub fn with_rocksdb_store(mut self, config: &StorageConfig) -> Result<Self, String> {
+        let executor = require!("sync", self, runtime_context).clone().executor;
         let store = Arc::new(
-            LogManager::rocksdb(LogConfig::default(), &config.db_dir)
+            LogManager::rocksdb(LogConfig::default(), &config.db_dir, executor)
                 .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))?,
         );
 

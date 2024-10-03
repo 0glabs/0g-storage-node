@@ -23,7 +23,6 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::mpsc;
 use std::sync::Arc;
-use std::thread;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use super::tx_store::BlockHashAndSubmissionIndex;
@@ -606,19 +605,27 @@ impl LogStoreRead for LogManager {
 }
 
 impl LogManager {
-    pub fn rocksdb(config: LogConfig, path: impl AsRef<Path>) -> Result<Self> {
+    pub fn rocksdb(
+        config: LogConfig,
+        path: impl AsRef<Path>,
+        executor: task_executor::TaskExecutor,
+    ) -> Result<Self> {
         let mut db_config = DatabaseConfig::with_columns(COL_NUM);
         db_config.enable_statistics = true;
         let db = Arc::new(Database::open(&db_config, path)?);
-        Self::new(db, config)
+        Self::new(db, config, executor)
     }
 
-    pub fn memorydb(config: LogConfig) -> Result<Self> {
+    pub fn memorydb(config: LogConfig, executor: task_executor::TaskExecutor) -> Result<Self> {
         let db = Arc::new(kvdb_memorydb::create(COL_NUM));
-        Self::new(db, config)
+        Self::new(db, config, executor)
     }
 
-    fn new(db: Arc<dyn ZgsKeyValueDB>, config: LogConfig) -> Result<Self> {
+    fn new(
+        db: Arc<dyn ZgsKeyValueDB>,
+        config: LogConfig,
+        executor: task_executor::TaskExecutor,
+    ) -> Result<Self> {
         let tx_store = TransactionStore::new(db.clone())?;
         let flow_store = Arc::new(FlowStore::new(db.clone(), config.flow));
         let mut initial_data = flow_store.get_chunk_root_list()?;
@@ -735,7 +742,7 @@ impl LogManager {
             sender,
         };
 
-        log_manager.start_receiver(receiver);
+        log_manager.start_receiver(receiver, executor);
 
         if let Some(tx) = last_tx_to_insert {
             log_manager.revert_to(tx.seq - 1)?;
@@ -758,32 +765,39 @@ impl LogManager {
         Ok(log_manager)
     }
 
-    fn start_receiver(&mut self, rx: mpsc::Receiver<UpdateFlowMessage>) {
+    fn start_receiver(
+        &mut self,
+        rx: mpsc::Receiver<UpdateFlowMessage>,
+        executor: task_executor::TaskExecutor,
+    ) {
         let flow_store = self.flow_store.clone();
-        let handle = thread::spawn(move || -> Result<(), anyhow::Error> {
-            loop {
-                match rx.recv() {
-                    std::result::Result::Ok(data) => {
-                        // Update the root index.
-                        flow_store.put_batch_root_list(data.root_map).unwrap();
-                        // Update the flow database.
-                        // This should be called before `complete_last_chunk_merkle` so that we do not save
-                        // subtrees with data known.
-                        flow_store
-                            .append_entries(ChunkArray {
-                                data: vec![0; data.pad_data],
-                                start_index: data.tx_start_flow_index,
-                            })
-                            .unwrap();
-                    }
-                    std::result::Result::Err(_) => {
-                        bail!("Receiver error");
-                    }
+        executor.spawn(
+            async move {
+                loop {
+                    match rx.recv() {
+                        std::result::Result::Ok(data) => {
+                            // Update the root index.
+                            flow_store.put_batch_root_list(data.root_map).unwrap();
+                            // Update the flow database.
+                            // This should be called before `complete_last_chunk_merkle` so that we do not save
+                            // subtrees with data known.
+                            flow_store
+                                .append_entries(ChunkArray {
+                                    data: vec![0; data.pad_data],
+                                    start_index: data.tx_start_flow_index,
+                                })
+                                .unwrap();
+                        }
+                        std::result::Result::Err(_) => {
+                            error!("Receiver error");
+                        }
+                    };
                 }
-            }
-        });
+            },
+            "pad_tx",
+        );
         // Wait for the spawned thread to finish
-        let _ = handle.join().expect("Thread panicked");
+        // let _ = handle.join().expect("Thread panicked");
     }
 
     fn gen_proof(&self, flow_index: u64, maybe_root: Option<DataRoot>) -> Result<FlowProof> {

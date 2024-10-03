@@ -1294,7 +1294,9 @@ mod tests {
 
         let config = LogConfig::default();
 
-        let store = Arc::new(LogManager::memorydb(config.clone()).unwrap());
+        let executor = runtime.task_executor.clone();
+
+        let store = Arc::new(LogManager::memorydb(config.clone(), executor).unwrap());
 
         let init_peer_id = identity::Keypair::generate_ed25519().public().to_peer_id();
         let file_location_cache: Arc<FileLocationCache> =

@@ -8,11 +8,15 @@ use ethereum_types::H256;
 use rand::random;
 use shared_types::{compute_padded_chunk_size, ChunkArray, Transaction, CHUNK_SIZE};
 use std::cmp;
+use task_executor::test_utils::TestRuntime;
 
 #[test]
 fn test_put_get() {
     let config = LogConfig::default();
-    let store = LogManager::memorydb(config.clone()).unwrap();
+    let runtime = TestRuntime::default();
+
+    let executor = runtime.task_executor.clone();
+    let store = LogManager::memorydb(config.clone(), executor).unwrap();
     let chunk_count = config.flow.batch_size + config.flow.batch_size / 2 - 1;
     // Aligned with size.
     let start_offset = 1024;
@@ -169,8 +173,10 @@ fn test_put_tx() {
 
 fn create_store() -> LogManager {
     let config = LogConfig::default();
+    let runtime = TestRuntime::default();
+    let executor = runtime.task_executor.clone();
 
-    LogManager::memorydb(config).unwrap()
+    LogManager::memorydb(config, executor).unwrap()
 }
 
 fn put_tx(store: &mut LogManager, chunk_count: usize, seq: u64) {
