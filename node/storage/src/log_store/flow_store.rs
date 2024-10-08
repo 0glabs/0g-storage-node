@@ -3,7 +3,8 @@ use super::{MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
 use crate::error::Error;
 use crate::log_store::log_manager::{
-    bytes_to_entries, COL_ENTRY_BATCH, COL_ENTRY_BATCH_ROOT, COL_FLOW_MPT_NODES, PORA_CHUNK_SIZE,
+    bytes_to_entries, data_to_merkle_leaves, COL_ENTRY_BATCH, COL_ENTRY_BATCH_ROOT,
+    COL_FLOW_MPT_NODES, ENTRY_SIZE, PORA_CHUNK_SIZE,
 };
 use crate::log_store::{FlowRead, FlowSeal, FlowWrite};
 use crate::{try_option, ZgsKeyValueDB};
@@ -11,7 +12,7 @@ use anyhow::{anyhow, bail, Result};
 use append_merkle::{MerkleTreeInitialData, MerkleTreeRead};
 use itertools::Itertools;
 use parking_lot::RwLock;
-use shared_types::{ChunkArray, DataRoot, FlowProof};
+use shared_types::{ChunkArray, DataRoot, FlowProof, Merkle};
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 use std::cmp::Ordering;
@@ -441,6 +442,10 @@ impl FlowDBStore {
         // and they will be updated in the merkle tree with `fill_leaf` by the caller.
         let mut leaf_list = Vec::new();
         let mut expected_index = 0;
+
+        let empty_data = vec![0; PORA_CHUNK_SIZE * ENTRY_SIZE];
+        let empty_root = *Merkle::new(data_to_merkle_leaves(&empty_data)?, 0, None).root();
+
         for r in self.kvdb.iter(COL_ENTRY_BATCH_ROOT) {
             let (index_bytes, root_bytes) = r?;
             let (batch_index, subtree_depth) = decode_batch_root_key(index_bytes.as_ref())?;
@@ -475,25 +480,26 @@ impl FlowDBStore {
                             expected_index += 1;
                         }
                         Ordering::Greater => {
-                            bail!(
-                                "unexpected chunk leaf in range, expected={}, get={}, range={:?}",
-                                expected_index,
-                                batch_index,
-                                range_root,
-                            );
+                            while batch_index > expected_index {
+                                // Fill the gap with empty leaves.
+                                root_list.push((1, empty_root));
+                                expected_index += 1;
+                            }
+                            range_root = None;
+                            root_list.push((1, root));
+                            expected_index += 1;
                         }
                     }
                 }
-            } else if expected_index == batch_index {
+            } else {
+                while batch_index > expected_index {
+                    // Fill the gap with empty leaves.
+                    root_list.push((1, empty_root));
+                    expected_index += 1;
+                }
                 range_root = Some(BatchRoot::Multiple((subtree_depth, root)));
                 root_list.push((subtree_depth, root));
                 expected_index += 1 << (subtree_depth - 1);
-            } else {
-                bail!(
-                    "unexpected range root: expected={} get={}",
-                    expected_index,
-                    batch_index
-                );
             }
         }
         let extra_node_list = self.get_mpt_node_list()?;

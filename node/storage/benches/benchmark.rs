@@ -14,14 +14,18 @@ use storage::{
     },
     LogManager,
 };
+use task_executor::test_utils::TestRuntime;
 
 fn write_performance(c: &mut Criterion) {
     if Path::new("db_write").exists() {
         fs::remove_dir_all("db_write").unwrap();
     }
+    let runtime = TestRuntime::default();
+
+    let executor = runtime.task_executor.clone();
 
     let store: Arc<RwLock<dyn Store>> = Arc::new(RwLock::new(
-        LogManager::rocksdb(LogConfig::default(), "db_write")
+        LogManager::rocksdb(LogConfig::default(), "db_write", executor)
             .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))
             .unwrap(),
     ));
@@ -105,8 +109,12 @@ fn read_performance(c: &mut Criterion) {
         fs::remove_dir_all("db_read").unwrap();
     }
 
+    let runtime = TestRuntime::default();
+
+    let executor = runtime.task_executor.clone();
+
     let store: Arc<RwLock<dyn Store>> = Arc::new(RwLock::new(
-        LogManager::rocksdb(LogConfig::default(), "db_read")
+        LogManager::rocksdb(LogConfig::default(), "db_read", executor)
             .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))
             .unwrap(),
     ));

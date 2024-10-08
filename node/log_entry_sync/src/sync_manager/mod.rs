@@ -481,7 +481,7 @@ impl LogSyncManager {
             } else {
                 // check if current node need to save at least one segment
                 let store = self.store.clone();
-                let shard_config = store.flow().get_shard_config();
+                let shard_config = store.get_shard_config();
                 let start_segment_index = tx.start_entry_index as usize / PORA_CHUNK_SIZE;
                 let end_segment_index =
                     (tx.start_entry_index as usize + bytes_to_chunks(tx.size as usize) - 1)

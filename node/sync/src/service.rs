@@ -807,7 +807,7 @@ impl SyncService {
     }
 
     async fn tx_sync_start_index(store: &Store, tx: &Transaction) -> Result<Option<u64>> {
-        let shard_config = store.get_store().flow().get_shard_config();
+        let shard_config = store.get_store().get_shard_config();
         let start_segment = sector_to_segment(tx.start_entry_index());
         let end =
             bytes_to_chunks(usize::try_from(tx.size).map_err(|e| anyhow!("tx size e={}", e))?);
@@ -1294,7 +1294,9 @@ mod tests {
 
         let config = LogConfig::default();
 
-        let store = Arc::new(LogManager::memorydb(config.clone()).unwrap());
+        let executor = runtime.task_executor.clone();
+
+        let store = Arc::new(LogManager::memorydb(config.clone(), executor).unwrap());
 
         let init_peer_id = identity::Keypair::generate_ed25519().public().to_peer_id();
         let file_location_cache: Arc<FileLocationCache> =
