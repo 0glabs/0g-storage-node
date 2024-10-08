@@ -1,4 +1,5 @@
 mod merkle_tree;
+mod node_manager;
 mod proof;
 mod sha3;
 
@@ -7,17 +8,20 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::sync::Arc;
 use tracing::{trace, warn};
 
 pub use crate::merkle_tree::{
     Algorithm, HashElement, MerkleTreeInitialData, MerkleTreeRead, ZERO_HASHES,
 };
+pub use crate::node_manager::{EmptyNodeDatabase, NodeDatabase, NodeManager};
 pub use proof::{Proof, RangeProof};
 pub use sha3::Sha3Algorithm;
 
 pub struct AppendMerkleTree<E: HashElement, A: Algorithm<E>> {
     /// Keep all the nodes in the latest version. `layers[0]` is the layer of leaves.
     layers: Vec<Vec<E>>,
+    node_manager: NodeManager<E>,
     /// Keep the delta nodes that can be used to construct a history tree.
     /// The key is the root node of that version.
     delta_nodes_map: BTreeMap<u64, DeltaNodes<E>>,
@@ -33,9 +37,15 @@ pub struct AppendMerkleTree<E: HashElement, A: Algorithm<E>> {
 }
 
 impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
-    pub fn new(leaves: Vec<E>, leaf_height: usize, start_tx_seq: Option<u64>) -> Self {
+    pub fn new(
+        node_db: Arc<dyn NodeDatabase<E>>,
+        leaves: Vec<E>,
+        leaf_height: usize,
+        start_tx_seq: Option<u64>,
+    ) -> Self {
         let mut merkle = Self {
             layers: vec![leaves],
+            node_manager: NodeManager::new(node_db),
             delta_nodes_map: BTreeMap::new(),
             root_to_tx_seq_map: HashMap::new(),
             min_depth: None,
@@ -62,12 +72,14 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     pub fn new_with_subtrees(
+        node_db: Arc<dyn NodeDatabase<E>>,
         initial_data: MerkleTreeInitialData<E>,
         leaf_height: usize,
         start_tx_seq: Option<u64>,
     ) -> Result<Self> {
         let mut merkle = Self {
             layers: vec![vec![]],
+            node_manager: NodeManager::new(node_db),
             delta_nodes_map: BTreeMap::new(),
             root_to_tx_seq_map: HashMap::new(),
             min_depth: None,
@@ -103,6 +115,8 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // Create an empty merkle tree with `depth`.
             let mut merkle = Self {
                 layers: vec![vec![]; depth],
+                // dummy node manager for the last chunk.
+                node_manager: NodeManager::new(Arc::new(EmptyNodeDatabase {})),
                 delta_nodes_map: BTreeMap::new(),
                 root_to_tx_seq_map: HashMap::new(),
                 min_depth: Some(depth),
@@ -123,6 +137,8 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             layers[0] = leaves;
             let mut merkle = Self {
                 layers,
+                // dummy node manager for the last chunk.
+                node_manager: NodeManager::new(Arc::new(EmptyNodeDatabase {})),
                 delta_nodes_map: BTreeMap::new(),
                 root_to_tx_seq_map: HashMap::new(),
                 min_depth: Some(depth),
@@ -699,9 +715,11 @@ macro_rules! ensure_eq {
 #[cfg(test)]
 mod tests {
     use crate::merkle_tree::MerkleTreeRead;
+    use crate::node_manager::EmptyNodeDatabase;
     use crate::sha3::Sha3Algorithm;
     use crate::AppendMerkleTree;
     use ethereum_types::H256;
+    use std::sync::Arc;
 
     #[test]
     fn test_proof() {
@@ -711,8 +729,12 @@ mod tests {
             for _ in 0..entry_len {
                 data.push(H256::random());
             }
-            let mut merkle =
-                AppendMerkleTree::<H256, Sha3Algorithm>::new(vec![H256::zero()], 0, None);
+            let mut merkle = AppendMerkleTree::<H256, Sha3Algorithm>::new(
+                Arc::new(EmptyNodeDatabase {}),
+                vec![H256::zero()],
+                0,
+                None,
+            );
             merkle.append_list(data.clone());
             merkle.commit(Some(0));
             verify(&data, &mut merkle);
@@ -739,8 +761,12 @@ mod tests {
             for _ in 0..entry_len {
                 data.push(H256::random());
             }
-            let mut merkle =
-                AppendMerkleTree::<H256, Sha3Algorithm>::new(vec![H256::zero()], 0, None);
+            let mut merkle = AppendMerkleTree::<H256, Sha3Algorithm>::new(
+                Arc::new(EmptyNodeDatabase {}),
+                vec![H256::zero()],
+                0,
+                None,
+            );
             merkle.append_list(data.clone());
             merkle.commit(Some(0));
 
@@ -764,7 +790,12 @@ mod tests {
     #[test]
     fn test_proof_at_version() {
         let n = [2, 255, 256, 257];
-        let mut merkle = AppendMerkleTree::<H256, Sha3Algorithm>::new(vec![H256::zero()], 0, None);
+        let mut merkle = AppendMerkleTree::<H256, Sha3Algorithm>::new(
+            Arc::new(EmptyNodeDatabase {}),
+            vec![H256::zero()],
+            0,
+            None,
+        );
         let mut start_pos = 0;
 
         for (tx_seq, &entry_len) in n.iter().enumerate() {

@@ -4,15 +4,15 @@ mod seal;
 mod serde;
 
 use ::serde::{Deserialize, Serialize};
-use std::cmp::min;
-
 use anyhow::Result;
 use ethereum_types::H256;
 use ssz_derive::{Decode, Encode};
+use std::cmp::min;
+use std::sync::Arc;
 
 use crate::log_store::log_manager::data_to_merkle_leaves;
 use crate::try_option;
-use append_merkle::{Algorithm, MerkleTreeRead, Sha3Algorithm};
+use append_merkle::{Algorithm, EmptyNodeDatabase, MerkleTreeRead, Sha3Algorithm};
 use shared_types::{ChunkArray, DataRoot, Merkle};
 use tracing::trace;
 use zgs_spec::{
@@ -248,7 +248,7 @@ impl EntryBatch {
         } else {
             vec![]
         };
-        let mut merkle = Merkle::new(initial_leaves, 0, None);
+        let mut merkle = Merkle::new(Arc::new(EmptyNodeDatabase {}), initial_leaves, 0, None);
         for subtree in self.data.get_subtree_list() {
             trace!(?subtree, "get subtree, leaves={}", merkle.leaves());
             if subtree.start_sector != merkle.leaves() {

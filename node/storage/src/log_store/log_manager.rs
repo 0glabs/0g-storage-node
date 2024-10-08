@@ -1,12 +1,12 @@
 use crate::config::ShardConfig;
-use crate::log_store::flow_store::{batch_iter_sharded, FlowConfig, FlowStore};
+use crate::log_store::flow_store::{batch_iter_sharded, FlowConfig, FlowDBStore, FlowStore};
 use crate::log_store::tx_store::TransactionStore;
 use crate::log_store::{
     FlowRead, FlowWrite, LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite,
 };
 use crate::{try_option, ZgsKeyValueDB};
 use anyhow::{anyhow, bail, Result};
-use append_merkle::{Algorithm, MerkleTreeRead, Sha3Algorithm};
+use append_merkle::{Algorithm, EmptyNodeDatabase, MerkleTreeRead, Sha3Algorithm};
 use ethereum_types::H256;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use merkle_light::merkle::{log2_pow2, MerkleTree};
@@ -626,7 +626,8 @@ impl LogManager {
         executor: task_executor::TaskExecutor,
     ) -> Result<Self> {
         let tx_store = TransactionStore::new(db.clone())?;
-        let flow_store = Arc::new(FlowStore::new(db.clone(), config.flow));
+        let flow_db = Arc::new(FlowDBStore::new(db.clone()));
+        let flow_store = Arc::new(FlowStore::new(flow_db.clone(), config.flow));
         let mut initial_data = flow_store.get_chunk_root_list()?;
         // If the last tx `put_tx` does not complete, we will revert it in `initial_data.subtree_list`
         // first and call `put_tx` later. The known leaves in its data will be saved in `extra_leaves`
@@ -705,8 +706,12 @@ impl LogManager {
             }
         }
 
-        let mut pora_chunks_merkle =
-            Merkle::new_with_subtrees(initial_data, log2_pow2(PORA_CHUNK_SIZE), start_tx_seq)?;
+        let mut pora_chunks_merkle = Merkle::new_with_subtrees(
+            flow_db,
+            initial_data,
+            log2_pow2(PORA_CHUNK_SIZE),
+            start_tx_seq,
+        )?;
         let last_chunk_merkle = match start_tx_seq {
             Some(tx_seq) => {
                 tx_store.rebuild_last_chunk_merkle(pora_chunks_merkle.leaves(), tx_seq)?
@@ -977,7 +982,13 @@ impl LogManager {
                         let data = pad_data[start_index * ENTRY_SIZE
                             ..(start_index + PORA_CHUNK_SIZE) * ENTRY_SIZE]
                             .to_vec();
-                        let root = *Merkle::new(data_to_merkle_leaves(&data)?, 0, None).root();
+                        let root = *Merkle::new(
+                            Arc::new(EmptyNodeDatabase {}),
+                            data_to_merkle_leaves(&data)?,
+                            0,
+                            None,
+                        )
+                        .root();
                         merkle.pora_chunks_merkle.append(root);
                         root_map.insert(merkle.pora_chunks_merkle.leaves() - 1, (root, 1));
                         start_index += PORA_CHUNK_SIZE;
