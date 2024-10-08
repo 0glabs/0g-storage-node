@@ -116,7 +116,7 @@ impl MerkleManager {
         if self.pora_chunks_merkle.leaves() == 0 && self.last_chunk_merkle.leaves() == 0 {
             self.last_chunk_merkle.append(H256::zero());
             self.pora_chunks_merkle
-                .update_last(*self.last_chunk_merkle.root());
+                .update_last(self.last_chunk_merkle.root());
         } else if self.last_chunk_merkle.leaves() != 0 {
             let last_chunk_start_index = self.last_chunk_start_index();
             let last_chunk_data = flow_store.get_available_entries(
@@ -355,7 +355,7 @@ impl LogStoreWrite for LogManager {
         merkle.revert_merkle_tree(tx_seq, &self.tx_store)?;
         merkle.try_initialize(&self.flow_store)?;
         assert_eq!(
-            Some(*merkle.last_chunk_merkle.root()),
+            Some(merkle.last_chunk_merkle.root()),
             merkle
                 .pora_chunks_merkle
                 .leaf_at(merkle.pora_chunks_merkle.leaves() - 1)?
@@ -577,7 +577,7 @@ impl LogStoreRead for LogManager {
     fn get_context(&self) -> crate::error::Result<(DataRoot, u64)> {
         let merkle = self.merkle.read_recursive();
         Ok((
-            *merkle.pora_chunks_merkle.root(),
+            merkle.pora_chunks_merkle.root(),
             merkle.last_chunk_start_index() + merkle.last_chunk_merkle.leaves() as u64,
         ))
     }
@@ -727,7 +727,7 @@ impl LogManager {
             last_chunk_merkle.leaves(),
         );
         if last_chunk_merkle.leaves() != 0 {
-            pora_chunks_merkle.append(*last_chunk_merkle.root());
+            pora_chunks_merkle.append(last_chunk_merkle.root());
             // update the merkle root
             pora_chunks_merkle.commit(start_tx_seq);
         }
@@ -893,16 +893,16 @@ impl LogManager {
                     // `last_chunk_merkle` was empty, so this is a new leaf in the top_tree.
                     merkle
                         .pora_chunks_merkle
-                        .append_subtree(1, *merkle.last_chunk_merkle.root())?;
+                        .append_subtree(1, merkle.last_chunk_merkle.root())?;
                 } else {
                     merkle
                         .pora_chunks_merkle
-                        .update_last(*merkle.last_chunk_merkle.root());
+                        .update_last(merkle.last_chunk_merkle.root());
                 }
                 if merkle.last_chunk_merkle.leaves() == PORA_CHUNK_SIZE {
                     batch_root_map.insert(
                         merkle.pora_chunks_merkle.leaves() - 1,
-                        (*merkle.last_chunk_merkle.root(), 1),
+                        (merkle.last_chunk_merkle.root(), 1),
                     );
                     self.complete_last_chunk_merkle(
                         merkle.pora_chunks_merkle.leaves() - 1,
@@ -958,7 +958,7 @@ impl LogManager {
                         .append_list(data_to_merkle_leaves(&pad_data)?);
                     merkle
                         .pora_chunks_merkle
-                        .update_last(*merkle.last_chunk_merkle.root());
+                        .update_last(merkle.last_chunk_merkle.root());
                 } else {
                     if last_chunk_pad != 0 {
                         is_full_empty = false;
@@ -968,10 +968,10 @@ impl LogManager {
                             .append_list(data_to_merkle_leaves(&pad_data[..last_chunk_pad])?);
                         merkle
                             .pora_chunks_merkle
-                            .update_last(*merkle.last_chunk_merkle.root());
+                            .update_last(merkle.last_chunk_merkle.root());
                         root_map.insert(
                             merkle.pora_chunks_merkle.leaves() - 1,
-                            (*merkle.last_chunk_merkle.root(), 1),
+                            (merkle.last_chunk_merkle.root(), 1),
                         );
                         completed_chunk_index = Some(merkle.pora_chunks_merkle.leaves() - 1);
                     }
@@ -982,7 +982,7 @@ impl LogManager {
                         let data = pad_data[start_index * ENTRY_SIZE
                             ..(start_index + PORA_CHUNK_SIZE) * ENTRY_SIZE]
                             .to_vec();
-                        let root = *Merkle::new(
+                        let root = Merkle::new(
                             Arc::new(EmptyNodeDatabase {}),
                             data_to_merkle_leaves(&data)?,
                             0,
@@ -1068,7 +1068,7 @@ impl LogManager {
             }
             merkle
                 .pora_chunks_merkle
-                .update_last(*merkle.last_chunk_merkle.root());
+                .update_last(merkle.last_chunk_merkle.root());
         }
         let chunk_roots = self.flow_store.append_entries(flow_entry_array)?;
         for (chunk_index, chunk_root) in chunk_roots {

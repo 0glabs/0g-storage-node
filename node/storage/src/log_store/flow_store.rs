@@ -436,7 +436,7 @@ impl FlowDBStore {
         let mut expected_index = 0;
 
         let empty_data = vec![0; PORA_CHUNK_SIZE * ENTRY_SIZE];
-        let empty_root = *Merkle::new(
+        let empty_root = Merkle::new(
             Arc::new(EmptyNodeDatabase {}),
             data_to_merkle_leaves(&empty_data)?,
             0,

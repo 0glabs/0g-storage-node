@@ -104,7 +104,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         }
         for (layer_index, position, h) in initial_data.extra_mpt_nodes {
             // TODO: Delete duplicate nodes from DB.
-            merkle.layers[layer_index][position] = h;
+            merkle.node_manager.add_node(layer_index, position, h);
         }
         Ok(merkle)
     }
@@ -385,7 +385,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             for layer in &self.layers {
                 right_most_nodes.push((layer.len() - 1, layer.last().unwrap().clone()));
             }
-            let root = self.root().clone();
+            let root = self.root();
             self.delta_nodes_map
                 .insert(tx_seq, DeltaNodes::new(right_most_nodes));
             self.root_to_tx_seq_map.insert(root, tx_seq);
@@ -566,7 +566,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             bail!("empty tree");
         }
         Ok(HistoryTree {
-            layers: &self.layers,
+            node_manager: &self.node_manager,
             delta_nodes,
             leaf_height: self.leaf_height,
         })
@@ -596,10 +596,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     fn first_known_root_at(&self, index: usize) -> (usize, E) {
         let mut height = 0;
         let mut index_in_layer = index;
-        while height < self.layers.len() {
+        while height < self.node_manager.num_layers() {
             let node = self.node(height, index_in_layer);
             if !node.is_null() {
-                return (height + 1, node.clone());
+                return (height + 1, node);
             }
             height += 1;
             index_in_layer /= 2;
@@ -644,7 +644,7 @@ impl<E: HashElement> DeltaNodes<E> {
 
 pub struct HistoryTree<'m, E: HashElement> {
     /// A reference to the global tree nodes.
-    layers: &'m Vec<Vec<E>>,
+    node_manager: &'m NodeManager<E>,
     /// The delta nodes that are difference from `layers`.
     /// This could be a reference, we just take ownership for convenience.
     delta_nodes: &'m DeltaNodes<E>,
@@ -655,16 +655,18 @@ pub struct HistoryTree<'m, E: HashElement> {
 impl<E: HashElement, A: Algorithm<E>> MerkleTreeRead for AppendMerkleTree<E, A> {
     type E = E;
 
-    fn node(&self, layer: usize, index: usize) -> &Self::E {
-        &self.layers[layer][index]
+    fn node(&self, layer: usize, index: usize) -> Self::E {
+        self.node_manager
+            .get_node(layer, index)
+            .expect("index checked")
     }
 
     fn height(&self) -> usize {
-        self.layers.len()
+        self.node_manager.num_layers()
     }
 
     fn layer_len(&self, layer_height: usize) -> usize {
-        self.layers[layer_height].len()
+        self.node_manager.layer_size(layer_height)
     }
 
     fn padding_node(&self, height: usize) -> Self::E {
@@ -674,10 +676,13 @@ impl<E: HashElement, A: Algorithm<E>> MerkleTreeRead for AppendMerkleTree<E, A> 
 
 impl<'a, E: HashElement> MerkleTreeRead for HistoryTree<'a, E> {
     type E = E;
-    fn node(&self, layer: usize, index: usize) -> &Self::E {
+    fn node(&self, layer: usize, index: usize) -> Self::E {
         match self.delta_nodes.get(layer, index).expect("range checked") {
-            Some(node) if *node != E::null() => node,
-            _ => &self.layers[layer][index],
+            Some(node) if *node != E::null() => node.clone(),
+            _ => self
+                .node_manager
+                .get_node(layer, index)
+                .expect("index checked"),
         }
     }
 

@@ -6,6 +6,7 @@ use tracing::error;
 
 pub struct NodeManager<E: HashElement> {
     cache: HashMap<(usize, usize), E>,
+    layer_size: Vec<usize>,
     db: Arc<dyn NodeDatabase<E>>,
 }
 
@@ -13,6 +14,7 @@ impl<E: HashElement> NodeManager<E> {
     pub fn new(db: Arc<dyn NodeDatabase<E>>) -> Self {
         Self {
             cache: HashMap::new(),
+            layer_size: vec![],
             db,
         }
     }
@@ -32,6 +34,21 @@ impl<E: HashElement> NodeManager<E> {
             error!("Failed to save node: {}", e);
         }
         self.cache.insert((layer, pos), node);
+        if pos + 1 > self.layer_size[layer] {
+            self.layer_size[layer] = pos + 1;
+        }
+    }
+
+    pub fn add_layer(&mut self) {
+        self.layer_size.push(0);
+    }
+
+    pub fn layer_size(&self, layer: usize) -> usize {
+        self.layer_size[layer]
+    }
+
+    pub fn num_layers(&self) -> usize {
+        self.layer_size.len()
     }
 }
 

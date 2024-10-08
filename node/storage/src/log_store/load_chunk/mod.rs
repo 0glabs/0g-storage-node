@@ -206,7 +206,7 @@ impl EntryBatch {
             }
         }
         Ok(Some(
-            *try_option!(self.to_merkle_tree(is_first_chunk)?).root(),
+            try_option!(self.to_merkle_tree(is_first_chunk)?).root(),
         ))
     }
 
