@@ -15,6 +15,7 @@ pub mod config;
 mod flow_store;
 mod load_chunk;
 pub mod log_manager;
+mod seal_task_manager;
 #[cfg(test)]
 mod tests;
 pub mod tx_store;
@@ -238,7 +239,7 @@ pub struct SealTask {
     /// The index (in seal) of chunks
     pub seal_index: u64,
     /// An ephemeral version number to distinguish if revert happending
-    pub version: usize,
+    pub version: u64,
     /// The data to be sealed
     pub non_sealed_data: [u8; BYTES_PER_SEAL],
 }
@@ -248,7 +249,7 @@ pub struct SealAnswer {
     /// The index (in seal) of chunks
     pub seal_index: u64,
     /// An ephemeral version number to distinguish if revert happending
-    pub version: usize,
+    pub version: u64,
     /// The data to be sealed
     pub sealed_data: [u8; BYTES_PER_SEAL],
     /// The miner Id
