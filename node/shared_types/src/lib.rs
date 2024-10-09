@@ -113,10 +113,14 @@ impl Transaction {
         1 << (depth - 1)
     }
 
-    pub fn num_entries(&self) -> usize {
-        self.merkle_nodes.iter().fold(0, |size, &(depth, _)| {
+    pub fn num_entries_of_list(merkle_nodes: &[(usize, DataRoot)]) -> usize {
+        merkle_nodes.iter().fold(0, |size, &(depth, _)| {
             size + Transaction::num_entries_of_node(depth)
         })
+    }
+
+    pub fn num_entries(&self) -> usize {
+        Self::num_entries_of_list(&self.merkle_nodes)
     }
 
     pub fn hash(&self) -> H256 {
