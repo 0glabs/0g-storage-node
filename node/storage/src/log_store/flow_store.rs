@@ -690,4 +690,27 @@ impl NodeDatabase<DataRoot> for FlowDBStore {
         );
         Ok(self.kvdb.write(tx)?)
     }
+
+    fn save_node_list(&self, nodes: &[(usize, usize, &DataRoot)]) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+        for (layer_index, position, data) in nodes {
+            tx.put(
+                COL_FLOW_MPT_NODES,
+                &encode_mpt_node_key(*layer_index, *position),
+                data.as_bytes(),
+            );
+        }
+        Ok(self.kvdb.write(tx)?)
+    }
+
+    fn remove_node_list(&self, nodes: &[(usize, usize)]) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+        for (layer_index, position) in nodes {
+            tx.delete(
+                COL_FLOW_MPT_NODES,
+                &encode_mpt_node_key(*layer_index, *position),
+            );
+        }
+        Ok(self.kvdb.write(tx)?)
+    }
 }

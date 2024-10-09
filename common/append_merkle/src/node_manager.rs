@@ -1,11 +1,11 @@
 use crate::HashElement;
 use anyhow::Result;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use tracing::error;
 
 pub struct NodeManager<E: HashElement> {
-    cache: HashMap<(usize, usize), E>,
+    cache: BTreeMap<(usize, usize), E>,
     layer_size: Vec<usize>,
     db: Arc<dyn NodeDatabase<E>>,
 }
@@ -13,9 +13,27 @@ pub struct NodeManager<E: HashElement> {
 impl<E: HashElement> NodeManager<E> {
     pub fn new(db: Arc<dyn NodeDatabase<E>>) -> Self {
         Self {
-            cache: HashMap::new(),
+            cache: BTreeMap::new(),
             layer_size: vec![],
             db,
+        }
+    }
+
+    pub fn push_node(&mut self, layer: usize, node: E) {
+        self.add_node(layer, self.layer_size[layer], node);
+        self.layer_size[layer] += 1;
+    }
+
+    pub fn append_nodes(&mut self, layer: usize, nodes: &[E]) {
+        let pos = &mut self.layer_size[layer];
+        let mut saved_nodes = Vec::with_capacity(nodes.len());
+        for node in nodes {
+            self.cache.insert((layer, *pos), node.clone());
+            saved_nodes.push((layer, *pos, node));
+            *pos += 1;
+        }
+        if let Err(e) = self.db.save_node_list(&saved_nodes) {
+            error!("Failed to save node list: {:?}", e);
         }
     }
 
@@ -29,14 +47,20 @@ impl<E: HashElement> NodeManager<E> {
         }
     }
 
+    pub fn get_nodes(&self, layer: usize, start_pos: usize, end_pos: usize) -> NodeIterator<E> {
+        NodeIterator {
+            node_manager: &self,
+            layer,
+            start_pos,
+            end_pos,
+        }
+    }
+
     pub fn add_node(&mut self, layer: usize, pos: usize, node: E) {
         if let Err(e) = self.db.save_node(layer, pos, &node) {
             error!("Failed to save node: {}", e);
         }
         self.cache.insert((layer, pos), node);
-        if pos + 1 > self.layer_size[layer] {
-            self.layer_size[layer] = pos + 1;
-        }
     }
 
     pub fn add_layer(&mut self) {
@@ -50,11 +74,54 @@ impl<E: HashElement> NodeManager<E> {
     pub fn num_layers(&self) -> usize {
         self.layer_size.len()
     }
+
+    pub fn truncate_nodes(&mut self, layer: usize, pos_end: usize) {
+        let mut removed_nodes = Vec::new();
+        for pos in pos_end..self.layer_size[layer] {
+            self.cache.remove(&(layer, pos));
+            removed_nodes.push((layer, pos));
+        }
+        if let Err(e) = self.db.remove_node_list(&removed_nodes) {
+            error!("Failed to remove node list: {:?}", e);
+        }
+        self.layer_size[layer] = pos_end;
+    }
+
+    pub fn truncate_layer(&mut self, layer: usize) {
+        self.truncate_nodes(layer, 0);
+        if layer == self.num_layers() - 1 {
+            self.layer_size.pop();
+        }
+    }
+}
+
+pub struct NodeIterator<'a, E: HashElement> {
+    node_manager: &'a NodeManager<E>,
+    layer: usize,
+    start_pos: usize,
+    end_pos: usize,
+}
+
+impl<'a, E: HashElement> Iterator for NodeIterator<'a, E> {
+    type Item = E;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start_pos < self.end_pos {
+            let r = self.node_manager.get_node(self.layer, self.start_pos);
+            self.start_pos += 1;
+            r
+        } else {
+            None
+        }
+    }
 }
 
 pub trait NodeDatabase<E: HashElement>: Send + Sync {
     fn get_node(&self, layer: usize, pos: usize) -> Result<Option<E>>;
     fn save_node(&self, layer: usize, pos: usize, node: &E) -> Result<()>;
+    /// `nodes` are a list of tuples `(layer, pos, node)`.
+    fn save_node_list(&self, nodes: &[(usize, usize, &E)]) -> Result<()>;
+    fn remove_node_list(&self, nodes: &[(usize, usize)]) -> Result<()>;
 }
 
 /// A dummy database structure for in-memory merkle tree that will not read/write db.
@@ -65,6 +132,14 @@ impl<E: HashElement> NodeDatabase<E> for EmptyNodeDatabase {
     }
 
     fn save_node(&self, _layer: usize, _pos: usize, _node: &E) -> Result<()> {
+        Ok(())
+    }
+
+    fn save_node_list(&self, _nodes: &[(usize, usize, &E)]) -> Result<()> {
+        Ok(())
+    }
+
+    fn remove_node_list(&self, _nodes: &[(usize, usize)]) -> Result<()> {
         Ok(())
     }
 }

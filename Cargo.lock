@@ -223,6 +223,7 @@ dependencies = [
  "eth2_ssz",
  "eth2_ssz_derive",
  "ethereum-types 0.14.1",
+ "itertools 0.13.0",
  "lazy_static",
  "once_cell",
  "serde",

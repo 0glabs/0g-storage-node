@@ -13,3 +13,4 @@ serde = { version = "1.0.137", features = ["derive"] }
 lazy_static = "1.4.0"
 tracing = "0.1.36"
 once_cell = "1.19.0"
+itertools = "0.13.0"

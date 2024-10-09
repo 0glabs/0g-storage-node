@@ -130,6 +130,13 @@ pub trait MerkleTreeRead {
     }
 }
 
+pub trait MerkleTreeWrite {
+    type E: HashElement;
+    fn push_node(&mut self, layer: usize, node: Self::E);
+    fn append_nodes(&mut self, layer: usize, nodes: &[Self::E]);
+    fn update_node(&mut self, layer: usize, pos: usize, node: Self::E);
+}
+
 /// This includes the data to reconstruct an `AppendMerkleTree` root where some nodes
 /// are `null`. Other intermediate nodes will be computed based on these known nodes.
 pub struct MerkleTreeInitialData<E: HashElement> {
