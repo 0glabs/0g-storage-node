@@ -58,7 +58,7 @@ impl<E: HashElement> NodeManager<E> {
 
     pub fn get_nodes(&self, layer: usize, start_pos: usize, end_pos: usize) -> NodeIterator<E> {
         NodeIterator {
-            node_manager: &self,
+            node_manager: self,
             layer,
             start_pos,
             end_pos,
