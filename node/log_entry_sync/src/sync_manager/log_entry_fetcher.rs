@@ -178,7 +178,10 @@ impl LogEntryFetcher {
 
                         if let Some(finalized_block_number) = finalized_block_number {
                             let safe_block_number = std::cmp::min(
-                                std::cmp::min(log_latest_block_number, finalized_block_number),
+                                std::cmp::min(
+                                    log_latest_block_number.saturating_sub(1),
+                                    finalized_block_number,
+                                ),
                                 processed_block_number,
                             );
                             let mut pending_keys = vec![];
@@ -657,7 +660,7 @@ async fn check_watch_process(
                 );
                 match provider.get_block(*progress - 1).await {
                     Ok(Some(v)) => {
-                        v.hash.expect("parent block hash expect exist");
+                        break v.hash.expect("parent block hash expect exist");
                     }
                     Ok(None) => {
                         panic!("parent block {} expect exist", *progress - 1);
