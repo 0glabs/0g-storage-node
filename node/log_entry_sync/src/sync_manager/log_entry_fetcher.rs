@@ -178,7 +178,7 @@ impl LogEntryFetcher {
 
                         if let Some(finalized_block_number) = finalized_block_number {
                             let safe_block_number = std::cmp::min(
-                                std::cmp::min(log_latest_block_number, finalized_block_number),
+                                std::cmp::min(log_latest_block_number - 1, finalized_block_number),
                                 processed_block_number,
                             );
                             let mut pending_keys = vec![];
