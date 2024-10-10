@@ -556,7 +556,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             .ok_or_else(|| anyhow!("tx_seq unavailable, root={:?}", tx_seq))?
             .clone();
         // Dropping the upper layers that are not in the old merkle tree.
-        for height in (self.height() - 1)..=delta_nodes.right_most_nodes.len() {
+        for height in (delta_nodes.right_most_nodes.len()..(self.height() - 1)).rev() {
             self.node_manager.truncate_layer(height);
         }
         for (height, (last_index, right_most_node)) in
@@ -592,13 +592,15 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     pub fn reset(&mut self) {
-        for height in (self.height() - 1)..=0 {
+        for height in (0..self.height()).rev() {
             self.node_manager.truncate_layer(height);
         }
         if let Some(depth) = self.min_depth {
             for _ in 0..depth {
                 self.node_manager.add_layer();
             }
+        } else {
+            self.node_manager.add_layer();
         }
     }
 

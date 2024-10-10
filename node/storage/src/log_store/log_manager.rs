@@ -94,6 +94,7 @@ impl MerkleManager {
     }
 
     fn revert_merkle_tree(&mut self, tx_seq: u64, tx_store: &TransactionStore) -> Result<()> {
+        debug!("revert merkle tree {}", tx_seq);
         // Special case for reverting tx_seq == 0
         if tx_seq == u64::MAX {
             self.pora_chunks_merkle.reset();

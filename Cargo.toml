@@ -37,3 +37,7 @@ enr = { path = "version-meld/enr" }
 
 [profile.bench.package.'storage']
 debug = true
+
+[profile.dev]
+# enabling debug_assertions will make node fail to start because of checks in `clap`.
+debug-assertions = false
