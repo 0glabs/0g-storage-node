@@ -10,7 +10,7 @@ use crate::log_store::log_manager::{
 use crate::log_store::{FlowRead, FlowSeal, FlowWrite};
 use crate::{try_option, ZgsKeyValueDB};
 use anyhow::{anyhow, bail, Result};
-use append_merkle::{MerkleTreeInitialData, MerkleTreeRead};
+use append_merkle::{MerkleTreeInitialData, MerkleTreeRead, NodeDatabase};
 use itertools::Itertools;
 use parking_lot::RwLock;
 use shared_types::{ChunkArray, DataRoot, FlowProof, Merkle};
@@ -25,15 +25,15 @@ use tracing::{debug, error, trace};
 use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
 pub struct FlowStore {
-    db: FlowDBStore,
+    db: Arc<FlowDBStore>,
     seal_manager: SealTaskManager,
     config: FlowConfig,
 }
 
 impl FlowStore {
-    pub fn new(db: Arc<dyn ZgsKeyValueDB>, config: FlowConfig) -> Self {
+    pub fn new(db: Arc<FlowDBStore>, config: FlowConfig) -> Self {
         Self {
-            db: FlowDBStore::new(db),
+            db,
             seal_manager: Default::default(),
             config,
         }
@@ -93,6 +93,7 @@ impl FlowStore {
 #[derive(Clone, Debug)]
 pub struct FlowConfig {
     pub batch_size: usize,
+    pub merkle_node_cache_capacity: usize,
     pub shard_config: Arc<RwLock<ShardConfig>>,
 }
 
@@ -100,6 +101,8 @@ impl Default for FlowConfig {
     fn default() -> Self {
         Self {
             batch_size: SECTORS_PER_LOAD,
+            // Each node takes (8+8+32=)48 Bytes, so the default value is 1.5 GB memory size.
+            merkle_node_cache_capacity: 32 * 1024 * 1024,
             shard_config: Default::default(),
         }
     }
@@ -436,7 +439,7 @@ impl FlowDBStore {
         let mut expected_index = 0;
 
         let empty_data = vec![0; PORA_CHUNK_SIZE * ENTRY_SIZE];
-        let empty_root = *Merkle::new(data_to_merkle_leaves(&empty_data)?, 0, None).root();
+        let empty_root = Merkle::new(data_to_merkle_leaves(&empty_data)?, 0, None).root();
 
         for r in self.kvdb.iter(COL_ENTRY_BATCH_ROOT) {
             let (index_bytes, root_bytes) = r?;
@@ -665,4 +668,46 @@ fn decode_mpt_node_key(data: &[u8]) -> Result<(usize, usize)> {
     let layer_index = try_decode_usize(&data[..mem::size_of::<u64>()])?;
     let position = try_decode_usize(&data[mem::size_of::<u64>()..])?;
     Ok((layer_index, position))
+}
+
+impl NodeDatabase<DataRoot> for FlowDBStore {
+    fn get_node(&self, layer: usize, pos: usize) -> Result<Option<DataRoot>> {
+        Ok(self
+            .kvdb
+            .get(COL_FLOW_MPT_NODES, &encode_mpt_node_key(layer, pos))?
+            .map(|v| DataRoot::from_slice(&v)))
+    }
+
+    fn save_node(&self, layer: usize, pos: usize, node: &DataRoot) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+        tx.put(
+            COL_FLOW_MPT_NODES,
+            &encode_mpt_node_key(layer, pos),
+            node.as_bytes(),
+        );
+        Ok(self.kvdb.write(tx)?)
+    }
+
+    fn save_node_list(&self, nodes: &[(usize, usize, &DataRoot)]) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+        for (layer_index, position, data) in nodes {
+            tx.put(
+                COL_FLOW_MPT_NODES,
+                &encode_mpt_node_key(*layer_index, *position),
+                data.as_bytes(),
+            );
+        }
+        Ok(self.kvdb.write(tx)?)
+    }
+
+    fn remove_node_list(&self, nodes: &[(usize, usize)]) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+        for (layer_index, position) in nodes {
+            tx.delete(
+                COL_FLOW_MPT_NODES,
+                &encode_mpt_node_key(*layer_index, *position),
+            );
+        }
+        Ok(self.kvdb.write(tx)?)
+    }
 }
