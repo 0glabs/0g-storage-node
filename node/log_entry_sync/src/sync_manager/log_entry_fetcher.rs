@@ -657,7 +657,7 @@ async fn check_watch_process(
                 );
                 match provider.get_block(*progress - 1).await {
                     Ok(Some(v)) => {
-                        v.hash.expect("parent block hash expect exist");
+                        break v.hash.expect("parent block hash expect exist");
                     }
                     Ok(None) => {
                         panic!("parent block {} expect exist", *progress - 1);
