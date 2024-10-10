@@ -10,7 +10,7 @@ use crate::log_store::log_manager::{
 use crate::log_store::{FlowRead, FlowSeal, FlowWrite};
 use crate::{try_option, ZgsKeyValueDB};
 use anyhow::{anyhow, bail, Result};
-use append_merkle::{EmptyNodeDatabase, MerkleTreeInitialData, MerkleTreeRead, NodeDatabase};
+use append_merkle::{MerkleTreeInitialData, MerkleTreeRead, NodeDatabase};
 use itertools::Itertools;
 use parking_lot::RwLock;
 use shared_types::{ChunkArray, DataRoot, FlowProof, Merkle};
@@ -93,6 +93,7 @@ impl FlowStore {
 #[derive(Clone, Debug)]
 pub struct FlowConfig {
     pub batch_size: usize,
+    pub merkle_node_cache_capacity: usize,
     pub shard_config: Arc<RwLock<ShardConfig>>,
 }
 
@@ -100,6 +101,8 @@ impl Default for FlowConfig {
     fn default() -> Self {
         Self {
             batch_size: SECTORS_PER_LOAD,
+            // Each node takes (8+8+32=)48 Bytes, so the default value is 1.5 GB memory size.
+            merkle_node_cache_capacity: 32 * 1024 * 1024,
             shard_config: Default::default(),
         }
     }
@@ -436,13 +439,7 @@ impl FlowDBStore {
         let mut expected_index = 0;
 
         let empty_data = vec![0; PORA_CHUNK_SIZE * ENTRY_SIZE];
-        let empty_root = Merkle::new(
-            Arc::new(EmptyNodeDatabase {}),
-            data_to_merkle_leaves(&empty_data)?,
-            0,
-            None,
-        )
-        .root();
+        let empty_root = Merkle::new(data_to_merkle_leaves(&empty_data)?, 0, None).root();
 
         for r in self.kvdb.iter(COL_ENTRY_BATCH_ROOT) {
             let (index_bytes, root_bytes) = r?;

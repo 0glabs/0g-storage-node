@@ -1,21 +1,30 @@
 use crate::HashElement;
 use anyhow::Result;
-use std::collections::BTreeMap;
+use lru::LruCache;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tracing::error;
 
 pub struct NodeManager<E: HashElement> {
-    cache: BTreeMap<(usize, usize), E>,
+    cache: LruCache<(usize, usize), E>,
     layer_size: Vec<usize>,
     db: Arc<dyn NodeDatabase<E>>,
 }
 
 impl<E: HashElement> NodeManager<E> {
-    pub fn new(db: Arc<dyn NodeDatabase<E>>) -> Self {
+    pub fn new(db: Arc<dyn NodeDatabase<E>>, capacity: usize) -> Self {
         Self {
-            cache: BTreeMap::new(),
+            cache: LruCache::new(NonZeroUsize::new(capacity).expect("capacity should be non-zero")),
             layer_size: vec![],
             db,
+        }
+    }
+
+    pub fn new_dummy() -> Self {
+        Self {
+            cache: LruCache::unbounded(),
+            layer_size: vec![],
+            db: Arc::new(EmptyNodeDatabase {}),
         }
     }
 
@@ -28,7 +37,7 @@ impl<E: HashElement> NodeManager<E> {
         let pos = &mut self.layer_size[layer];
         let mut saved_nodes = Vec::with_capacity(nodes.len());
         for node in nodes {
-            self.cache.insert((layer, *pos), node.clone());
+            self.cache.put((layer, *pos), node.clone());
             saved_nodes.push((layer, *pos, node));
             *pos += 1;
         }
@@ -38,7 +47,7 @@ impl<E: HashElement> NodeManager<E> {
     }
 
     pub fn get_node(&self, layer: usize, pos: usize) -> Option<E> {
-        match self.cache.get(&(layer, pos)) {
+        match self.cache.peek(&(layer, pos)) {
             Some(node) => Some(node.clone()),
             None => self.db.get_node(layer, pos).unwrap_or_else(|e| {
                 error!("Failed to get node: {}", e);
@@ -60,7 +69,7 @@ impl<E: HashElement> NodeManager<E> {
         if let Err(e) = self.db.save_node(layer, pos, &node) {
             error!("Failed to save node: {}", e);
         }
-        self.cache.insert((layer, pos), node);
+        self.cache.put((layer, pos), node);
     }
 
     pub fn add_layer(&mut self) {
@@ -78,7 +87,7 @@ impl<E: HashElement> NodeManager<E> {
     pub fn truncate_nodes(&mut self, layer: usize, pos_end: usize) {
         let mut removed_nodes = Vec::new();
         for pos in pos_end..self.layer_size[layer] {
-            self.cache.remove(&(layer, pos));
+            self.cache.pop(&(layer, pos));
             removed_nodes.push((layer, pos));
         }
         if let Err(e) = self.db.remove_node_list(&removed_nodes) {
