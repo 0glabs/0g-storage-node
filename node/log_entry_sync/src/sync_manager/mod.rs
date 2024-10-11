@@ -519,21 +519,27 @@ impl LogSyncManager {
                 .call()
                 .await
             {
-                Ok(contract_root) => match self.store.get_context() {
-                    Ok((local_root, _)) => {
-                        if H256::from_slice(&contract_root) != local_root {
-                            error!(
-                                ?contract_root,
-                                ?local_root,
-                                "local flow root and on-chain flow root mismatch"
-                            );
-                            return false;
+                Ok(contract_root_bytes) => {
+                    let contract_root = H256::from_slice(&contract_root_bytes);
+                    // contract_root is zero for tx submitted before upgrading.
+                    if !contract_root.is_zero() {
+                        match self.store.get_context() {
+                            Ok((local_root, _)) => {
+                                if contract_root != local_root {
+                                    error!(
+                                        ?contract_root,
+                                        ?local_root,
+                                        "local flow root and on-chain flow root mismatch"
+                                    );
+                                    return false;
+                                }
+                            }
+                            Err(e) => {
+                                warn!(?e, "fail to read the local flow root");
+                            }
                         }
                     }
-                    Err(e) => {
-                        warn!(?e, "fail to read the local flow root");
-                    }
-                },
+                }
                 Err(e) => {
                     warn!(?e, "fail to read the on-chain flow root");
                 }
