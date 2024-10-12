@@ -17,6 +17,7 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
     let miner_config = config.mine_config()?;
     let router_config = config.router_config(&network_config)?;
     let pruner_config = config.pruner_config()?;
+    let shard_config = config.shard_config()?;
 
     ClientBuilder::default()
         .with_runtime_context(context)
@@ -29,6 +30,8 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
         .with_sync(config.sync)
         .await?
         .with_miner(miner_config)
+        .await?
+        .with_shard(shard_config)
         .await?
         .with_pruner(pruner_config)
         .await?

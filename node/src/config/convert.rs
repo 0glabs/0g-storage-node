@@ -228,7 +228,7 @@ impl ZgsConfig {
         }
     }
 
-    fn shard_config(&self) -> Result<ShardConfig, String> {
+    pub fn shard_config(&self) -> Result<ShardConfig, String> {
         self.shard_position.clone().try_into()
     }
 }
