@@ -335,11 +335,7 @@ impl TransactionStore {
         }
         let mut merkle = if last_chunk_start_index == 0 {
             // The first entry hash is initialized as zero.
-            AppendMerkleTree::<H256, Sha3Algorithm>::new_with_depth(
-                vec![H256::zero()],
-                log2_pow2(PORA_CHUNK_SIZE) + 1,
-                None,
-            )
+            AppendMerkleTree::<H256, Sha3Algorithm>::new_with_depth(vec![H256::zero()], 1, None)
         } else {
             AppendMerkleTree::<H256, Sha3Algorithm>::new_with_depth(
                 vec![],

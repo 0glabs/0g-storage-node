@@ -226,18 +226,18 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         &mut self,
         proof: RangeProof<E>,
     ) -> Result<Vec<(usize, usize, E)>> {
-        self.fill_with_proof(
-            proof
-                .left_proof
-                .proof_nodes_in_tree()
-                .split_off(self.leaf_height),
-        )?;
-        self.fill_with_proof(
-            proof
-                .right_proof
-                .proof_nodes_in_tree()
-                .split_off(self.leaf_height),
-        )
+        let mut updated_nodes = Vec::new();
+        let mut left_nodes = proof.left_proof.proof_nodes_in_tree();
+        if left_nodes.len() >= self.leaf_height {
+            updated_nodes
+                .append(&mut self.fill_with_proof(left_nodes.split_off(self.leaf_height))?);
+        }
+        let mut right_nodes = proof.right_proof.proof_nodes_in_tree();
+        if right_nodes.len() >= self.leaf_height {
+            updated_nodes
+                .append(&mut self.fill_with_proof(right_nodes.split_off(self.leaf_height))?);
+        }
+        Ok(updated_nodes)
     }
 
     pub fn fill_with_file_proof(

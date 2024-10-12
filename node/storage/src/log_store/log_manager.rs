@@ -712,7 +712,7 @@ impl LogManager {
                 tx_store.rebuild_last_chunk_merkle(pora_chunks_merkle.leaves(), tx_seq)?
             }
             // Initialize
-            None => Merkle::new_with_depth(vec![], log2_pow2(PORA_CHUNK_SIZE) + 1, None),
+            None => Merkle::new_with_depth(vec![], 1, None),
         };
 
         debug!(
@@ -761,6 +761,10 @@ impl LogManager {
             .merkle
             .write()
             .try_initialize(&log_manager.flow_store)?;
+        info!(
+            "Log manager initialized, state={:?}",
+            log_manager.get_context()?
+        );
         Ok(log_manager)
     }
 

@@ -222,7 +222,7 @@ impl LogEntryFetcher {
     ) -> UnboundedReceiver<LogFetchProgress> {
         let provider = self.provider.clone();
         let (recover_tx, recover_rx) = tokio::sync::mpsc::unbounded_channel();
-        let contract = ZgsFlow::new(self.contract_address, provider.clone());
+        let contract = self.flow_contract();
         let log_page_size = self.log_page_size;
 
         executor.spawn(
@@ -305,7 +305,7 @@ impl LogEntryFetcher {
         mut watch_progress_rx: UnboundedReceiver<u64>,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (watch_tx, watch_rx) = tokio::sync::mpsc::unbounded_channel();
-        let contract = ZgsFlow::new(self.contract_address, self.provider.clone());
+        let contract = self.flow_contract();
         let provider = self.provider.clone();
         let confirmation_delay = self.confirmation_delay;
         let log_page_size = self.log_page_size;
@@ -582,6 +582,10 @@ impl LogEntryFetcher {
 
     pub fn provider(&self) -> &Provider<RetryClient<Http>> {
         self.provider.as_ref()
+    }
+
+    pub fn flow_contract(&self) -> ZgsFlow<Provider<RetryClient<Http>>> {
+        ZgsFlow::new(self.contract_address, self.provider.clone())
     }
 }
 
