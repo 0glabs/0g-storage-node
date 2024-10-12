@@ -9,5 +9,5 @@ exit-future = "0.2.0"
 futures = "0.3.21"
 lazy_static = "1.4.0"
 lighthouse_metrics = { path = "../lighthouse_metrics" }
-tokio = { version = "1.19.2", features = ["rt"] }
+tokio = { version = "1.38.0", features = ["full"] }
 tracing = "0.1.35"
