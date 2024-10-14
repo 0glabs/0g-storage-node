@@ -348,17 +348,26 @@ impl Libp2pEventHandler {
         }
     }
 
-    async fn get_listen_addr_or_add(&self) -> Option<Multiaddr> {
+    async fn construct_announced_ip(&self) -> Option<Multiaddr> {
+        // public address configured
+        if let Some(ip) = self.config.public_address {
+            let mut addr = Multiaddr::empty();
+            addr.push(ip.into());
+            addr.push(Protocol::Tcp(self.network_globals.listen_port_tcp()));
+            return Some(addr);
+        }
+
+        // public listen address
         if let Some(addr) = self.get_listen_addr() {
             return Some(addr);
         }
 
+        // auto detect public IP address
         let ipv4_addr = public_ip::addr_v4().await?;
 
         let mut addr = Multiaddr::empty();
         addr.push(Protocol::Ip4(ipv4_addr));
         addr.push(Protocol::Tcp(self.network_globals.listen_port_tcp()));
-        addr.push(Protocol::P2p(self.network_globals.local_peer_id().into()));
 
         self.network_globals
             .listen_multiaddrs
@@ -420,7 +429,7 @@ impl Libp2pEventHandler {
 
         let peer_id = *self.network_globals.peer_id.read();
 
-        let addr = self.get_listen_addr_or_add().await?;
+        let addr = self.construct_announced_ip().await?;
 
         let timestamp = timestamp_now();
         let shard_config = self.store.get_store().get_shard_config();
@@ -452,7 +461,7 @@ impl Libp2pEventHandler {
         shard_config: ShardConfig,
     ) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
-        let addr = self.get_listen_addr_or_add().await?;
+        let addr = self.construct_announced_ip().await?;
         let timestamp = timestamp_now();
 
         let msg = AnnounceShardConfig {
@@ -528,7 +537,7 @@ impl Libp2pEventHandler {
         index_end: u64,
     ) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
-        let addr = self.get_listen_addr_or_add().await?;
+        let addr = self.construct_announced_ip().await?;
         let timestamp = timestamp_now();
 
         let msg = AnnounceChunks {

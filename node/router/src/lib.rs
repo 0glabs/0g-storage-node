@@ -10,7 +10,7 @@ mod service;
 use duration_str::deserialize_duration;
 use network::Multiaddr;
 use serde::Deserialize;
-use std::time::Duration;
+use std::{net::IpAddr, time::Duration};
 
 pub use crate::service::RouterService;
 
@@ -26,6 +26,7 @@ pub struct Config {
     pub libp2p_nodes: Vec<Multiaddr>,
     pub private_ip_enabled: bool,
     pub check_announced_ip: bool,
+    pub public_address: Option<IpAddr>,
 
     // batcher
     /// Timeout to publish messages in batch
@@ -47,6 +48,7 @@ impl Default for Config {
             libp2p_nodes: vec![],
             private_ip_enabled: false,
             check_announced_ip: false,
+            public_address: None,
 
             batcher_timeout: Duration::from_secs(1),
             batcher_file_capacity: 1,
