@@ -9,6 +9,7 @@ pub struct NodeManager<E: HashElement> {
     cache: LruCache<(usize, usize), E>,
     layer_size: Vec<usize>,
     db: Arc<dyn NodeDatabase<E>>,
+    db_tx: Option<Box<dyn NodeTransaction<E>>>,
 }
 
 impl<E: HashElement> NodeManager<E> {
@@ -17,6 +18,7 @@ impl<E: HashElement> NodeManager<E> {
             cache: LruCache::new(NonZeroUsize::new(capacity).expect("capacity should be non-zero")),
             layer_size: vec![],
             db,
+            db_tx: None,
         }
     }
 
@@ -25,6 +27,7 @@ impl<E: HashElement> NodeManager<E> {
             cache: LruCache::unbounded(),
             layer_size: vec![],
             db: Arc::new(EmptyNodeDatabase {}),
+            db_tx: None,
         }
     }
 
@@ -41,9 +44,9 @@ impl<E: HashElement> NodeManager<E> {
             saved_nodes.push((layer, *pos, node));
             *pos += 1;
         }
-        if let Err(e) = self.db.save_node_list(&saved_nodes) {
-            error!("Failed to save node list: {:?}", e);
-        }
+        let size = *pos;
+        self.db_tx().save_layer_size(layer, size);
+        self.db_tx().save_node_list(&saved_nodes);
     }
 
     pub fn get_node(&self, layer: usize, pos: usize) -> Option<E> {
@@ -66,14 +69,17 @@ impl<E: HashElement> NodeManager<E> {
     }
 
     pub fn add_node(&mut self, layer: usize, pos: usize, node: E) {
-        if let Err(e) = self.db.save_node(layer, pos, &node) {
-            error!("Failed to save node: {}", e);
+        // No need to insert if the value is unchanged.
+        if self.cache.get(&(layer, pos)) != Some(&node) {
+            self.db_tx().save_node(layer, pos, &node);
+            self.cache.put((layer, pos), node);
         }
-        self.cache.put((layer, pos), node);
     }
 
     pub fn add_layer(&mut self) {
         self.layer_size.push(0);
+        let layer = self.layer_size.len() - 1;
+        self.db_tx().save_layer_size(layer, 0);
     }
 
     pub fn layer_size(&self, layer: usize) -> usize {
@@ -90,17 +96,41 @@ impl<E: HashElement> NodeManager<E> {
             self.cache.pop(&(layer, pos));
             removed_nodes.push((layer, pos));
         }
-        if let Err(e) = self.db.remove_node_list(&removed_nodes) {
-            error!("Failed to remove node list: {:?}", e);
-        }
+        self.db_tx().remove_node_list(&removed_nodes);
         self.layer_size[layer] = pos_end;
+        self.db_tx().save_layer_size(layer, pos_end);
     }
 
     pub fn truncate_layer(&mut self, layer: usize) {
         self.truncate_nodes(layer, 0);
         if layer == self.num_layers() - 1 {
             self.layer_size.pop();
+            self.db_tx().remove_layer_size(layer);
         }
+    }
+
+    pub fn start_transaction(&mut self) {
+        if self.db_tx.is_none() {
+            error!("start new tx before commit");
+        }
+        self.db_tx = Some(self.db.start_transaction());
+    }
+
+    pub fn commit(&mut self) {
+        let tx = match self.db_tx.take() {
+            Some(tx) => tx,
+            None => {
+                error!("db_tx is None");
+                return;
+            }
+        };
+        if let Err(e) = self.db.commit(tx) {
+            error!("Failed to commit db transaction: {}", e);
+        }
+    }
+
+    fn db_tx(&mut self) -> &mut dyn NodeTransaction<E> {
+        (*self.db_tx.as_mut().expect("tx checked")).as_mut()
     }
 }
 
@@ -127,28 +157,46 @@ impl<'a, E: HashElement> Iterator for NodeIterator<'a, E> {
 
 pub trait NodeDatabase<E: HashElement>: Send + Sync {
     fn get_node(&self, layer: usize, pos: usize) -> Result<Option<E>>;
-    fn save_node(&self, layer: usize, pos: usize, node: &E) -> Result<()>;
+    fn get_layer_size(&self, layer: usize) -> Result<Option<usize>>;
+    fn start_transaction(&self) -> Box<dyn NodeTransaction<E>>;
+    fn commit(&self, tx: Box<dyn NodeTransaction<E>>) -> Result<()>;
+}
+
+pub trait NodeTransaction<E: HashElement>: Send + Sync {
+    fn save_node(&mut self, layer: usize, pos: usize, node: &E);
     /// `nodes` are a list of tuples `(layer, pos, node)`.
-    fn save_node_list(&self, nodes: &[(usize, usize, &E)]) -> Result<()>;
-    fn remove_node_list(&self, nodes: &[(usize, usize)]) -> Result<()>;
+    fn save_node_list(&mut self, nodes: &[(usize, usize, &E)]);
+    fn remove_node_list(&mut self, nodes: &[(usize, usize)]);
+    fn save_layer_size(&mut self, layer: usize, size: usize);
+    fn remove_layer_size(&mut self, layer: usize);
 }
 
 /// A dummy database structure for in-memory merkle tree that will not read/write db.
 pub struct EmptyNodeDatabase {}
+pub struct EmptyNodeTransaction {}
 impl<E: HashElement> NodeDatabase<E> for EmptyNodeDatabase {
     fn get_node(&self, _layer: usize, _pos: usize) -> Result<Option<E>> {
         Ok(None)
     }
-
-    fn save_node(&self, _layer: usize, _pos: usize, _node: &E) -> Result<()> {
+    fn get_layer_size(&self, _layer: usize) -> Result<Option<usize>> {
+        Ok(None)
+    }
+    fn start_transaction(&self) -> Box<dyn NodeTransaction<E>> {
+        Box::new(EmptyNodeTransaction {})
+    }
+    fn commit(&self, _tx: Box<dyn NodeTransaction<E>>) -> Result<()> {
         Ok(())
     }
+}
 
-    fn save_node_list(&self, _nodes: &[(usize, usize, &E)]) -> Result<()> {
-        Ok(())
-    }
+impl<E: HashElement> NodeTransaction<E> for EmptyNodeTransaction {
+    fn save_node(&mut self, _layer: usize, _pos: usize, _node: &E) {}
 
-    fn remove_node_list(&self, _nodes: &[(usize, usize)]) -> Result<()> {
-        Ok(())
-    }
+    fn save_node_list(&mut self, _nodes: &[(usize, usize, &E)]) {}
+
+    fn remove_node_list(&mut self, _nodes: &[(usize, usize)]) {}
+
+    fn save_layer_size(&mut self, _layer: usize, _size: usize) {}
+
+    fn remove_layer_size(&mut self, _layer: usize) {}
 }

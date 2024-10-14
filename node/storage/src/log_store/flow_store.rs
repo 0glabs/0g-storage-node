@@ -9,9 +9,11 @@ use crate::log_store::log_manager::{
 };
 use crate::log_store::{FlowRead, FlowSeal, FlowWrite};
 use crate::{try_option, ZgsKeyValueDB};
+use any::Any;
 use anyhow::{anyhow, bail, Result};
-use append_merkle::{MerkleTreeInitialData, MerkleTreeRead, NodeDatabase};
+use append_merkle::{MerkleTreeInitialData, MerkleTreeRead, NodeDatabase, NodeTransaction};
 use itertools::Itertools;
+use kvdb::DBTransaction;
 use parking_lot::RwLock;
 use shared_types::{ChunkArray, DataRoot, FlowProof, Merkle};
 use ssz::{Decode, Encode};
@@ -20,7 +22,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::{cmp, mem};
+use std::{any, cmp, mem};
 use tracing::{debug, error, trace};
 use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
@@ -670,6 +672,14 @@ fn decode_mpt_node_key(data: &[u8]) -> Result<(usize, usize)> {
     Ok((layer_index, position))
 }
 
+fn layer_size_key(layer: usize) -> Vec<u8> {
+    let mut key = "layer_size".as_bytes().to_vec();
+    key.extend_from_slice(&layer.to_be_bytes());
+    key
+}
+
+pub struct NodeDBTransaction(DBTransaction);
+
 impl NodeDatabase<DataRoot> for FlowDBStore {
     fn get_node(&self, layer: usize, pos: usize) -> Result<Option<DataRoot>> {
         Ok(self
@@ -678,36 +688,62 @@ impl NodeDatabase<DataRoot> for FlowDBStore {
             .map(|v| DataRoot::from_slice(&v)))
     }
 
-    fn save_node(&self, layer: usize, pos: usize, node: &DataRoot) -> Result<()> {
-        let mut tx = self.kvdb.transaction();
-        tx.put(
+    fn get_layer_size(&self, layer: usize) -> Result<Option<usize>> {
+        match self.kvdb.get(COL_FLOW_MPT_NODES, &layer_size_key(layer))? {
+            Some(v) => Ok(Some(try_decode_usize(&v)?)),
+            None => Ok(None),
+        }
+    }
+
+    fn start_transaction(&self) -> Box<dyn NodeTransaction<DataRoot>> {
+        Box::new(NodeDBTransaction(self.kvdb.transaction()))
+    }
+
+    fn commit(&self, tx: Box<dyn NodeTransaction<DataRoot>>) -> Result<()> {
+        let db_tx: &NodeDBTransaction = (&tx as &dyn Any)
+            .downcast_ref()
+            .ok_or(anyhow!("downcast failed"))?;
+        self.kvdb.write(db_tx.0.clone()).map_err(Into::into)
+    }
+}
+
+impl NodeTransaction<DataRoot> for NodeDBTransaction {
+    fn save_node(&mut self, layer: usize, pos: usize, node: &DataRoot) {
+        self.0.put(
             COL_FLOW_MPT_NODES,
             &encode_mpt_node_key(layer, pos),
             node.as_bytes(),
         );
-        Ok(self.kvdb.write(tx)?)
     }
 
-    fn save_node_list(&self, nodes: &[(usize, usize, &DataRoot)]) -> Result<()> {
-        let mut tx = self.kvdb.transaction();
+    fn save_node_list(&mut self, nodes: &[(usize, usize, &DataRoot)]) {
         for (layer_index, position, data) in nodes {
-            tx.put(
+            self.0.put(
                 COL_FLOW_MPT_NODES,
                 &encode_mpt_node_key(*layer_index, *position),
                 data.as_bytes(),
             );
         }
-        Ok(self.kvdb.write(tx)?)
     }
 
-    fn remove_node_list(&self, nodes: &[(usize, usize)]) -> Result<()> {
-        let mut tx = self.kvdb.transaction();
+    fn remove_node_list(&mut self, nodes: &[(usize, usize)]) {
         for (layer_index, position) in nodes {
-            tx.delete(
+            self.0.delete(
                 COL_FLOW_MPT_NODES,
                 &encode_mpt_node_key(*layer_index, *position),
             );
         }
-        Ok(self.kvdb.write(tx)?)
+    }
+
+    fn save_layer_size(&mut self, layer: usize, size: usize) {
+        self.0.put(
+            COL_FLOW_MPT_NODES,
+            &layer_size_key(layer),
+            &size.to_be_bytes(),
+        );
+    }
+
+    fn remove_layer_size(&mut self, layer: usize) {
+        self.0.delete(COL_FLOW_MPT_NODES, &layer_size_key(layer));
     }
 }

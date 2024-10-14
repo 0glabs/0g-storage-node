@@ -16,7 +16,7 @@ use crate::merkle_tree::MerkleTreeWrite;
 pub use crate::merkle_tree::{
     Algorithm, HashElement, MerkleTreeInitialData, MerkleTreeRead, ZERO_HASHES,
 };
-pub use crate::node_manager::{EmptyNodeDatabase, NodeDatabase, NodeManager};
+pub use crate::node_manager::{EmptyNodeDatabase, NodeDatabase, NodeManager, NodeTransaction};
 pub use proof::{Proof, RangeProof};
 pub use sha3::Sha3Algorithm;
 
@@ -160,8 +160,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // appending null is not allowed.
             return;
         }
+        self.node_manager.start_transaction();
         self.node_manager.push_node(0, new_leaf);
         self.recompute_after_append_leaves(self.leaves() - 1);
+        self.node_manager.commit();
     }
 
     pub fn append_list(&mut self, leaf_list: Vec<E>) {
@@ -169,9 +171,11 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // appending null is not allowed.
             return;
         }
+        self.node_manager.start_transaction();
         let start_index = self.leaves();
         self.node_manager.append_nodes(0, &leaf_list);
         self.recompute_after_append_leaves(start_index);
+        self.node_manager.commit();
     }
 
     /// Append a leaf list by providing their intermediate node hash.
@@ -184,9 +188,11 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // appending null is not allowed.
             bail!("subtree_root is null");
         }
+        self.node_manager.start_transaction();
         let start_index = self.leaves();
         self.append_subtree_inner(subtree_depth, subtree_root)?;
         self.recompute_after_append_subtree(start_index, subtree_depth - 1);
+        self.node_manager.commit();
         Ok(())
     }
 
@@ -195,11 +201,13 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // appending null is not allowed.
             bail!("subtree_list contains null");
         }
+        self.node_manager.start_transaction();
         for (subtree_depth, subtree_root) in subtree_list {
             let start_index = self.leaves();
             self.append_subtree_inner(subtree_depth, subtree_root)?;
             self.recompute_after_append_subtree(start_index, subtree_depth - 1);
         }
+        self.node_manager.commit();
         Ok(())
     }
 
@@ -210,6 +218,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // updating to null is not allowed.
             return;
         }
+        self.node_manager.start_transaction();
         if self.layer_len(0) == 0 {
             // Special case for the first data.
             self.push_node(0, updated_leaf);
@@ -217,6 +226,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             self.update_node(0, self.layer_len(0) - 1, updated_leaf);
         }
         self.recompute_after_append_leaves(self.leaves() - 1);
+        self.node_manager.commit();
     }
 
     /// Fill an unknown `null` leaf with its real value.
@@ -226,8 +236,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         if leaf == E::null() {
             // fill leaf with null is not allowed.
         } else if self.node(0, index) == E::null() {
+            self.node_manager.start_transaction();
             self.update_node(0, index, leaf);
             self.recompute_after_fill_leaves(index, index + 1);
+            self.node_manager.commit();
         } else if self.node(0, index) != leaf {
             panic!(
                 "Fill with invalid leaf, index={} was={:?} get={:?}",
@@ -246,18 +258,26 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         &mut self,
         proof: RangeProof<E>,
     ) -> Result<Vec<(usize, usize, E)>> {
-        self.fill_with_proof(
-            proof
-                .left_proof
-                .proof_nodes_in_tree()
-                .split_off(self.leaf_height),
-        )?;
-        self.fill_with_proof(
-            proof
-                .right_proof
-                .proof_nodes_in_tree()
-                .split_off(self.leaf_height),
-        )
+        self.node_manager.start_transaction();
+        let mut updated_nodes = Vec::new();
+        updated_nodes.append(
+            &mut self.fill_with_proof(
+                proof
+                    .left_proof
+                    .proof_nodes_in_tree()
+                    .split_off(self.leaf_height),
+            )?,
+        );
+        updated_nodes.append(
+            &mut self.fill_with_proof(
+                proof
+                    .right_proof
+                    .proof_nodes_in_tree()
+                    .split_off(self.leaf_height),
+            )?,
+        );
+        self.node_manager.commit();
+        Ok(updated_nodes)
     }
 
     pub fn fill_with_file_proof(
@@ -282,13 +302,16 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         if tx_merkle_nodes.is_empty() {
             return Ok(Vec::new());
         }
+        self.node_manager.start_transaction();
         let mut position_and_data =
             proof.file_proof_nodes_in_tree(tx_merkle_nodes, tx_merkle_nodes_size);
         let start_index = (start_index >> self.leaf_height) as usize;
         for (i, (position, _)) in position_and_data.iter_mut().enumerate() {
             *position += start_index >> i;
         }
-        self.fill_with_proof(position_and_data)
+        let updated_nodes = self.fill_with_proof(position_and_data)?;
+        self.node_manager.commit();
+        Ok(updated_nodes)
     }
 
     /// This assumes that the proof leaf is no lower than the tree leaf. It holds for both SegmentProof and ChunkProof.
@@ -757,11 +780,10 @@ macro_rules! ensure_eq {
 #[cfg(test)]
 mod tests {
     use crate::merkle_tree::MerkleTreeRead;
-    use crate::node_manager::EmptyNodeDatabase;
+
     use crate::sha3::Sha3Algorithm;
     use crate::AppendMerkleTree;
     use ethereum_types::H256;
-    use std::sync::Arc;
 
     #[test]
     fn test_proof() {
