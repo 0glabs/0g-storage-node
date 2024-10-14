@@ -353,12 +353,14 @@ impl Libp2pEventHandler {
             return Some(addr);
         }
 
-        let ipv4_addr = public_ip::addr_v4().await?;
+        let ip_protocol = match self.config.public_address {
+            Some(addr) => addr.into(),
+            None => Protocol::Ip4(public_ip::addr_v4().await?),
+        };
 
         let mut addr = Multiaddr::empty();
-        addr.push(Protocol::Ip4(ipv4_addr));
+        addr.push(ip_protocol);
         addr.push(Protocol::Tcp(self.network_globals.listen_port_tcp()));
-        addr.push(Protocol::P2p(self.network_globals.local_peer_id().into()));
 
         self.network_globals
             .listen_multiaddrs
