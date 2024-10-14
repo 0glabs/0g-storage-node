@@ -662,17 +662,24 @@ async fn check_watch_process(
                     "get block hash for block {} from RPC, assume there is no org",
                     *progress - 1
                 );
-                match provider.get_block(*progress - 1).await {
-                    Ok(Some(v)) => {
-                        break v.hash.expect("parent block hash expect exist");
+                let hash = loop {
+                    match provider.get_block(*progress - 1).await {
+                        Ok(Some(v)) => {
+                            break v.hash.expect("parent block hash expect exist");
+                        }
+                        Ok(None) => {
+                            panic!("parent block {} expect exist", *progress - 1);
+                        }
+                        Err(e) => {
+                            if e.to_string().contains("server is too busy") {
+                                warn!("server busy, wait for parent block {}", *progress - 1);
+                            } else {
+                                panic!("parent block {} expect exist, error {}", *progress - 1, e);
+                            }
+                        }
                     }
-                    Ok(None) => {
-                        panic!("parent block {} expect exist", *progress - 1);
-                    }
-                    Err(e) => {
-                        panic!("parent block {} expect exist, error {}", *progress - 1, e);
-                    }
-                }
+                };
+                break hash;
             }
         };
     }
