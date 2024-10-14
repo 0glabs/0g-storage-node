@@ -71,49 +71,33 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     pub fn new_with_subtrees(
         node_db: Arc<dyn NodeDatabase<E>>,
         node_cache_capacity: usize,
-        initial_data: MerkleTreeInitialData<E>,
         leaf_height: usize,
-        start_tx_seq: Option<u64>,
     ) -> Result<Self> {
         let mut merkle = Self {
-            node_manager: NodeManager::new(node_db, node_cache_capacity),
+            node_manager: NodeManager::new(node_db, node_cache_capacity)?,
             delta_nodes_map: BTreeMap::new(),
             root_to_tx_seq_map: HashMap::new(),
             min_depth: None,
             leaf_height,
             _a: Default::default(),
         };
-        merkle.node_manager.add_layer();
-        if initial_data.subtree_list.is_empty() {
-            if let Some(seq) = start_tx_seq {
-                merkle.delta_nodes_map.insert(
-                    seq,
-                    DeltaNodes {
-                        right_most_nodes: vec![],
-                    },
-                );
-            }
-            return Ok(merkle);
-        }
-        merkle.append_subtree_list(initial_data.subtree_list)?;
-        merkle.commit(start_tx_seq);
-        for (index, h) in initial_data.known_leaves {
-            merkle.fill_leaf(index, h);
-        }
-        for (layer_index, position, h) in initial_data.extra_mpt_nodes {
-            // TODO: Delete duplicate nodes from DB.
-            merkle.update_node(layer_index, position, h);
+        if merkle.height() == 0 {
+            merkle.node_manager.start_transaction();
+            merkle.node_manager.add_layer();
+            merkle.node_manager.commit();
         }
         Ok(merkle)
     }
 
     /// This is only used for the last chunk, so `leaf_height` is always 0 so far.
     pub fn new_with_depth(leaves: Vec<E>, depth: usize, start_tx_seq: Option<u64>) -> Self {
+        let mut node_manager = NodeManager::new_dummy();
+        node_manager.start_transaction();
         if leaves.is_empty() {
             // Create an empty merkle tree with `depth`.
             let mut merkle = Self {
                 // dummy node manager for the last chunk.
-                node_manager: NodeManager::new_dummy(),
+                node_manager,
                 delta_nodes_map: BTreeMap::new(),
                 root_to_tx_seq_map: HashMap::new(),
                 min_depth: Some(depth),
@@ -135,7 +119,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         } else {
             let mut merkle = Self {
                 // dummy node manager for the last chunk.
-                node_manager: NodeManager::new_dummy(),
+                node_manager,
                 delta_nodes_map: BTreeMap::new(),
                 root_to_tx_seq_map: HashMap::new(),
                 min_depth: Some(depth),
@@ -569,6 +553,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // Any previous state of an empty tree is always empty.
             return Ok(());
         }
+        self.node_manager.start_transaction();
         let delta_nodes = self
             .delta_nodes_map
             .get(&tx_seq)
@@ -585,6 +570,24 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             self.update_node(height, *last_index, right_most_node.clone())
         }
         self.clear_after(tx_seq);
+        self.node_manager.commit();
+        Ok(())
+    }
+
+    // Revert to a tx_seq not in `delta_nodes_map`.
+    // This is needed to revert the last unfinished tx after restart.
+    pub fn revert_to_leaves(&mut self, leaves: usize) -> Result<()> {
+        self.node_manager.start_transaction();
+        for height in (0..self.height()).rev() {
+            let kept_nodes = leaves >> height;
+            if kept_nodes == 0 {
+                self.node_manager.truncate_layer(height);
+            } else {
+                self.node_manager.truncate_nodes(height, kept_nodes + 1);
+            }
+        }
+        self.recompute_after_append_leaves(leaves);
+        self.node_manager.commit();
         Ok(())
     }
 
@@ -611,6 +614,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     pub fn reset(&mut self) {
+        self.node_manager.start_transaction();
         for height in (0..self.height()).rev() {
             self.node_manager.truncate_layer(height);
         }
@@ -621,6 +625,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         } else {
             self.node_manager.add_layer();
         }
+        self.node_manager.commit();
     }
 
     fn clear_after(&mut self, tx_seq: u64) {

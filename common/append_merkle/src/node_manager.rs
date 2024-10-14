@@ -13,13 +13,19 @@ pub struct NodeManager<E: HashElement> {
 }
 
 impl<E: HashElement> NodeManager<E> {
-    pub fn new(db: Arc<dyn NodeDatabase<E>>, capacity: usize) -> Self {
-        Self {
+    pub fn new(db: Arc<dyn NodeDatabase<E>>, capacity: usize) -> Result<Self> {
+        let mut layer = 0;
+        let mut layer_size = Vec::new();
+        while let Some(size) = db.get_layer_size(layer)? {
+            layer_size.push(size);
+            layer += 1;
+        }
+        Ok(Self {
             cache: LruCache::new(NonZeroUsize::new(capacity).expect("capacity should be non-zero")),
-            layer_size: vec![],
+            layer_size,
             db,
             db_tx: None,
-        }
+        })
     }
 
     pub fn new_dummy() -> Self {

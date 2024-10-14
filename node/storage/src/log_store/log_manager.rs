@@ -629,12 +629,8 @@ impl LogManager {
         let tx_store = TransactionStore::new(db.clone())?;
         let flow_db = Arc::new(FlowDBStore::new(db.clone()));
         let flow_store = Arc::new(FlowStore::new(flow_db.clone(), config.flow.clone()));
-        let mut initial_data = flow_store.get_chunk_root_list()?;
-        // If the last tx `put_tx` does not complete, we will revert it in `initial_data.subtree_list`
-        // first and call `put_tx` later. The known leaves in its data will be saved in `extra_leaves`
-        // and inserted later.
-        let mut extra_leaves = Vec::new();
-
+        // If the last tx `put_tx` does not complete, we will revert it in `pora_chunks_merkle`
+        // first and call `put_tx` later.
         let next_tx_seq = tx_store.next_tx_seq();
         let mut start_tx_seq = if next_tx_seq > 0 {
             Some(next_tx_seq - 1)
@@ -642,13 +638,19 @@ impl LogManager {
             None
         };
         let mut last_tx_to_insert = None;
+
+        let mut pora_chunks_merkle = Merkle::new_with_subtrees(
+            flow_db,
+            config.flow.merkle_node_cache_capacity,
+            log2_pow2(PORA_CHUNK_SIZE),
+        )?;
         if let Some(last_tx_seq) = start_tx_seq {
             if !tx_store.check_tx_completed(last_tx_seq)? {
                 // Last tx not finalized, we need to check if its `put_tx` is completed.
                 let last_tx = tx_store
                     .get_tx_by_seq_number(last_tx_seq)?
                     .expect("tx missing");
-                let mut current_len = initial_data.leaves();
+                let current_len = pora_chunks_merkle.leaves();
                 let expected_len =
                     sector_to_segment(last_tx.start_entry_index + last_tx.num_entries() as u64);
                 match expected_len.cmp(&(current_len)) {
@@ -678,42 +680,15 @@ impl LogManager {
                                 previous_tx.start_entry_index + previous_tx.num_entries() as u64,
                             );
                             if current_len > expected_len {
-                                while let Some((subtree_depth, _)) = initial_data.subtree_list.pop()
-                                {
-                                    current_len -= 1 << (subtree_depth - 1);
-                                    if current_len == expected_len {
-                                        break;
-                                    }
-                                }
-                            } else {
-                                warn!(
-                                    "revert last tx with no-op: {} {}",
-                                    current_len, expected_len
-                                );
+                                pora_chunks_merkle.revert_to_leaves(expected_len)?;
                             }
-                            assert_eq!(current_len, expected_len);
-                            while let Some((index, h)) = initial_data.known_leaves.pop() {
-                                if index < current_len {
-                                    initial_data.known_leaves.push((index, h));
-                                    break;
-                                } else {
-                                    extra_leaves.push((index, h));
-                                }
-                            }
-                            start_tx_seq = Some(last_tx_seq - 1);
+                            start_tx_seq = Some(previous_tx.seq);
                         };
                     }
                 }
             }
         }
 
-        let mut pora_chunks_merkle = Merkle::new_with_subtrees(
-            flow_db,
-            config.flow.merkle_node_cache_capacity,
-            initial_data,
-            log2_pow2(PORA_CHUNK_SIZE),
-            start_tx_seq,
-        )?;
         let last_chunk_merkle = match start_tx_seq {
             Some(tx_seq) => {
                 tx_store.rebuild_last_chunk_merkle(pora_chunks_merkle.leaves(), tx_seq)?
@@ -751,18 +726,7 @@ impl LogManager {
         log_manager.start_receiver(receiver, executor);
 
         if let Some(tx) = last_tx_to_insert {
-            log_manager.revert_to(tx.seq - 1)?;
             log_manager.put_tx(tx)?;
-            let mut merkle = log_manager.merkle.write();
-            for (index, h) in extra_leaves {
-                if index < merkle.pora_chunks_merkle.leaves() {
-                    merkle.pora_chunks_merkle.fill_leaf(index, h);
-                } else {
-                    error!("out of range extra leaf: index={} hash={:?}", index, h);
-                }
-            }
-        } else {
-            assert!(extra_leaves.is_empty());
         }
         log_manager
             .merkle
