@@ -700,10 +700,11 @@ impl NodeDatabase<DataRoot> for FlowDBStore {
     }
 
     fn commit(&self, tx: Box<dyn NodeTransaction<DataRoot>>) -> Result<()> {
-        let db_tx: &NodeDBTransaction = (&tx as &dyn Any)
-            .downcast_ref()
-            .ok_or(anyhow!("downcast failed"))?;
-        self.kvdb.write(db_tx.0.clone()).map_err(Into::into)
+        let db_tx: Box<NodeDBTransaction> = tx
+            .into_any()
+            .downcast()
+            .map_err(|e| anyhow!("downcast failed, e={:?}", e))?;
+        self.kvdb.write(db_tx.0).map_err(Into::into)
     }
 }
 
@@ -745,5 +746,9 @@ impl NodeTransaction<DataRoot> for NodeDBTransaction {
 
     fn remove_layer_size(&mut self, layer: usize) {
         self.0.delete(COL_FLOW_MPT_NODES, &layer_size_key(layer));
+    }
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
     }
 }

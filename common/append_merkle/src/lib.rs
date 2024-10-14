@@ -47,6 +47,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             leaf_height,
             _a: Default::default(),
         };
+        merkle.node_manager.start_transaction();
         merkle.node_manager.add_layer();
         merkle.node_manager.append_nodes(0, &leaves);
         if merkle.leaves() == 0 {

@@ -1,6 +1,7 @@
 use crate::HashElement;
 use anyhow::Result;
 use lru::LruCache;
+use std::any::Any;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tracing::error;
@@ -39,19 +40,18 @@ impl<E: HashElement> NodeManager<E> {
 
     pub fn push_node(&mut self, layer: usize, node: E) {
         self.add_node(layer, self.layer_size[layer], node);
-        self.layer_size[layer] += 1;
+        self.set_layer_size(layer, self.layer_size[layer] + 1);
     }
 
     pub fn append_nodes(&mut self, layer: usize, nodes: &[E]) {
-        let pos = &mut self.layer_size[layer];
+        let mut pos = self.layer_size[layer];
         let mut saved_nodes = Vec::with_capacity(nodes.len());
         for node in nodes {
-            self.cache.put((layer, *pos), node.clone());
-            saved_nodes.push((layer, *pos, node));
-            *pos += 1;
+            self.cache.put((layer, pos), node.clone());
+            saved_nodes.push((layer, pos, node));
+            pos += 1;
         }
-        let size = *pos;
-        self.db_tx().save_layer_size(layer, size);
+        self.set_layer_size(layer, pos);
         self.db_tx().save_node_list(&saved_nodes);
     }
 
@@ -103,8 +103,7 @@ impl<E: HashElement> NodeManager<E> {
             removed_nodes.push((layer, pos));
         }
         self.db_tx().remove_node_list(&removed_nodes);
-        self.layer_size[layer] = pos_end;
-        self.db_tx().save_layer_size(layer, pos_end);
+        self.set_layer_size(layer, pos_end);
     }
 
     pub fn truncate_layer(&mut self, layer: usize) {
@@ -137,6 +136,11 @@ impl<E: HashElement> NodeManager<E> {
 
     fn db_tx(&mut self) -> &mut dyn NodeTransaction<E> {
         (*self.db_tx.as_mut().expect("tx checked")).as_mut()
+    }
+
+    fn set_layer_size(&mut self, layer: usize, size: usize) {
+        self.layer_size[layer] = size;
+        self.db_tx().save_layer_size(layer, size);
     }
 }
 
@@ -175,6 +179,8 @@ pub trait NodeTransaction<E: HashElement>: Send + Sync {
     fn remove_node_list(&mut self, nodes: &[(usize, usize)]);
     fn save_layer_size(&mut self, layer: usize, size: usize);
     fn remove_layer_size(&mut self, layer: usize);
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any>;
 }
 
 /// A dummy database structure for in-memory merkle tree that will not read/write db.
@@ -205,4 +211,8 @@ impl<E: HashElement> NodeTransaction<E> for EmptyNodeTransaction {
     fn save_layer_size(&mut self, _layer: usize, _size: usize) {}
 
     fn remove_layer_size(&mut self, _layer: usize) {}
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
+    }
 }
