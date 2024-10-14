@@ -245,22 +245,16 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     ) -> Result<Vec<(usize, usize, E)>> {
         self.node_manager.start_transaction();
         let mut updated_nodes = Vec::new();
-        updated_nodes.append(
-            &mut self.fill_with_proof(
-                proof
-                    .left_proof
-                    .proof_nodes_in_tree()
-                    .split_off(self.leaf_height),
-            )?,
-        );
-        updated_nodes.append(
-            &mut self.fill_with_proof(
-                proof
-                    .right_proof
-                    .proof_nodes_in_tree()
-                    .split_off(self.leaf_height),
-            )?,
-        );
+        let mut left_nodes = proof.left_proof.proof_nodes_in_tree();
+        if left_nodes.len() >= self.leaf_height {
+            updated_nodes
+                .append(&mut self.fill_with_proof(left_nodes.split_off(self.leaf_height))?);
+        }
+        let mut right_nodes = proof.right_proof.proof_nodes_in_tree();
+        if right_nodes.len() >= self.leaf_height {
+            updated_nodes
+                .append(&mut self.fill_with_proof(right_nodes.split_off(self.leaf_height))?);
+        }
         self.node_manager.commit();
         Ok(updated_nodes)
     }

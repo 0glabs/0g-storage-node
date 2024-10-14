@@ -12,8 +12,22 @@ pub trait Rpc {
     #[method(name = "uploadSegment")]
     async fn upload_segment(&self, segment: SegmentWithProof) -> RpcResult<()>;
 
+    #[method(name = "uploadSegmentByTxSeq")]
+    async fn upload_segment_by_tx_seq(
+        &self,
+        segment: SegmentWithProof,
+        tx_seq: u64,
+    ) -> RpcResult<()>;
+
     #[method(name = "uploadSegments")]
     async fn upload_segments(&self, segments: Vec<SegmentWithProof>) -> RpcResult<()>;
+
+    #[method(name = "uploadSegmentsByTxSeq")]
+    async fn upload_segments_by_tx_seq(
+        &self,
+        segments: Vec<SegmentWithProof>,
+        tx_seq: u64,
+    ) -> RpcResult<()>;
 
     #[method(name = "downloadSegment")]
     async fn download_segment(
@@ -23,10 +37,25 @@ pub trait Rpc {
         end_index: usize,
     ) -> RpcResult<Option<Segment>>;
 
+    #[method(name = "downloadSegmentByTxSeq")]
+    async fn download_segment_by_tx_seq(
+        &self,
+        tx_seq: u64,
+        start_index: usize,
+        end_index: usize,
+    ) -> RpcResult<Option<Segment>>;
+
     #[method(name = "downloadSegmentWithProof")]
     async fn download_segment_with_proof(
         &self,
         data_root: DataRoot,
+        index: usize,
+    ) -> RpcResult<Option<SegmentWithProof>>;
+
+    #[method(name = "downloadSegmentWithProofByTxSeq")]
+    async fn download_segment_with_proof_by_tx_seq(
+        &self,
+        tx_seq: u64,
         index: usize,
     ) -> RpcResult<Option<SegmentWithProof>>;
 

@@ -2,7 +2,7 @@ use super::{Client, RuntimeContext};
 use chunk_pool::{ChunkPoolMessage, Config as ChunkPoolConfig, MemoryChunkPool};
 use file_location_cache::FileLocationCache;
 use log_entry_sync::{LogSyncConfig, LogSyncEvent, LogSyncManager};
-use miner::{MineService, MinerConfig, MinerMessage};
+use miner::{MineService, MinerConfig, MinerMessage, ShardConfig};
 use network::{
     self, Keypair, NetworkConfig, NetworkGlobals, NetworkMessage, RequestId,
     Service as LibP2PService,
@@ -213,6 +213,16 @@ impl ClientBuilder {
                 .map_err(|e| e.to_string())?;
             self.pruner = Some(PrunerComponents { owned: Some(recv) });
         }
+        Ok(self)
+    }
+
+    pub async fn with_shard(self, config: ShardConfig) -> Result<Self, String> {
+        self.async_store
+            .as_ref()
+            .unwrap()
+            .update_shard_config(config)
+            .await;
+
         Ok(self)
     }
 

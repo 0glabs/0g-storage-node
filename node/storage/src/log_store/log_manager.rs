@@ -258,7 +258,7 @@ impl LogStoreWrite for LogManager {
         }
         let maybe_same_data_tx_seq = self.tx_store.put_tx(tx.clone())?.first().cloned();
         // TODO(zz): Should we validate received tx?
-        self.append_subtree_list(tx.merkle_nodes.clone(), &mut merkle)?;
+        self.append_subtree_list(tx.start_entry_index, tx.merkle_nodes.clone(), &mut merkle)?;
         merkle.commit_merkle(tx.seq)?;
         debug!(
             "commit flow root: root={:?}",
@@ -694,7 +694,7 @@ impl LogManager {
                 tx_store.rebuild_last_chunk_merkle(pora_chunks_merkle.leaves(), tx_seq)?
             }
             // Initialize
-            None => Merkle::new_with_depth(vec![], log2_pow2(PORA_CHUNK_SIZE) + 1, None),
+            None => Merkle::new_with_depth(vec![], 1, None),
         };
 
         debug!(
@@ -732,6 +732,10 @@ impl LogManager {
             .merkle
             .write()
             .try_initialize(&log_manager.flow_store)?;
+        info!(
+            "Log manager initialized, state={:?}",
+            log_manager.get_context()?
+        );
         Ok(log_manager)
     }
 
@@ -839,6 +843,7 @@ impl LogManager {
     #[instrument(skip(self, merkle))]
     fn append_subtree_list(
         &self,
+        tx_start_index: u64,
         merkle_list: Vec<(usize, DataRoot)>,
         merkle: &mut MerkleManager,
     ) -> Result<()> {
@@ -846,7 +851,7 @@ impl LogManager {
             return Ok(());
         }
 
-        self.pad_tx(1 << (merkle_list[0].0 - 1), &mut *merkle)?;
+        self.pad_tx(tx_start_index, &mut *merkle)?;
 
         let mut batch_root_map = BTreeMap::new();
         for (subtree_depth, subtree_root) in merkle_list {
@@ -894,18 +899,18 @@ impl LogManager {
     }
 
     #[instrument(skip(self, merkle))]
-    fn pad_tx(&self, first_subtree_size: u64, merkle: &mut MerkleManager) -> Result<()> {
+    fn pad_tx(&self, tx_start_index: u64, merkle: &mut MerkleManager) -> Result<()> {
         // Check if we need to pad the flow.
         let mut tx_start_flow_index =
             merkle.last_chunk_start_index() + merkle.last_chunk_merkle.leaves() as u64;
-        let extra = tx_start_flow_index % first_subtree_size;
+        let pad_size = tx_start_index - tx_start_flow_index;
         trace!(
             "before pad_tx {} {}",
             merkle.pora_chunks_merkle.leaves(),
             merkle.last_chunk_merkle.leaves()
         );
-        if extra != 0 {
-            for pad_data in Self::padding((first_subtree_size - extra) as usize) {
+        if pad_size != 0 {
+            for pad_data in Self::padding(pad_size as usize) {
                 let mut is_full_empty = true;
                 let mut root_map = BTreeMap::new();
 
@@ -968,12 +973,10 @@ impl LogManager {
                     // Update the flow database.
                     // This should be called before `complete_last_chunk_merkle` so that we do not save
                     // subtrees with data known.
-                    self.flow_store
-                        .append_entries(ChunkArray {
-                            data: pad_data.to_vec(),
-                            start_index: tx_start_flow_index,
-                        })
-                        .unwrap();
+                    self.flow_store.append_entries(ChunkArray {
+                        data: pad_data.to_vec(),
+                        start_index: tx_start_flow_index,
+                    })?;
                 }
 
                 tx_start_flow_index += data_size as u64;

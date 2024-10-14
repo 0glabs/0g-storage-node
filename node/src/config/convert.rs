@@ -204,6 +204,13 @@ impl ZgsConfig {
     pub fn router_config(&self, network_config: &NetworkConfig) -> Result<router::Config, String> {
         let mut router_config = self.router.clone();
         router_config.libp2p_nodes = network_config.libp2p_nodes.to_vec();
+
+        if router_config.public_address.is_none() {
+            if let Some(addr) = &self.network_enr_address {
+                router_config.public_address = Some(addr.parse().unwrap());
+            }
+        }
+
         Ok(router_config)
     }
 
@@ -232,7 +239,7 @@ impl ZgsConfig {
         }
     }
 
-    fn shard_config(&self) -> Result<ShardConfig, String> {
+    pub fn shard_config(&self) -> Result<ShardConfig, String> {
         self.shard_position.clone().try_into()
     }
 }

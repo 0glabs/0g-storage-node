@@ -178,7 +178,10 @@ impl LogEntryFetcher {
 
                         if let Some(finalized_block_number) = finalized_block_number {
                             let safe_block_number = std::cmp::min(
-                                std::cmp::min(log_latest_block_number, finalized_block_number),
+                                std::cmp::min(
+                                    log_latest_block_number.saturating_sub(1),
+                                    finalized_block_number,
+                                ),
                                 processed_block_number,
                             );
                             let mut pending_keys = vec![];
@@ -219,7 +222,7 @@ impl LogEntryFetcher {
     ) -> UnboundedReceiver<LogFetchProgress> {
         let provider = self.provider.clone();
         let (recover_tx, recover_rx) = tokio::sync::mpsc::unbounded_channel();
-        let contract = ZgsFlow::new(self.contract_address, provider.clone());
+        let contract = self.flow_contract();
         let log_page_size = self.log_page_size;
 
         executor.spawn(
@@ -302,7 +305,7 @@ impl LogEntryFetcher {
         mut watch_progress_rx: UnboundedReceiver<u64>,
     ) -> UnboundedReceiver<LogFetchProgress> {
         let (watch_tx, watch_rx) = tokio::sync::mpsc::unbounded_channel();
-        let contract = ZgsFlow::new(self.contract_address, self.provider.clone());
+        let contract = self.flow_contract();
         let provider = self.provider.clone();
         let confirmation_delay = self.confirmation_delay;
         let log_page_size = self.log_page_size;
@@ -580,6 +583,10 @@ impl LogEntryFetcher {
     pub fn provider(&self) -> &Provider<RetryClient<Http>> {
         self.provider.as_ref()
     }
+
+    pub fn flow_contract(&self) -> ZgsFlow<Provider<RetryClient<Http>>> {
+        ZgsFlow::new(self.contract_address, self.provider.clone())
+    }
 }
 
 async fn check_watch_process(
@@ -655,17 +662,24 @@ async fn check_watch_process(
                     "get block hash for block {} from RPC, assume there is no org",
                     *progress - 1
                 );
-                match provider.get_block(*progress - 1).await {
-                    Ok(Some(v)) => {
-                        v.hash.expect("parent block hash expect exist");
+                let hash = loop {
+                    match provider.get_block(*progress - 1).await {
+                        Ok(Some(v)) => {
+                            break v.hash.expect("parent block hash expect exist");
+                        }
+                        Ok(None) => {
+                            panic!("parent block {} expect exist", *progress - 1);
+                        }
+                        Err(e) => {
+                            if e.to_string().contains("server is too busy") {
+                                warn!("server busy, wait for parent block {}", *progress - 1);
+                            } else {
+                                panic!("parent block {} expect exist, error {}", *progress - 1, e);
+                            }
+                        }
                     }
-                    Ok(None) => {
-                        panic!("parent block {} expect exist", *progress - 1);
-                    }
-                    Err(e) => {
-                        panic!("parent block {} expect exist, error {}", *progress - 1, e);
-                    }
-                }
+                };
+                break hash;
             }
         };
     }
