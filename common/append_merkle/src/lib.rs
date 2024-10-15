@@ -59,10 +59,12 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                     },
                 );
             }
+            merkle.node_manager.commit();
             return merkle;
         }
         // Reconstruct the whole tree.
         merkle.recompute(0, 0, None);
+        merkle.node_manager.commit();
         // Commit the first version in memory.
         // TODO(zz): Check when the roots become available.
         merkle.commit(start_tx_seq);
@@ -116,6 +118,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                     },
                 );
             }
+            merkle.node_manager.commit();
             merkle
         } else {
             let mut merkle = Self {
@@ -134,6 +137,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             }
             // Reconstruct the whole tree.
             merkle.recompute(0, 0, None);
+            merkle.node_manager.commit();
             // Commit the first version in memory.
             merkle.commit(start_tx_seq);
             merkle

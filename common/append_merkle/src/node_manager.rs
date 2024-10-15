@@ -115,8 +115,9 @@ impl<E: HashElement> NodeManager<E> {
     }
 
     pub fn start_transaction(&mut self) {
-        if self.db_tx.is_none() {
+        if self.db_tx.is_some() {
             error!("start new tx before commit");
+            panic!("start new tx before commit");
         }
         self.db_tx = Some(self.db.start_transaction());
     }

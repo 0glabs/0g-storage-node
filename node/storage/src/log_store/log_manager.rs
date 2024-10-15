@@ -651,8 +651,12 @@ impl LogManager {
                     .get_tx_by_seq_number(last_tx_seq)?
                     .expect("tx missing");
                 let current_len = pora_chunks_merkle.leaves();
-                let expected_len =
-                    sector_to_segment(last_tx.start_entry_index + last_tx.num_entries() as u64);
+                let expected_len = sector_to_segment(
+                    last_tx.start_entry_index
+                        + last_tx.num_entries() as u64
+                        + PORA_CHUNK_SIZE as u64
+                        - 1,
+                );
                 match expected_len.cmp(&(current_len)) {
                     Ordering::Less => {
                         bail!(
@@ -681,6 +685,8 @@ impl LogManager {
                             );
                             if current_len > expected_len {
                                 pora_chunks_merkle.revert_to_leaves(expected_len)?;
+                            } else {
+                                assert_eq!(current_len, expected_len);
                             }
                             start_tx_seq = Some(previous_tx.seq);
                         };
@@ -691,10 +697,20 @@ impl LogManager {
 
         let last_chunk_merkle = match start_tx_seq {
             Some(tx_seq) => {
-                tx_store.rebuild_last_chunk_merkle(pora_chunks_merkle.leaves(), tx_seq)?
+                let tx = tx_store.get_tx_by_seq_number(tx_seq)?.expect("tx missing");
+                if (tx.start_entry_index() + tx.num_entries() as u64) % PORA_CHUNK_SIZE as u64 == 0
+                {
+                    // The last chunk should be aligned, so it's empty.
+                    Merkle::new_with_depth(vec![], log2_pow2(PORA_CHUNK_SIZE) + 1, None)
+                } else {
+                    tx_store.rebuild_last_chunk_merkle(pora_chunks_merkle.leaves() - 1, tx_seq)?
+                }
             }
             // Initialize
-            None => Merkle::new_with_depth(vec![], 1, None),
+            None => {
+                pora_chunks_merkle.reset();
+                Merkle::new_with_depth(vec![], 1, None)
+            }
         };
 
         debug!(
@@ -704,10 +720,10 @@ impl LogManager {
             last_chunk_merkle.leaves(),
         );
         if last_chunk_merkle.leaves() != 0 {
-            pora_chunks_merkle.append(last_chunk_merkle.root());
-            // update the merkle root
-            pora_chunks_merkle.commit(start_tx_seq);
+            pora_chunks_merkle.update_last(last_chunk_merkle.root());
         }
+        // update the merkle root
+        pora_chunks_merkle.commit(start_tx_seq);
         let merkle = RwLock::new(MerkleManager {
             pora_chunks_merkle,
             last_chunk_merkle,
