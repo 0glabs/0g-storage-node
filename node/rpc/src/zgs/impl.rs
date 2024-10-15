@@ -8,7 +8,7 @@ use jsonrpsee::core::RpcResult;
 use shared_types::{DataRoot, FlowProof, Transaction, TxSeqOrRoot, CHUNK_SIZE};
 use std::fmt::{Debug, Formatter, Result};
 use storage::config::ShardConfig;
-use storage::try_option;
+use storage::{try_option, H256};
 
 pub struct RpcServerImpl {
     pub ctx: Context,
@@ -197,6 +197,10 @@ impl RpcServer for RpcServerImpl {
             .await?;
         assert_eq!(proof.left_proof, proof.right_proof);
         Ok(proof.right_proof)
+    }
+
+    async fn get_flow_context(&self) -> RpcResult<(H256, u64)> {
+        Ok(self.ctx.log_store.get_context().await?)
     }
 }
 

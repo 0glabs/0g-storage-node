@@ -91,7 +91,12 @@ class FlowContractProxy(ContractProxy):
 
     def get_mine_context(self, node_idx=0):
         return self._call("makeContextWithResult", node_idx)
+    
+    def get_flow_root(self, node_idx=0):
+        return self._call("computeFlowRoot", node_idx)
 
+    def get_flow_length(self, node_idx=0):
+        return self._call("tree", node_idx)[0]
 
 class MineContractProxy(ContractProxy):
     def last_mined_epoch(self, node_idx=0):

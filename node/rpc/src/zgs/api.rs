@@ -2,7 +2,7 @@ use crate::types::{FileInfo, Segment, SegmentWithProof, Status};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use shared_types::{DataRoot, FlowProof, TxSeqOrRoot};
-use storage::config::ShardConfig;
+use storage::{config::ShardConfig, H256};
 
 #[rpc(server, client, namespace = "zgs")]
 pub trait Rpc {
@@ -77,4 +77,7 @@ pub trait Rpc {
         sector_index: u64,
         flow_root: Option<DataRoot>,
     ) -> RpcResult<FlowProof>;
+
+    #[method(name = "getFlowContext")]
+    async fn get_flow_context(&self) -> RpcResult<(H256, u64)>;
 }

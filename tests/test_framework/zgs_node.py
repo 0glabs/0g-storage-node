@@ -100,6 +100,9 @@ class ZgsNode(TestNode):
 
     def zgs_get_file_info_by_tx_seq(self, tx_seq):
         return self.rpc.zgs_getFileInfoByTxSeq([tx_seq])
+    
+    def zgs_get_flow_context(self, tx_seq):
+        return self.rpc.zgs_getFlowContext([tx_seq])
 
     def shutdown(self):
         self.rpc.admin_shutdown()
