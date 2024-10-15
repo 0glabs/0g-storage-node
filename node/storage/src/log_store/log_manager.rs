@@ -792,7 +792,8 @@ impl LogManager {
                                 .unwrap();
                         }
                         std::result::Result::Err(_) => {
-                            error!("Receiver error");
+                            debug!("Log manager inner channel closed");
+                            break;
                         }
                     };
                 }
