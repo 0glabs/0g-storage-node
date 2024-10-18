@@ -11,6 +11,7 @@ use shared_types::{NetworkIdentity, ProtocolVersion};
 use std::net::IpAddr;
 use std::time::Duration;
 use storage::config::ShardConfig;
+use storage::log_store::log_manager::LogConfig;
 use storage::StorageConfig;
 
 impl ZgsConfig {
@@ -101,8 +102,11 @@ impl ZgsConfig {
     }
 
     pub fn storage_config(&self) -> Result<StorageConfig, String> {
+        let mut log_config = LogConfig::default();
+        log_config.flow.merkle_node_cache_capacity = self.merkle_node_cache_capacity;
         Ok(StorageConfig {
             db_dir: self.db_dir.clone().into(),
+            log_config,
         })
     }
 

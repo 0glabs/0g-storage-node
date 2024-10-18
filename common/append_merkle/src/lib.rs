@@ -1,23 +1,28 @@
 mod merkle_tree;
+mod node_manager;
 mod proof;
 mod sha3;
 
 use anyhow::{anyhow, bail, Result};
+use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::sync::Arc;
 use tracing::{trace, warn};
 
+use crate::merkle_tree::MerkleTreeWrite;
 pub use crate::merkle_tree::{
     Algorithm, HashElement, MerkleTreeInitialData, MerkleTreeRead, ZERO_HASHES,
 };
+pub use crate::node_manager::{EmptyNodeDatabase, NodeDatabase, NodeManager, NodeTransaction};
 pub use proof::{Proof, RangeProof};
 pub use sha3::Sha3Algorithm;
 
 pub struct AppendMerkleTree<E: HashElement, A: Algorithm<E>> {
     /// Keep all the nodes in the latest version. `layers[0]` is the layer of leaves.
-    layers: Vec<Vec<E>>,
+    node_manager: NodeManager<E>,
     /// Keep the delta nodes that can be used to construct a history tree.
     /// The key is the root node of that version.
     delta_nodes_map: BTreeMap<u64, DeltaNodes<E>>,
@@ -35,13 +40,16 @@ pub struct AppendMerkleTree<E: HashElement, A: Algorithm<E>> {
 impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     pub fn new(leaves: Vec<E>, leaf_height: usize, start_tx_seq: Option<u64>) -> Self {
         let mut merkle = Self {
-            layers: vec![leaves],
+            node_manager: NodeManager::new_dummy(),
             delta_nodes_map: BTreeMap::new(),
             root_to_tx_seq_map: HashMap::new(),
             min_depth: None,
             leaf_height,
             _a: Default::default(),
         };
+        merkle.node_manager.start_transaction();
+        merkle.node_manager.add_layer();
+        merkle.node_manager.append_nodes(0, &leaves);
         if merkle.leaves() == 0 {
             if let Some(seq) = start_tx_seq {
                 merkle.delta_nodes_map.insert(
@@ -51,10 +59,12 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                     },
                 );
             }
+            merkle.node_manager.commit();
             return merkle;
         }
         // Reconstruct the whole tree.
         merkle.recompute(0, 0, None);
+        merkle.node_manager.commit();
         // Commit the first version in memory.
         // TODO(zz): Check when the roots become available.
         merkle.commit(start_tx_seq);
@@ -62,53 +72,44 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     pub fn new_with_subtrees(
-        initial_data: MerkleTreeInitialData<E>,
+        node_db: Arc<dyn NodeDatabase<E>>,
+        node_cache_capacity: usize,
         leaf_height: usize,
-        start_tx_seq: Option<u64>,
     ) -> Result<Self> {
         let mut merkle = Self {
-            layers: vec![vec![]],
+            node_manager: NodeManager::new(node_db, node_cache_capacity)?,
             delta_nodes_map: BTreeMap::new(),
             root_to_tx_seq_map: HashMap::new(),
             min_depth: None,
             leaf_height,
             _a: Default::default(),
         };
-        if initial_data.subtree_list.is_empty() {
-            if let Some(seq) = start_tx_seq {
-                merkle.delta_nodes_map.insert(
-                    seq,
-                    DeltaNodes {
-                        right_most_nodes: vec![],
-                    },
-                );
-            }
-            return Ok(merkle);
-        }
-        merkle.append_subtree_list(initial_data.subtree_list)?;
-        merkle.commit(start_tx_seq);
-        for (index, h) in initial_data.known_leaves {
-            merkle.fill_leaf(index, h);
-        }
-        for (layer_index, position, h) in initial_data.extra_mpt_nodes {
-            // TODO: Delete duplicate nodes from DB.
-            merkle.layers[layer_index][position] = h;
+        if merkle.height() == 0 {
+            merkle.node_manager.start_transaction();
+            merkle.node_manager.add_layer();
+            merkle.node_manager.commit();
         }
         Ok(merkle)
     }
 
     /// This is only used for the last chunk, so `leaf_height` is always 0 so far.
     pub fn new_with_depth(leaves: Vec<E>, depth: usize, start_tx_seq: Option<u64>) -> Self {
+        let mut node_manager = NodeManager::new_dummy();
+        node_manager.start_transaction();
         if leaves.is_empty() {
             // Create an empty merkle tree with `depth`.
             let mut merkle = Self {
-                layers: vec![vec![]; depth],
+                // dummy node manager for the last chunk.
+                node_manager,
                 delta_nodes_map: BTreeMap::new(),
                 root_to_tx_seq_map: HashMap::new(),
                 min_depth: Some(depth),
                 leaf_height: 0,
                 _a: Default::default(),
             };
+            for _ in 0..depth {
+                merkle.node_manager.add_layer();
+            }
             if let Some(seq) = start_tx_seq {
                 merkle.delta_nodes_map.insert(
                     seq,
@@ -117,20 +118,26 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                     },
                 );
             }
+            merkle.node_manager.commit();
             merkle
         } else {
-            let mut layers = vec![vec![]; depth];
-            layers[0] = leaves;
             let mut merkle = Self {
-                layers,
+                // dummy node manager for the last chunk.
+                node_manager,
                 delta_nodes_map: BTreeMap::new(),
                 root_to_tx_seq_map: HashMap::new(),
                 min_depth: Some(depth),
                 leaf_height: 0,
                 _a: Default::default(),
             };
+            merkle.node_manager.add_layer();
+            merkle.append_nodes(0, &leaves);
+            for _ in 1..depth {
+                merkle.node_manager.add_layer();
+            }
             // Reconstruct the whole tree.
             merkle.recompute(0, 0, None);
+            merkle.node_manager.commit();
             // Commit the first version in memory.
             merkle.commit(start_tx_seq);
             merkle
@@ -142,18 +149,22 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // appending null is not allowed.
             return;
         }
-        self.layers[0].push(new_leaf);
+        self.node_manager.start_transaction();
+        self.node_manager.push_node(0, new_leaf);
         self.recompute_after_append_leaves(self.leaves() - 1);
+        self.node_manager.commit();
     }
 
-    pub fn append_list(&mut self, mut leaf_list: Vec<E>) {
+    pub fn append_list(&mut self, leaf_list: Vec<E>) {
         if leaf_list.contains(&E::null()) {
             // appending null is not allowed.
             return;
         }
+        self.node_manager.start_transaction();
         let start_index = self.leaves();
-        self.layers[0].append(&mut leaf_list);
+        self.node_manager.append_nodes(0, &leaf_list);
         self.recompute_after_append_leaves(start_index);
+        self.node_manager.commit();
     }
 
     /// Append a leaf list by providing their intermediate node hash.
@@ -166,9 +177,11 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // appending null is not allowed.
             bail!("subtree_root is null");
         }
+        self.node_manager.start_transaction();
         let start_index = self.leaves();
         self.append_subtree_inner(subtree_depth, subtree_root)?;
         self.recompute_after_append_subtree(start_index, subtree_depth - 1);
+        self.node_manager.commit();
         Ok(())
     }
 
@@ -177,11 +190,13 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // appending null is not allowed.
             bail!("subtree_list contains null");
         }
+        self.node_manager.start_transaction();
         for (subtree_depth, subtree_root) in subtree_list {
             let start_index = self.leaves();
             self.append_subtree_inner(subtree_depth, subtree_root)?;
             self.recompute_after_append_subtree(start_index, subtree_depth - 1);
         }
+        self.node_manager.commit();
         Ok(())
     }
 
@@ -192,13 +207,15 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // updating to null is not allowed.
             return;
         }
-        if self.layers[0].is_empty() {
+        self.node_manager.start_transaction();
+        if self.layer_len(0) == 0 {
             // Special case for the first data.
-            self.layers[0].push(updated_leaf);
+            self.push_node(0, updated_leaf);
         } else {
-            *self.layers[0].last_mut().unwrap() = updated_leaf;
+            self.update_node(0, self.layer_len(0) - 1, updated_leaf);
         }
         self.recompute_after_append_leaves(self.leaves() - 1);
+        self.node_manager.commit();
     }
 
     /// Fill an unknown `null` leaf with its real value.
@@ -207,13 +224,17 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     pub fn fill_leaf(&mut self, index: usize, leaf: E) {
         if leaf == E::null() {
             // fill leaf with null is not allowed.
-        } else if self.layers[0][index] == E::null() {
-            self.layers[0][index] = leaf;
+        } else if self.node(0, index) == E::null() {
+            self.node_manager.start_transaction();
+            self.update_node(0, index, leaf);
             self.recompute_after_fill_leaves(index, index + 1);
-        } else if self.layers[0][index] != leaf {
+            self.node_manager.commit();
+        } else if self.node(0, index) != leaf {
             panic!(
                 "Fill with invalid leaf, index={} was={:?} get={:?}",
-                index, self.layers[0][index], leaf
+                index,
+                self.node(0, index),
+                leaf
             );
         }
     }
@@ -226,6 +247,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         &mut self,
         proof: RangeProof<E>,
     ) -> Result<Vec<(usize, usize, E)>> {
+        self.node_manager.start_transaction();
         let mut updated_nodes = Vec::new();
         let mut left_nodes = proof.left_proof.proof_nodes_in_tree();
         if left_nodes.len() >= self.leaf_height {
@@ -237,6 +259,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             updated_nodes
                 .append(&mut self.fill_with_proof(right_nodes.split_off(self.leaf_height))?);
         }
+        self.node_manager.commit();
         Ok(updated_nodes)
     }
 
@@ -262,13 +285,16 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         if tx_merkle_nodes.is_empty() {
             return Ok(Vec::new());
         }
+        self.node_manager.start_transaction();
         let mut position_and_data =
             proof.file_proof_nodes_in_tree(tx_merkle_nodes, tx_merkle_nodes_size);
         let start_index = (start_index >> self.leaf_height) as usize;
         for (i, (position, _)) in position_and_data.iter_mut().enumerate() {
             *position += start_index >> i;
         }
-        self.fill_with_proof(position_and_data)
+        let updated_nodes = self.fill_with_proof(position_and_data)?;
+        self.node_manager.commit();
+        Ok(updated_nodes)
     }
 
     /// This assumes that the proof leaf is no lower than the tree leaf. It holds for both SegmentProof and ChunkProof.
@@ -280,28 +306,27 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         let mut updated_nodes = Vec::new();
         // A valid proof should not fail the following checks.
         for (i, (position, data)) in position_and_data.into_iter().enumerate() {
-            let layer = &mut self.layers[i];
-            if position > layer.len() {
+            if position > self.layer_len(i) {
                 bail!(
                     "proof position out of range, position={} layer.len()={}",
                     position,
-                    layer.len()
+                    self.layer_len(i)
                 );
             }
-            if position == layer.len() {
+            if position == self.layer_len(i) {
                 // skip padding node.
                 continue;
             }
-            if layer[position] == E::null() {
-                layer[position] = data.clone();
+            if self.node(i, position) == E::null() {
+                self.update_node(i, position, data.clone());
                 updated_nodes.push((i, position, data))
-            } else if layer[position] != data {
+            } else if self.node(i, position) != data {
                 // The last node in each layer may have changed in the tree.
                 trace!(
                     "conflict data layer={} position={} tree_data={:?} proof_data={:?}",
                     i,
                     position,
-                    layer[position],
+                    self.node(i, position),
                     data
                 );
             }
@@ -317,8 +342,8 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         if position >= self.leaves() {
             bail!("Out of bound: position={} end={}", position, self.leaves());
         }
-        if self.layers[0][position] != E::null() {
-            Ok(Some(self.layers[0][position].clone()))
+        if self.node(0, position) != E::null() {
+            Ok(Some(self.node(0, position)))
         } else {
             // The leaf hash is unknown.
             Ok(None)
@@ -366,10 +391,11 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
                 return;
             }
             let mut right_most_nodes = Vec::new();
-            for layer in &self.layers {
-                right_most_nodes.push((layer.len() - 1, layer.last().unwrap().clone()));
+            for height in 0..self.height() {
+                let pos = self.layer_len(height) - 1;
+                right_most_nodes.push((pos, self.node(height, pos)));
             }
-            let root = self.root().clone();
+            let root = self.root();
             self.delta_nodes_map
                 .insert(tx_seq, DeltaNodes::new(right_most_nodes));
             self.root_to_tx_seq_map.insert(root, tx_seq);
@@ -377,8 +403,8 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     fn before_extend_layer(&mut self, height: usize) {
-        if height == self.layers.len() {
-            self.layers.push(Vec::new());
+        if height == self.height() {
+            self.node_manager.add_layer()
         }
     }
 
@@ -395,7 +421,6 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     /// Given a range of changed leaf nodes and recompute the tree.
-    /// Since this tree is append-only, we always compute to the end.
     fn recompute(
         &mut self,
         mut start_index: usize,
@@ -405,42 +430,51 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         start_index >>= height;
         maybe_end_index = maybe_end_index.map(|end| end >> height);
         // Loop until we compute the new root and reach `tree_depth`.
-        while self.layers[height].len() > 1 || height < self.layers.len() - 1 {
+        while self.layer_len(height) > 1 || height < self.height() - 1 {
             let next_layer_start_index = start_index >> 1;
             if start_index % 2 == 1 {
                 start_index -= 1;
             }
 
-            let mut end_index = maybe_end_index.unwrap_or(self.layers[height].len());
-            if end_index % 2 == 1 && end_index != self.layers[height].len() {
+            let mut end_index = maybe_end_index.unwrap_or(self.layer_len(height));
+            if end_index % 2 == 1 && end_index != self.layer_len(height) {
                 end_index += 1;
             }
             let mut i = 0;
-            let mut iter = self.layers[height][start_index..end_index].chunks_exact(2);
+            let iter = self
+                .node_manager
+                .get_nodes(height, start_index, end_index)
+                .chunks(2);
             // We cannot modify the parent layer while iterating the child layer,
             // so just keep the changes and update them later.
             let mut parent_update = Vec::new();
-            while let Some([left, right]) = iter.next() {
-                // If either left or right is null (unknown), we cannot compute the parent hash.
-                // Note that if we are recompute a range of an existing tree,
-                // we do not need to keep these possibly null parent. This is only saved
-                // for the case of constructing a new tree from the leaves.
-                let parent = if *left == E::null() || *right == E::null() {
-                    E::null()
+            for chunk_iter in &iter {
+                let chunk: Vec<_> = chunk_iter.collect();
+                if chunk.len() == 2 {
+                    let left = &chunk[0];
+                    let right = &chunk[1];
+                    // If either left or right is null (unknown), we cannot compute the parent hash.
+                    // Note that if we are recompute a range of an existing tree,
+                    // we do not need to keep these possibly null parent. This is only saved
+                    // for the case of constructing a new tree from the leaves.
+                    let parent = if *left == E::null() || *right == E::null() {
+                        E::null()
+                    } else {
+                        A::parent(left, right)
+                    };
+                    parent_update.push((next_layer_start_index + i, parent));
+                    i += 1;
                 } else {
-                    A::parent(left, right)
-                };
-                parent_update.push((next_layer_start_index + i, parent));
-                i += 1;
-            }
-            if let [r] = iter.remainder() {
-                // Same as above.
-                let parent = if *r == E::null() {
-                    E::null()
-                } else {
-                    A::parent_single(r, height + self.leaf_height)
-                };
-                parent_update.push((next_layer_start_index + i, parent));
+                    assert_eq!(chunk.len(), 1);
+                    let r = &chunk[0];
+                    // Same as above.
+                    let parent = if *r == E::null() {
+                        E::null()
+                    } else {
+                        A::parent_single(r, height + self.leaf_height)
+                    };
+                    parent_update.push((next_layer_start_index + i, parent));
+                }
             }
             if !parent_update.is_empty() {
                 self.before_extend_layer(height + 1);
@@ -449,27 +483,27 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             // we can just overwrite `last_changed_parent_index` with new values.
             let mut last_changed_parent_index = None;
             for (parent_index, parent) in parent_update {
-                match parent_index.cmp(&self.layers[height + 1].len()) {
+                match parent_index.cmp(&self.layer_len(height + 1)) {
                     Ordering::Less => {
                         // We do not overwrite with null.
                         if parent != E::null() {
-                            if self.layers[height + 1][parent_index] == E::null()
+                            if self.node(height + 1, parent_index) == E::null()
                                 // The last node in a layer can be updated.
-                                || (self.layers[height + 1][parent_index] != parent
-                                    && parent_index == self.layers[height + 1].len() - 1)
+                                || (self.node(height + 1, parent_index) != parent
+                                    && parent_index == self.layer_len(height + 1) - 1)
                             {
-                                self.layers[height + 1][parent_index] = parent;
+                                self.update_node(height + 1, parent_index, parent);
                                 last_changed_parent_index = Some(parent_index);
-                            } else if self.layers[height + 1][parent_index] != parent {
+                            } else if self.node(height + 1, parent_index) != parent {
                                 // Recompute changes a node in the middle. This should be impossible
                                 // if the inputs are valid.
                                 panic!("Invalid append merkle tree! height={} index={} expected={:?} get={:?}",
-                                       height + 1, parent_index, self.layers[height + 1][parent_index], parent);
+                                       height + 1, parent_index, self.node(height + 1, parent_index), parent);
                             }
                         }
                     }
                     Ordering::Equal => {
-                        self.layers[height + 1].push(parent);
+                        self.push_node(height + 1, parent);
                         last_changed_parent_index = Some(parent_index);
                     }
                     Ordering::Greater => {
@@ -500,10 +534,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         for height in 0..(subtree_depth - 1) {
             self.before_extend_layer(height);
             let subtree_layer_size = 1 << (subtree_depth - 1 - height);
-            self.layers[height].append(&mut vec![E::null(); subtree_layer_size]);
+            self.append_nodes(height, &vec![E::null(); subtree_layer_size]);
         }
         self.before_extend_layer(subtree_depth - 1);
-        self.layers[subtree_depth - 1].push(subtree_root);
+        self.push_node(subtree_depth - 1, subtree_root);
         Ok(())
     }
 
@@ -514,23 +548,45 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     pub fn revert_to(&mut self, tx_seq: u64) -> Result<()> {
-        if self.layers[0].is_empty() {
+        if self.layer_len(0) == 0 {
             // Any previous state of an empty tree is always empty.
             return Ok(());
         }
+        self.node_manager.start_transaction();
         let delta_nodes = self
             .delta_nodes_map
             .get(&tx_seq)
-            .ok_or_else(|| anyhow!("tx_seq unavailable, root={:?}", tx_seq))?;
+            .ok_or_else(|| anyhow!("tx_seq unavailable, root={:?}", tx_seq))?
+            .clone();
         // Dropping the upper layers that are not in the old merkle tree.
-        self.layers.truncate(delta_nodes.right_most_nodes.len());
+        for height in (delta_nodes.right_most_nodes.len()..self.height()).rev() {
+            self.node_manager.truncate_layer(height);
+        }
         for (height, (last_index, right_most_node)) in
             delta_nodes.right_most_nodes.iter().enumerate()
         {
-            self.layers[height].truncate(*last_index + 1);
-            self.layers[height][*last_index] = right_most_node.clone();
+            self.node_manager.truncate_nodes(height, *last_index + 1);
+            self.update_node(height, *last_index, right_most_node.clone())
         }
         self.clear_after(tx_seq);
+        self.node_manager.commit();
+        Ok(())
+    }
+
+    // Revert to a tx_seq not in `delta_nodes_map`.
+    // This is needed to revert the last unfinished tx after restart.
+    pub fn revert_to_leaves(&mut self, leaves: usize) -> Result<()> {
+        self.node_manager.start_transaction();
+        for height in (0..self.height()).rev() {
+            let kept_nodes = leaves >> height;
+            if kept_nodes == 0 {
+                self.node_manager.truncate_layer(height);
+            } else {
+                self.node_manager.truncate_nodes(height, kept_nodes + 1);
+            }
+        }
+        self.recompute_after_append_leaves(leaves);
+        self.node_manager.commit();
         Ok(())
     }
 
@@ -550,17 +606,25 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             bail!("empty tree");
         }
         Ok(HistoryTree {
-            layers: &self.layers,
+            node_manager: &self.node_manager,
             delta_nodes,
             leaf_height: self.leaf_height,
         })
     }
 
     pub fn reset(&mut self) {
-        self.layers = match self.min_depth {
-            None => vec![vec![]],
-            Some(depth) => vec![vec![]; depth],
-        };
+        self.node_manager.start_transaction();
+        for height in (0..self.height()).rev() {
+            self.node_manager.truncate_layer(height);
+        }
+        if let Some(depth) = self.min_depth {
+            for _ in 0..depth {
+                self.node_manager.add_layer();
+            }
+        } else {
+            self.node_manager.add_layer();
+        }
+        self.node_manager.commit();
     }
 
     fn clear_after(&mut self, tx_seq: u64) {
@@ -580,10 +644,10 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     fn first_known_root_at(&self, index: usize) -> (usize, E) {
         let mut height = 0;
         let mut index_in_layer = index;
-        while height < self.layers.len() {
+        while height < self.height() {
             let node = self.node(height, index_in_layer);
             if !node.is_null() {
-                return (height + 1, node.clone());
+                return (height + 1, node);
             }
             height += 1;
             index_in_layer /= 2;
@@ -628,7 +692,7 @@ impl<E: HashElement> DeltaNodes<E> {
 
 pub struct HistoryTree<'m, E: HashElement> {
     /// A reference to the global tree nodes.
-    layers: &'m Vec<Vec<E>>,
+    node_manager: &'m NodeManager<E>,
     /// The delta nodes that are difference from `layers`.
     /// This could be a reference, we just take ownership for convenience.
     delta_nodes: &'m DeltaNodes<E>,
@@ -639,16 +703,18 @@ pub struct HistoryTree<'m, E: HashElement> {
 impl<E: HashElement, A: Algorithm<E>> MerkleTreeRead for AppendMerkleTree<E, A> {
     type E = E;
 
-    fn node(&self, layer: usize, index: usize) -> &Self::E {
-        &self.layers[layer][index]
+    fn node(&self, layer: usize, index: usize) -> Self::E {
+        self.node_manager
+            .get_node(layer, index)
+            .expect("index checked")
     }
 
     fn height(&self) -> usize {
-        self.layers.len()
+        self.node_manager.num_layers()
     }
 
     fn layer_len(&self, layer_height: usize) -> usize {
-        self.layers[layer_height].len()
+        self.node_manager.layer_size(layer_height)
     }
 
     fn padding_node(&self, height: usize) -> Self::E {
@@ -658,10 +724,13 @@ impl<E: HashElement, A: Algorithm<E>> MerkleTreeRead for AppendMerkleTree<E, A> 
 
 impl<'a, E: HashElement> MerkleTreeRead for HistoryTree<'a, E> {
     type E = E;
-    fn node(&self, layer: usize, index: usize) -> &Self::E {
+    fn node(&self, layer: usize, index: usize) -> Self::E {
         match self.delta_nodes.get(layer, index).expect("range checked") {
-            Some(node) if *node != E::null() => node,
-            _ => &self.layers[layer][index],
+            Some(node) if *node != E::null() => node.clone(),
+            _ => self
+                .node_manager
+                .get_node(layer, index)
+                .expect("index checked"),
         }
     }
 
@@ -675,6 +744,22 @@ impl<'a, E: HashElement> MerkleTreeRead for HistoryTree<'a, E> {
 
     fn padding_node(&self, height: usize) -> Self::E {
         E::end_pad(height + self.leaf_height)
+    }
+}
+
+impl<E: HashElement, A: Algorithm<E>> MerkleTreeWrite for AppendMerkleTree<E, A> {
+    type E = E;
+
+    fn push_node(&mut self, layer: usize, node: Self::E) {
+        self.node_manager.push_node(layer, node);
+    }
+
+    fn append_nodes(&mut self, layer: usize, nodes: &[Self::E]) {
+        self.node_manager.append_nodes(layer, nodes);
+    }
+
+    fn update_node(&mut self, layer: usize, pos: usize, node: Self::E) {
+        self.node_manager.add_node(layer, pos, node);
     }
 }
 
@@ -699,6 +784,7 @@ macro_rules! ensure_eq {
 #[cfg(test)]
 mod tests {
     use crate::merkle_tree::MerkleTreeRead;
+
     use crate::sha3::Sha3Algorithm;
     use crate::AppendMerkleTree;
     use ethereum_types::H256;
