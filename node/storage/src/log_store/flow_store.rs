@@ -4,25 +4,23 @@ use super::{MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
 use crate::error::Error;
 use crate::log_store::log_manager::{
-    bytes_to_entries, data_to_merkle_leaves, COL_ENTRY_BATCH, COL_ENTRY_BATCH_ROOT,
-    COL_FLOW_MPT_NODES, ENTRY_SIZE, PORA_CHUNK_SIZE,
+    bytes_to_entries, COL_ENTRY_BATCH, COL_FLOW_MPT_NODES, PORA_CHUNK_SIZE,
 };
 use crate::log_store::{FlowRead, FlowSeal, FlowWrite};
 use crate::{try_option, ZgsKeyValueDB};
 use any::Any;
 use anyhow::{anyhow, bail, Result};
-use append_merkle::{MerkleTreeInitialData, MerkleTreeRead, NodeDatabase, NodeTransaction};
+use append_merkle::{MerkleTreeRead, NodeDatabase, NodeTransaction};
 use itertools::Itertools;
 use kvdb::DBTransaction;
 use parking_lot::RwLock;
-use shared_types::{ChunkArray, DataRoot, FlowProof, Merkle};
+use shared_types::{ChunkArray, DataRoot, FlowProof};
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
-use std::cmp::Ordering;
-use std::collections::BTreeMap;
+
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::{any, cmp, mem};
+use std::{any, cmp};
 use tracing::{debug, error, trace};
 use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
@@ -39,10 +37,6 @@ impl FlowStore {
             seal_manager: Default::default(),
             config,
         }
-    }
-
-    pub fn put_batch_root_list(&self, root_map: BTreeMap<usize, (DataRoot, usize)>) -> Result<()> {
-        self.db.put_batch_root_list(root_map)
     }
 
     pub fn insert_subtree_list_for_batch(
@@ -74,21 +68,9 @@ impl FlowStore {
         merkle.gen_proof(sector_index)
     }
 
-    pub fn put_mpt_node_list(&self, node_list: Vec<(usize, usize, DataRoot)>) -> Result<()> {
-        self.db.put_mpt_node_list(node_list)
-    }
-
     pub fn delete_batch_list(&self, batch_list: &[u64]) -> Result<()> {
         self.seal_manager.delete_batch_list(batch_list);
         self.db.delete_batch_list(batch_list)
-    }
-
-    pub fn get_raw_batch(&self, batch_index: u64) -> Result<Option<EntryBatch>> {
-        self.db.get_entry_batch(batch_index)
-    }
-
-    pub fn get_batch_root(&self, batch_index: u64) -> Result<Option<DataRoot>> {
-        self.db.get_batch_root(batch_index)
     }
 }
 
@@ -185,11 +167,6 @@ impl FlowRead for FlowStore {
             }
         }
         Ok(entry_list)
-    }
-
-    /// Return the list of all stored chunk roots.
-    fn get_chunk_root_list(&self) -> Result<MerkleTreeInitialData<DataRoot>> {
-        self.db.get_batch_root_list()
     }
 
     fn load_sealed_data(&self, chunk_index: u64) -> Result<Option<MineLoadChunk>> {
@@ -388,12 +365,6 @@ impl FlowDBStore {
             );
             if let Some(root) = batch.build_root(batch_index == 0)? {
                 trace!("complete batch: index={}", batch_index);
-                tx.put(
-                    COL_ENTRY_BATCH_ROOT,
-                    // (batch_index, subtree_depth)
-                    &encode_batch_root_key(batch_index as usize, 1),
-                    root.as_bytes(),
-                );
                 completed_batches.push((batch_index, root));
             }
         }
@@ -417,94 +388,6 @@ impl FlowDBStore {
     fn get_entry_batch(&self, batch_index: u64) -> Result<Option<EntryBatch>> {
         let raw = try_option!(self.kvdb.get(COL_ENTRY_BATCH, &batch_index.to_be_bytes())?);
         Ok(Some(EntryBatch::from_ssz_bytes(&raw).map_err(Error::from)?))
-    }
-
-    fn put_batch_root_list(&self, root_map: BTreeMap<usize, (DataRoot, usize)>) -> Result<()> {
-        let mut tx = self.kvdb.transaction();
-        for (batch_index, (root, subtree_depth)) in root_map {
-            tx.put(
-                COL_ENTRY_BATCH_ROOT,
-                &encode_batch_root_key(batch_index, subtree_depth),
-                root.as_bytes(),
-            );
-        }
-        Ok(self.kvdb.write(tx)?)
-    }
-
-    fn get_batch_root_list(&self) -> Result<MerkleTreeInitialData<DataRoot>> {
-        let mut range_root = None;
-        // A list of `BatchRoot` that can reconstruct the whole merkle tree structure.
-        let mut root_list = Vec::new();
-        // A list of leaf `(index, root_hash)` in the subtrees of some nodes in `root_list`,
-        // and they will be updated in the merkle tree with `fill_leaf` by the caller.
-        let mut leaf_list = Vec::new();
-        let mut expected_index = 0;
-
-        let empty_data = vec![0; PORA_CHUNK_SIZE * ENTRY_SIZE];
-        let empty_root = Merkle::new(data_to_merkle_leaves(&empty_data)?, 0, None).root();
-
-        for r in self.kvdb.iter(COL_ENTRY_BATCH_ROOT) {
-            let (index_bytes, root_bytes) = r?;
-            let (batch_index, subtree_depth) = decode_batch_root_key(index_bytes.as_ref())?;
-            let root = DataRoot::from_slice(root_bytes.as_ref());
-            debug!(
-                "load root depth={}, index expected={} get={} root={:?}",
-                subtree_depth, expected_index, batch_index, root,
-            );
-            if subtree_depth == 1 {
-                if range_root.is_none() {
-                    // This is expected to be the next leaf.
-                    if batch_index == expected_index {
-                        root_list.push((1, root));
-                        expected_index += 1;
-                    } else {
-                        bail!(
-                            "unexpected chunk leaf, expected={}, get={}",
-                            expected_index,
-                            batch_index
-                        );
-                    }
-                } else {
-                    match batch_index.cmp(&expected_index) {
-                        Ordering::Less => {
-                            // This leaf is within a subtree whose root is known.
-                            leaf_list.push((batch_index, root));
-                        }
-                        Ordering::Equal => {
-                            // A subtree range ends.
-                            range_root = None;
-                            root_list.push((1, root));
-                            expected_index += 1;
-                        }
-                        Ordering::Greater => {
-                            while batch_index > expected_index {
-                                // Fill the gap with empty leaves.
-                                root_list.push((1, empty_root));
-                                expected_index += 1;
-                            }
-                            range_root = None;
-                            root_list.push((1, root));
-                            expected_index += 1;
-                        }
-                    }
-                }
-            } else {
-                while batch_index > expected_index {
-                    // Fill the gap with empty leaves.
-                    root_list.push((1, empty_root));
-                    expected_index += 1;
-                }
-                range_root = Some(BatchRoot::Multiple((subtree_depth, root)));
-                root_list.push((subtree_depth, root));
-                expected_index += 1 << (subtree_depth - 1);
-            }
-        }
-        let extra_node_list = self.get_mpt_node_list()?;
-        Ok(MerkleTreeInitialData {
-            subtree_list: root_list,
-            known_leaves: leaf_list,
-            extra_mpt_nodes: extra_node_list,
-        })
     }
 
     fn truncate(&self, start_index: u64, batch_size: usize) -> crate::error::Result<Vec<usize>> {
@@ -547,36 +430,9 @@ impl FlowDBStore {
         };
         for batch_index in start_batch_index as usize..=end {
             tx.delete(COL_ENTRY_BATCH, &batch_index.to_be_bytes());
-            tx.delete_prefix(COL_ENTRY_BATCH_ROOT, &batch_index.to_be_bytes());
         }
         self.kvdb.write(tx)?;
         Ok(index_to_reseal)
-    }
-
-    fn put_mpt_node_list(&self, mpt_node_list: Vec<(usize, usize, DataRoot)>) -> Result<()> {
-        let mut tx = self.kvdb.transaction();
-        for (layer_index, position, data) in mpt_node_list {
-            tx.put(
-                COL_FLOW_MPT_NODES,
-                &encode_mpt_node_key(layer_index, position),
-                data.as_bytes(),
-            );
-        }
-        Ok(self.kvdb.write(tx)?)
-    }
-
-    fn get_mpt_node_list(&self) -> Result<Vec<(usize, usize, DataRoot)>> {
-        let mut node_list = Vec::new();
-        for r in self.kvdb.iter(COL_FLOW_MPT_NODES) {
-            let (index_bytes, node_bytes) = r?;
-            let (layer_index, position) = decode_mpt_node_key(index_bytes.as_ref())?;
-            node_list.push((
-                layer_index,
-                position,
-                DataRoot::from_slice(node_bytes.as_ref()),
-            ));
-        }
-        Ok(node_list)
     }
 
     fn delete_batch_list(&self, batch_list: &[u64]) -> Result<()> {
@@ -585,16 +441,6 @@ impl FlowDBStore {
             tx.delete(COL_ENTRY_BATCH, &i.to_be_bytes());
         }
         Ok(self.kvdb.write(tx)?)
-    }
-
-    fn get_batch_root(&self, batch_index: u64) -> Result<Option<DataRoot>> {
-        Ok(self
-            .kvdb
-            .get(
-                COL_ENTRY_BATCH_ROOT,
-                &encode_batch_root_key(batch_index as usize, 1),
-            )?
-            .map(|v| DataRoot::from_slice(&v)))
     }
 }
 
@@ -641,35 +487,10 @@ fn decode_batch_index(data: &[u8]) -> Result<usize> {
     try_decode_usize(data)
 }
 
-/// For the same batch_index, we want to process the larger subtree_depth first in iteration.
-fn encode_batch_root_key(batch_index: usize, subtree_depth: usize) -> Vec<u8> {
-    let mut key = batch_index.to_be_bytes().to_vec();
-    key.extend_from_slice(&(usize::MAX - subtree_depth).to_be_bytes());
-    key
-}
-
-fn decode_batch_root_key(data: &[u8]) -> Result<(usize, usize)> {
-    if data.len() != mem::size_of::<usize>() * 2 {
-        bail!("invalid data length");
-    }
-    let batch_index = try_decode_usize(&data[..mem::size_of::<u64>()])?;
-    let subtree_depth = usize::MAX - try_decode_usize(&data[mem::size_of::<u64>()..])?;
-    Ok((batch_index, subtree_depth))
-}
-
 fn encode_mpt_node_key(layer_index: usize, position: usize) -> Vec<u8> {
     let mut key = layer_index.to_be_bytes().to_vec();
     key.extend_from_slice(&position.to_be_bytes());
     key
-}
-
-fn decode_mpt_node_key(data: &[u8]) -> Result<(usize, usize)> {
-    if data.len() != mem::size_of::<usize>() * 2 {
-        bail!("invalid data length");
-    }
-    let layer_index = try_decode_usize(&data[..mem::size_of::<u64>()])?;
-    let position = try_decode_usize(&data[mem::size_of::<u64>()..])?;
-    Ok((layer_index, position))
 }
 
 fn layer_size_key(layer: usize) -> Vec<u8> {
