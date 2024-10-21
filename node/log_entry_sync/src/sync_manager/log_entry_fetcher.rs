@@ -236,22 +236,29 @@ impl LogEntryFetcher {
                     .filter;
                 let mut stream = LogQuery::new(&provider, &filter, log_query_delay)
                     .with_page_size(log_page_size);
-                debug!(
+                info!(
                     "start_recover starts, start={} end={}",
                     start_block_number, end_block_number
                 );
+                let (mut block_hash_sent, mut block_number_sent) = (None, None);
                 while let Some(maybe_log) = stream.next().await {
                     match maybe_log {
                         Ok(log) => {
                             let sync_progress =
                                 if log.block_hash.is_some() && log.block_number.is_some() {
-                                    let synced_block = LogFetchProgress::SyncedBlock((
-                                        log.block_number.unwrap().as_u64(),
-                                        log.block_hash.unwrap(),
-                                        None,
-                                    ));
-                                    progress = log.block_number.unwrap().as_u64();
-                                    Some(synced_block)
+                                    if block_hash_sent != log.block_hash
+                                        || block_number_sent != log.block_number
+                                    {
+                                        let synced_block = LogFetchProgress::SyncedBlock((
+                                            log.block_number.unwrap().as_u64(),
+                                            log.block_hash.unwrap(),
+                                            None,
+                                        ));
+                                        progress = log.block_number.unwrap().as_u64();
+                                        Some(synced_block)
+                                    } else {
+                                        None
+                                    }
                                 } else {
                                     None
                                 };
@@ -268,7 +275,12 @@ impl LogEntryFetcher {
                                             log.block_number.expect("block number exist").as_u64(),
                                         ))
                                         .and_then(|_| match sync_progress {
-                                            Some(b) => recover_tx.send(b),
+                                            Some(b) => {
+                                                recover_tx.send(b)?;
+                                                block_hash_sent = log.block_hash;
+                                                block_number_sent = log.block_number;
+                                                Ok(())
+                                            }
                                             None => Ok(()),
                                         })
                                     {
@@ -290,6 +302,8 @@ impl LogEntryFetcher {
                         }
                     }
                 }
+
+                info!("log recover end");
             },
             "log recover",
         );
