@@ -236,7 +236,7 @@ impl LogEntryFetcher {
                     .filter;
                 let mut stream = LogQuery::new(&provider, &filter, log_query_delay)
                     .with_page_size(log_page_size);
-                debug!(
+                info!(
                     "start_recover starts, start={} end={}",
                     start_block_number, end_block_number
                 );
