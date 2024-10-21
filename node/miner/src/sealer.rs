@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use ethereum_types::H256;
+use ethers::prelude::{Http, Provider, RetryClient};
 use tokio::time::{sleep, Duration, Instant};
 
 use contract_interface::{EpochRangeWithContextDigest, ZgsFlow};
@@ -12,14 +13,14 @@ use storage_async::Store;
 use task_executor::TaskExecutor;
 use zgs_spec::SECTORS_PER_SEAL;
 
-use crate::config::{MineServiceMiddleware, MinerConfig};
+use crate::config::MinerConfig;
 
 const DB_QUERY_PERIOD_ON_NO_TASK: u64 = 1;
 const DB_QUERY_PERIOD_ON_ERROR: u64 = 5;
 const CHAIN_STATUS_QUERY_PERIOD: u64 = 5;
 
 pub struct Sealer {
-    flow_contract: ZgsFlow<MineServiceMiddleware>,
+    flow_contract: ZgsFlow<Provider<RetryClient<Http>>>,
     store: Arc<Store>,
     context_cache: BTreeMap<u128, EpochRangeWithContextDigest>,
     last_context_flow_length: u64,
@@ -29,7 +30,7 @@ pub struct Sealer {
 impl Sealer {
     pub fn spawn(
         executor: TaskExecutor,
-        provider: Arc<MineServiceMiddleware>,
+        provider: Arc<Provider<RetryClient<Http>>>,
         store: Arc<Store>,
         config: &MinerConfig,
         miner_id: H256,

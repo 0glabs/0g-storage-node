@@ -2,6 +2,7 @@ use contract_interface::PoraAnswer;
 use contract_interface::{PoraMine, ZgsFlow};
 use ethereum_types::U256;
 use ethers::contract::ContractCall;
+use ethers::prelude::{Http, Provider, RetryClient};
 use ethers::providers::PendingTransaction;
 use hex::ToHex;
 use shared_types::FlowRangeProof;
@@ -24,7 +25,7 @@ pub struct Submitter {
     mine_answer_receiver: mpsc::UnboundedReceiver<AnswerWithoutProof>,
     mine_context_receiver: broadcast::Receiver<MineContextMessage>,
     mine_contract: PoraMine<MineServiceMiddleware>,
-    flow_contract: ZgsFlow<MineServiceMiddleware>,
+    flow_contract: ZgsFlow<Provider<RetryClient<Http>>>,
     default_gas_limit: Option<U256>,
     store: Arc<Store>,
 }
@@ -34,11 +35,12 @@ impl Submitter {
         executor: TaskExecutor,
         mine_answer_receiver: mpsc::UnboundedReceiver<AnswerWithoutProof>,
         mine_context_receiver: broadcast::Receiver<MineContextMessage>,
-        provider: Arc<MineServiceMiddleware>,
+        provider: Arc<Provider<RetryClient<Http>>>,
+        signing_provider: Arc<MineServiceMiddleware>,
         store: Arc<Store>,
         config: &MinerConfig,
     ) {
-        let mine_contract = PoraMine::new(config.mine_address, provider.clone());
+        let mine_contract = PoraMine::new(config.mine_address, signing_provider);
         let flow_contract = ZgsFlow::new(config.flow_address, provider);
         let default_gas_limit = config.submission_gas;
 

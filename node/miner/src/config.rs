@@ -67,8 +67,8 @@ impl MinerConfig {
         })
     }
 
-    pub(crate) async fn make_provider(&self) -> Result<MineServiceMiddleware, String> {
-        let provider = Arc::new(Provider::new(
+    pub(crate) fn make_provider(&self) -> Result<Arc<Provider<RetryClient<Http>>>, String> {
+        Ok(Arc::new(Provider::new(
             RetryClientBuilder::default()
                 .rate_limit_retries(self.rate_limit_retries)
                 .timeout_retries(self.timeout_retries)
@@ -78,7 +78,11 @@ impl MinerConfig {
                         .map_err(|e| format!("Cannot parse blockchain endpoint: {:?}", e))?,
                     Box::new(HttpRateLimitRetryPolicy),
                 ),
-        ));
+        )))
+    }
+
+    pub(crate) async fn make_signing_provider(&self) -> Result<MineServiceMiddleware, String> {
+        let provider = self.make_provider()?;
         let chain_id = provider
             .get_chainid()
             .await

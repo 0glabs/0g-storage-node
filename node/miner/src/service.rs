@@ -33,11 +33,13 @@ impl MineService {
         config: MinerConfig,
         store: Arc<Store>,
     ) -> Result<broadcast::Sender<MinerMessage>, String> {
-        let provider = Arc::new(config.make_provider().await?);
+        let provider = config.make_provider()?;
+        let signing_provider = Arc::new(config.make_signing_provider().await?);
 
         let (msg_send, msg_recv) = broadcast::channel(1024);
 
-        let miner_id = check_and_request_miner_id(&config, store.as_ref(), &provider).await?;
+        let miner_id =
+            check_and_request_miner_id(&config, store.as_ref(), &signing_provider).await?;
         debug!("miner id setting complete.");
 
         let mine_context_receiver = MineContextWatcher::spawn(
@@ -61,6 +63,7 @@ impl MineService {
             mine_answer_receiver,
             mine_context_receiver,
             provider.clone(),
+            signing_provider,
             store.clone(),
             &config,
         );
