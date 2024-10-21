@@ -302,6 +302,8 @@ impl LogEntryFetcher {
                         }
                     }
                 }
+
+                info!("log recover end");
             },
             "log recover",
         );
