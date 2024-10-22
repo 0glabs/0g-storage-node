@@ -336,7 +336,7 @@ auto_sync_enabled = true
 # enabled = false
 
 # Interval to output metrics periodically, e.g. "10s", "30s" or "60s".
-# report_interval = ""
+# report_interval = "10s"
 
 # File name to output metrics periodically.
 # file_report_output = ""
