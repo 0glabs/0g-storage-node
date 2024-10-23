@@ -269,7 +269,7 @@ impl SyncService {
             SyncMessage::AnnounceShardConfig { .. } => {
                 // FIXME: Check if controllers need to be reset?
             }
-            SyncMessage::NewFile { from, msg } => todo!(),
+            SyncMessage::NewFile { from, msg } => self.on_new_file_gossip(from, msg).await,
         }
     }
 
@@ -753,6 +753,19 @@ impl SyncService {
                 controller.on_peer_found(msg.peer_id.into(), msg.at.into());
                 controller.transition();
             }
+        }
+    }
+
+    async fn on_new_file_gossip(&mut self, from: PeerId, msg: NewFile) {
+        debug!(%from, ?msg, "Received NewFile gossip");
+
+        if let Some(controller) = self.controllers.get_mut(&msg.tx_id.seq) {
+            // Notify new peer found if file already in sync
+            // TODO qbit: do not require remote address since already TCP connected
+            // controller.on_peer_found(from, addr);
+            controller.transition();
+        } else if let Some(manager) = &self.auto_sync_manager {
+            let _ = manager.new_file_send.send(msg.tx_id.seq);
         }
     }
 

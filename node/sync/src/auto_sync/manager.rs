@@ -15,12 +15,17 @@ use tokio::sync::{
 
 use crate::{Config, SyncSender};
 
-use super::{batcher_random::RandomBatcher, batcher_serial::SerialBatcher, sync_store::SyncStore};
+use super::{
+    batcher_random::RandomBatcher,
+    batcher_serial::SerialBatcher,
+    sync_store::{Queue, SyncStore},
+};
 
 pub struct AutoSyncManager {
     pub serial: SerialBatcher,
     pub random: RandomBatcher,
     pub file_announcement_send: UnboundedSender<u64>,
+    pub new_file_send: UnboundedSender<u64>,
     pub catched_up: Arc<AtomicBool>,
 }
 
@@ -33,9 +38,23 @@ impl AutoSyncManager {
         log_sync_recv: broadcast::Receiver<LogSyncEvent>,
         catch_up_end_recv: oneshot::Receiver<()>,
     ) -> Result<Self> {
-        let (send, recv) = unbounded_channel();
+        let (file_announcement_send, file_announcement_recv) = unbounded_channel();
+        let (new_file_send, mut new_file_recv) = unbounded_channel();
         let sync_store = Arc::new(SyncStore::new(store.clone()));
         let catched_up = Arc::new(AtomicBool::new(false));
+
+        // handle new file
+        let sync_store_cloned = sync_store.clone();
+        executor.spawn(
+            async move {
+                while let Some(tx_seq) = new_file_recv.recv().await {
+                    if let Err(err) = sync_store_cloned.insert(tx_seq, Queue::Ready).await {
+                        warn!(?err, %tx_seq, "Failed to insert new file to ready queue");
+                    }
+                }
+            },
+            "auto_sync_handle_new_file",
+        );
 
         // sync in sequence
         let serial =
@@ -44,7 +63,7 @@ impl AutoSyncManager {
         executor.spawn(
             serial
                 .clone()
-                .start(recv, log_sync_recv, catched_up.clone()),
+                .start(file_announcement_recv, log_sync_recv, catched_up.clone()),
             "auto_sync_serial",
         );
 
@@ -67,7 +86,8 @@ impl AutoSyncManager {
         Ok(Self {
             serial,
             random,
-            file_announcement_send: send,
+            file_announcement_send,
+            new_file_send,
             catched_up,
         })
     }
