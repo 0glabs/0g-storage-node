@@ -124,6 +124,14 @@ pub struct NewFile {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct NewFile {
+    pub tx_id: TxID,
+    pub num_shard: usize,
+    pub shard_id: usize,
+    pub timestamp: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct FindFile {
     pub tx_id: TxID,
     pub num_shard: usize,
