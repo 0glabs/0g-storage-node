@@ -8,7 +8,7 @@ use anyhow::{anyhow, bail, Result};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
-use network::types::{AnnounceChunks, FindFile};
+use network::types::{AnnounceChunks, FindFile, NewFile};
 use network::PubsubMessage;
 use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, PeerId,
@@ -69,6 +69,10 @@ pub enum SyncMessage {
     },
     AnnounceChunksGossip {
         msg: AnnounceChunks,
+    },
+    NewFile {
+        from: PeerId,
+        msg: NewFile,
     },
 }
 
@@ -265,6 +269,7 @@ impl SyncService {
             SyncMessage::AnnounceShardConfig { .. } => {
                 // FIXME: Check if controllers need to be reset?
             }
+            SyncMessage::NewFile { from, msg } => todo!(),
         }
     }
 
