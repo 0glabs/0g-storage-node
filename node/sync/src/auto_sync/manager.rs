@@ -53,8 +53,15 @@ impl AutoSyncManager {
         let catched_up = Arc::new(AtomicBool::new(false));
 
         // handle new file
+        let sync_store_cloned = sync_store.clone();
         executor.spawn(
-            Self::handle_new_file(new_file_recv, sync_store.clone()),
+            async move {
+                while let Some(tx_seq) = new_file_recv.recv().await {
+                    if let Err(err) = sync_store_cloned.insert(tx_seq, Queue::Ready).await {
+                        warn!(?err, %tx_seq, "Failed to insert new file to ready queue");
+                    }
+                }
+            },
             "auto_sync_handle_new_file",
         );
 
