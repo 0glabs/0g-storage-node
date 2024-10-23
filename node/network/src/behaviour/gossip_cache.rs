@@ -20,6 +20,8 @@ pub struct GossipCache {
     topic_msgs: HashMap<GossipTopic, HashMap<Vec<u8>, Key>>,
     /// Timeout for Example messages.
     example: Option<Duration>,
+    /// Timeout for NewFile messages.
+    new_file: Option<Duration>,
     /// Timeout for FindFile messages.
     find_file: Option<Duration>,
     /// Timeout for FindChunks messages.
@@ -37,6 +39,8 @@ pub struct GossipCacheBuilder {
     default_timeout: Option<Duration>,
     /// Timeout for Example messages.
     example: Option<Duration>,
+    /// Timeout for NewFile messges.
+    new_file: Option<Duration>,
     /// Timeout for blocks FindFile messages.
     find_file: Option<Duration>,
     /// Timeout for blocks FindChunks messages.
@@ -61,6 +65,12 @@ impl GossipCacheBuilder {
     /// Timeout for Example messages.
     pub fn example_timeout(mut self, timeout: Duration) -> Self {
         self.example = Some(timeout);
+        self
+    }
+
+    /// Timeout for NewFile messages.
+    pub fn new_file_timeout(mut self, timeout: Duration) -> Self {
+        self.new_file = Some(timeout);
         self
     }
 
@@ -98,6 +108,7 @@ impl GossipCacheBuilder {
         let GossipCacheBuilder {
             default_timeout,
             example,
+            new_file,
             find_file,
             find_chunks,
             announce_file,
@@ -109,6 +120,7 @@ impl GossipCacheBuilder {
             expirations: DelayQueue::default(),
             topic_msgs: HashMap::default(),
             example: example.or(default_timeout),
+            new_file: new_file.or(default_timeout),
             find_file: find_file.or(default_timeout),
             find_chunks: find_chunks.or(default_timeout),
             announce_file: announce_file.or(default_timeout),
@@ -129,6 +141,7 @@ impl GossipCache {
     pub fn insert(&mut self, topic: GossipTopic, data: Vec<u8>) {
         let expire_timeout = match topic.kind() {
             GossipKind::Example => self.example,
+            GossipKind::NewFile => self.new_file,
             GossipKind::FindFile => self.find_file,
             GossipKind::FindChunks => self.find_chunks,
             GossipKind::AnnounceFile => self.announce_file,

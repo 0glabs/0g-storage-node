@@ -8,13 +8,15 @@ use strum::AsRefStr;
 pub const TOPIC_PREFIX: &str = "eth2";
 pub const SSZ_SNAPPY_ENCODING_POSTFIX: &str = "ssz_snappy";
 pub const EXAMPLE_TOPIC: &str = "example";
+pub const NEW_FILE_TOPIC: &str = "new_file";
 pub const FIND_FILE_TOPIC: &str = "find_file";
 pub const FIND_CHUNKS_TOPIC: &str = "find_chunks";
 pub const ANNOUNCE_FILE_TOPIC: &str = "announce_file";
 pub const ANNOUNCE_CHUNKS_TOPIC: &str = "announce_chunks";
 pub const ANNOUNCE_SHARD_CONFIG_TOPIC: &str = "announce_shard_config";
 
-pub const CORE_TOPICS: [GossipKind; 4] = [
+pub const CORE_TOPICS: [GossipKind; 5] = [
+    GossipKind::NewFile,
     GossipKind::FindFile,
     GossipKind::FindChunks,
     GossipKind::AnnounceFile,
@@ -37,6 +39,7 @@ pub struct GossipTopic {
 #[strum(serialize_all = "snake_case")]
 pub enum GossipKind {
     Example,
+    NewFile,
     FindFile,
     FindChunks,
     AnnounceFile,
@@ -77,6 +80,7 @@ impl GossipTopic {
 
             let kind = match topic_parts[2] {
                 EXAMPLE_TOPIC => GossipKind::Example,
+                NEW_FILE_TOPIC => GossipKind::NewFile,
                 FIND_FILE_TOPIC => GossipKind::FindFile,
                 FIND_CHUNKS_TOPIC => GossipKind::FindChunks,
                 ANNOUNCE_FILE_TOPIC => GossipKind::AnnounceFile,
@@ -106,6 +110,7 @@ impl From<GossipTopic> for String {
 
         let kind = match topic.kind {
             GossipKind::Example => EXAMPLE_TOPIC,
+            GossipKind::NewFile => NEW_FILE_TOPIC,
             GossipKind::FindFile => FIND_FILE_TOPIC,
             GossipKind::FindChunks => FIND_CHUNKS_TOPIC,
             GossipKind::AnnounceFile => ANNOUNCE_FILE_TOPIC,
@@ -125,6 +130,7 @@ impl std::fmt::Display for GossipTopic {
 
         let kind = match self.kind {
             GossipKind::Example => EXAMPLE_TOPIC,
+            GossipKind::NewFile => NEW_FILE_TOPIC,
             GossipKind::FindFile => FIND_FILE_TOPIC,
             GossipKind::FindChunks => FIND_CHUNKS_TOPIC,
             GossipKind::AnnounceFile => ANNOUNCE_FILE_TOPIC,

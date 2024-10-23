@@ -316,6 +316,8 @@ impl Libp2pEventHandler {
 
         match message {
             PubsubMessage::ExampleMessage(_) => MessageAcceptance::Ignore,
+            // TODO qbit: handle the NewFile pubsub message
+            PubsubMessage::NewFile(_) => todo!(),
             PubsubMessage::FindFile(msg) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE.mark(1);
                 self.on_find_file(msg).await

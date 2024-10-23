@@ -234,6 +234,9 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
         };
         params
             .topics
+            .insert(get_hash(GossipKind::NewFile), TopicScoreParams::default());
+        params
+            .topics
             .insert(get_hash(GossipKind::FindFile), TopicScoreParams::default());
         params.topics.insert(
             get_hash(GossipKind::FindChunks),

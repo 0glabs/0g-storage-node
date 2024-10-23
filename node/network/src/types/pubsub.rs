@@ -115,6 +115,14 @@ impl ssz::Decode for WrappedPeerId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct NewFile {
+    pub tx_id: TxID,
+    pub num_shard: usize,
+    pub shard_id: usize,
+    pub timestamp: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct FindFile {
     pub tx_id: TxID,
     pub timestamp: u32,
@@ -205,6 +213,7 @@ type SignedAnnounceFiles = Vec<SignedAnnounceFile>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PubsubMessage {
     ExampleMessage(u64),
+    NewFile(NewFile),
     FindFile(FindFile),
     FindChunks(FindChunks),
     AnnounceFile(Vec<SignedAnnounceFile>),
@@ -283,6 +292,7 @@ impl PubsubMessage {
     pub fn kind(&self) -> GossipKind {
         match self {
             PubsubMessage::ExampleMessage(_) => GossipKind::Example,
+            PubsubMessage::NewFile(_) => GossipKind::NewFile,
             PubsubMessage::FindFile(_) => GossipKind::FindFile,
             PubsubMessage::FindChunks(_) => GossipKind::FindChunks,
             PubsubMessage::AnnounceFile(_) => GossipKind::AnnounceFile,
@@ -308,6 +318,9 @@ impl PubsubMessage {
                 match gossip_topic.kind() {
                     GossipKind::Example => Ok(PubsubMessage::ExampleMessage(
                         u64::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                    )),
+                    GossipKind::NewFile => Ok(PubsubMessage::NewFile(
+                        NewFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::FindFile => Ok(PubsubMessage::FindFile(
                         FindFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
@@ -341,6 +354,7 @@ impl PubsubMessage {
         // messages for us.
         match &self {
             PubsubMessage::ExampleMessage(data) => data.as_ssz_bytes(),
+            PubsubMessage::NewFile(data) => data.as_ssz_bytes(),
             PubsubMessage::FindFile(data) => data.as_ssz_bytes(),
             PubsubMessage::FindChunks(data) => data.as_ssz_bytes(),
             PubsubMessage::AnnounceFile(data) => data.as_ssz_bytes(),
@@ -355,6 +369,9 @@ impl std::fmt::Display for PubsubMessage {
         match self {
             PubsubMessage::ExampleMessage(msg) => {
                 write!(f, "Example message: {}", msg)
+            }
+            PubsubMessage::NewFile(msg) => {
+                write!(f, "NewFile message: {:?}", msg)
             }
             PubsubMessage::FindFile(msg) => {
                 write!(f, "FindFile message: {:?}", msg)
