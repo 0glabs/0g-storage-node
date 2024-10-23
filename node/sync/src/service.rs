@@ -642,7 +642,10 @@ impl SyncService {
                             Some(s) => s,
                             None => {
                                 debug!(%tx.seq, "No more data needed");
-                                self.store.finalize_tx_with_hash(tx.seq, tx.hash()).await?;
+                                if self.store.finalize_tx_with_hash(tx.seq, tx.hash()).await? {
+                                    self.ctx
+                                        .send(NetworkMessage::AnnounceLocalFile { tx_id: tx.id() });
+                                }
                                 return Ok(());
                             }
                         };

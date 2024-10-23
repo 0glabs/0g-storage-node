@@ -545,6 +545,8 @@ impl SerialSyncController {
                 info!(%self.tx_seq, "Succeeded to finalize file");
                 self.state = SyncState::Completed;
                 metrics::SERIAL_SYNC_FILE_COMPLETED.update_since(self.since.0);
+                self.ctx
+                    .send(NetworkMessage::AnnounceLocalFile { tx_id: self.tx_id });
             }
             Ok(false) => {
                 warn!(?self.tx_id, %self.tx_seq, "Transaction reverted during finalize_tx");
