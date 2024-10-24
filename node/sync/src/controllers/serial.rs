@@ -89,6 +89,9 @@ pub struct SerialSyncController {
 
     /// Cache for storing and serving gossip messages.
     file_location_cache: Arc<FileLocationCache>,
+
+    /// Whether to find files from neighbors only.
+    neighbors_only: bool,
 }
 
 impl SerialSyncController {
@@ -115,6 +118,7 @@ impl SerialSyncController {
             ctx,
             store,
             file_location_cache,
+            neighbors_only: true,
         }
     }
 
