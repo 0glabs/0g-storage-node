@@ -585,8 +585,11 @@ impl SyncService {
             Some(tx) => tx,
             None => bail!("Transaction not found"),
         };
+        let shard_config = self.store.get_store().get_shard_config();
         self.ctx.publish(PubsubMessage::FindFile(FindFile {
             tx_id: tx.id(),
+            num_shard: shard_config.num_shard,
+            shard_id: shard_config.shard_id,
             timestamp: timestamp_now(),
         }));
         Ok(())

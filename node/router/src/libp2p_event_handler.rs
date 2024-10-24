@@ -544,7 +544,9 @@ impl Libp2pEventHandler {
     }
 
     async fn on_find_file(&self, msg: FindFile) -> MessageAcceptance {
-        let FindFile { tx_id, timestamp } = msg;
+        let FindFile {
+            tx_id, timestamp, ..
+        } = msg;
 
         // verify timestamp
         let d = duration_since(
@@ -555,6 +557,19 @@ impl Libp2pEventHandler {
             debug!(%timestamp, ?d, "Invalid timestamp, ignoring FindFile message");
             metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_TIMEOUT.mark(1);
             return MessageAcceptance::Ignore;
+        }
+
+        // verify announced shard config
+        let announced_shard_config = match ShardConfig::new(msg.shard_id, msg.num_shard) {
+            Ok(v) => v,
+            Err(_) => return MessageAcceptance::Reject,
+        };
+
+        // propagate FindFile query to other nodes if shard mismatch
+        let my_shard_config = self.store.get_store().get_shard_config();
+        if !my_shard_config.intersect(&announced_shard_config) {
+            metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_FORWARD.mark(1);
+            return MessageAcceptance::Accept;
         }
 
         // check if we have it
@@ -1261,7 +1276,12 @@ mod tests {
     ) -> MessageAcceptance {
         let (alice, bob) = (PeerId::random(), PeerId::random());
         let id = MessageId::new(b"dummy message");
-        let message = PubsubMessage::FindFile(FindFile { tx_id, timestamp });
+        let message = PubsubMessage::FindFile(FindFile {
+            tx_id,
+            num_shard: 1,
+            shard_id: 0,
+            timestamp,
+        });
         handler.on_pubsub_message(alice, bob, &id, message).await
     }
 
