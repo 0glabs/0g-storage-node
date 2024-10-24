@@ -204,6 +204,7 @@ impl SerialSyncController {
             tx_id: self.tx_id,
             num_shard: shard_config.num_shard,
             shard_id: shard_config.shard_id,
+            neighbors_only: false,
             timestamp: timestamp_now(),
         }));
 

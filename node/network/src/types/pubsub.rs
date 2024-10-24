@@ -127,6 +127,7 @@ pub struct FindFile {
     pub tx_id: TxID,
     pub num_shard: usize,
     pub shard_id: usize,
+    pub neighbors_only: bool,
     pub timestamp: u32,
 }
 
