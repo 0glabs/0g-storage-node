@@ -35,7 +35,7 @@ impl AutoSyncManager {
         executor: &TaskExecutor,
         store: Store,
         sync_send: SyncSender,
-        log_sync_recv: broadcast::Receiver<LogSyncEvent>,
+        _log_sync_recv: broadcast::Receiver<LogSyncEvent>,
         catch_up_end_recv: oneshot::Receiver<()>,
     ) -> Result<Self> {
         let (file_announcement_send, file_announcement_recv) = unbounded_channel();
@@ -53,15 +53,8 @@ impl AutoSyncManager {
         let catched_up = Arc::new(AtomicBool::new(false));
 
         // handle new file
-        let sync_store_cloned = sync_store.clone();
         executor.spawn(
-            async move {
-                while let Some(tx_seq) = new_file_recv.recv().await {
-                    if let Err(err) = sync_store_cloned.insert(tx_seq, Queue::Ready).await {
-                        warn!(?err, %tx_seq, "Failed to insert new file to ready queue");
-                    }
-                }
-            },
+            Self::handle_new_file(new_file_recv, sync_store.clone()),
             "auto_sync_handle_new_file",
         );
 
@@ -93,7 +86,7 @@ impl AutoSyncManager {
         );
 
         Ok(Self {
-            serial,
+            serial: None,
             random,
             file_announcement_send,
             new_file_send,
