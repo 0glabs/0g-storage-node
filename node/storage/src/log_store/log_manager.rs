@@ -26,7 +26,8 @@ use std::cmp::Ordering;
 
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
 use tracing::{debug, error, info, instrument, trace, warn};
 
 /// 256 Bytes
@@ -872,6 +873,7 @@ impl LogManager {
         if merkle_list.is_empty() {
             return Ok(());
         }
+        let start_time = Instant::now();
 
         self.pad_tx(tx_seq, tx_start_index, &mut *merkle)?;
 
@@ -907,6 +909,8 @@ impl LogManager {
                     .append_subtree(subtree_depth - log2_pow2(PORA_CHUNK_SIZE), subtree_root)?;
             }
         }
+
+        metrics::APPEND_SUBTREE_LIST.update_since(start_time);
         Ok(())
     }
 
@@ -1121,6 +1125,8 @@ impl LogManager {
     }
 
     fn copy_tx_and_finalize(&self, from_tx_seq: u64, to_tx_seq_list: Vec<u64>) -> Result<()> {
+        let start_time = Instant::now();
+
         let mut merkle = self.merkle.write();
         let shard_config = self.flow_store.get_shard_config();
         // We have all the data need for this tx, so just copy them.
@@ -1169,6 +1175,8 @@ impl LogManager {
         for (seq, _) in to_tx_offset_list {
             self.tx_store.finalize_tx(seq)?;
         }
+
+        metrics::COPY_TX_AND_FINALIZE.update_since(start_time);
         Ok(())
     }
 

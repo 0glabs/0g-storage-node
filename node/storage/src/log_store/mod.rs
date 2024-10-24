@@ -17,6 +17,7 @@ mod flow_store;
 mod load_chunk;
 pub mod log_manager;
 mod seal_task_manager;
+mod metrics;
 #[cfg(test)]
 mod tests;
 pub mod tx_store;
