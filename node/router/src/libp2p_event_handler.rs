@@ -343,7 +343,7 @@ impl Libp2pEventHandler {
             PubsubMessage::ExampleMessage(_) => MessageAcceptance::Ignore,
             PubsubMessage::NewFile(msg) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_NEW_FILE.mark(1);
-                self.on_new_file(propagation_source, msg).await
+                self.on_new_file(source, msg).await
             }
             PubsubMessage::FindFile(msg) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE.mark(1);
@@ -615,6 +615,10 @@ impl Libp2pEventHandler {
                 MessageAcceptance::Accept
             };
         }
+
+        // update peer shard config in cache
+        self.file_location_cache
+            .insert_peer_config(peer_id, announced_shard_config);
 
         // check if we have it
         if matches!(self.store.check_tx_completed(tx_id.seq).await, Ok(true)) {
