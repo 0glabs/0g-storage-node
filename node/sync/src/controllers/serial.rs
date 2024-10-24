@@ -89,9 +89,6 @@ pub struct SerialSyncController {
 
     /// Cache for storing and serving gossip messages.
     file_location_cache: Arc<FileLocationCache>,
-
-    /// Whether to find files from neighbors only.
-    neighbors_only: bool,
 }
 
 impl SerialSyncController {
@@ -118,7 +115,6 @@ impl SerialSyncController {
             ctx,
             store,
             file_location_cache,
-            neighbors_only: true,
         }
     }
 
@@ -167,7 +163,7 @@ impl SerialSyncController {
         let (published, num_new_peers) = if !self.goal.is_all_chunks() {
             self.publish_find_chunks();
             (true, 0)
-        } else if self.neighbors_only {
+        } else if self.config.neighbors_only {
             self.do_publish_find_file();
             (true, 0)
         } else {
@@ -219,7 +215,7 @@ impl SerialSyncController {
             tx_id: self.tx_id,
             num_shard: shard_config.num_shard,
             shard_id: shard_config.shard_id,
-            neighbors_only: self.neighbors_only,
+            neighbors_only: self.config.neighbors_only,
             timestamp: timestamp_now(),
         }));
     }
@@ -666,7 +662,7 @@ impl SerialSyncController {
                     } else {
                         // FindFile timeout
                         if since.elapsed() >= self.config.peer_find_timeout {
-                            if self.neighbors_only {
+                            if self.config.neighbors_only {
                                 self.state = SyncState::Failed {
                                     reason: FailureReason::TimeoutFindFile,
                                 };
@@ -1547,6 +1543,7 @@ mod tests {
 
         controller.on_response(peer_id, chunks).await;
         assert_eq!(*controller.get_status(), SyncState::Completed);
+        assert!(matches!(network_recv.try_recv().unwrap(), NetworkMessage::AnnounceLocalFile { .. }));
         assert!(network_recv.try_recv().is_err());
     }
 

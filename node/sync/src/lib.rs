@@ -21,6 +21,7 @@ use std::{
 #[serde(default)]
 pub struct Config {
     // sync service config
+    pub neighbors_only: bool,
     #[serde(deserialize_with = "deserialize_duration")]
     pub heartbeat_interval: Duration,
     pub auto_sync_enabled: bool,
@@ -64,6 +65,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             // sync service config
+            neighbors_only: false,
             heartbeat_interval: Duration::from_secs(5),
             auto_sync_enabled: false,
             max_sync_files: 8,
