@@ -222,11 +222,23 @@ impl Libp2pEventHandler {
                 metrics::LIBP2P_HANDLE_GET_CHUNKS_REQUEST.mark(1);
             }
             Request::AnnounceFile(announcement) => {
-                self.send_to_sync(SyncMessage::AnnounceFile {
-                    peer_id,
-                    request_id,
-                    announcement,
-                });
+                match ShardConfig::new(announcement.shard_id, announcement.num_shard) {
+                    Ok(v) => {
+                        self.file_location_cache.insert_peer_config(peer_id, v);
+
+                        self.send_to_sync(SyncMessage::AnnounceFile {
+                            peer_id,
+                            request_id,
+                            announcement,
+                        });
+                    }
+                    Err(_) => self.send_to_network(NetworkMessage::ReportPeer {
+                        peer_id,
+                        action: PeerAction::Fatal,
+                        source: ReportSource::RPC,
+                        msg: "Invalid shard config in FileAnnouncement",
+                    }),
+                }
             }
             Request::DataByHash(_) => {
                 // ignore
@@ -410,6 +422,9 @@ impl Libp2pEventHandler {
         if my_shard_config.intersect(&announced_shard_config) {
             self.send_to_sync(SyncMessage::NewFile { from, msg });
         }
+
+        self.file_location_cache
+            .insert_peer_config(from, announced_shard_config);
 
         MessageAcceptance::Ignore
     }
@@ -604,7 +619,11 @@ impl Libp2pEventHandler {
                     if msg.neighbors_only {
                         self.send_to_network(NetworkMessage::SendRequest {
                             peer_id,
-                            request: Request::AnnounceFile(FileAnnouncement { tx_id }),
+                            request: Request::AnnounceFile(FileAnnouncement {
+                                tx_id,
+                                num_shard: my_shard_config.num_shard,
+                                shard_id: my_shard_config.shard_id,
+                            }),
                             request_id: RequestId::Router(Instant::now()),
                         });
                     } else if self.publish_file(tx_id).await.is_some() {
@@ -617,7 +636,7 @@ impl Libp2pEventHandler {
 
         if msg.neighbors_only {
             // do not forward to other peers anymore
-            return MessageAcceptance::Ignore
+            return MessageAcceptance::Ignore;
         }
 
         // try from cache

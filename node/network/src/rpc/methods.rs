@@ -182,6 +182,8 @@ pub struct DataByHashRequest {
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
 pub struct FileAnnouncement {
     pub tx_id: TxID,
+    pub num_shard: usize,
+    pub shard_id: usize,
 }
 
 /// Request a chunk array from a peer.

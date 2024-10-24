@@ -779,22 +779,26 @@ impl SyncService {
         debug!(%from, ?msg, "Received NewFile gossip");
 
         if let Some(controller) = self.controllers.get_mut(&msg.tx_id.seq) {
-            // Notify new peer found if file already in sync
-            // TODO qbit: do not require remote address since already TCP connected
-            // controller.on_peer_found(from, addr);
-            controller.transition();
+            // Notify new peer announced if file already in sync
+            if let Ok(shard_config) = ShardConfig::new(msg.shard_id, msg.num_shard) {
+                controller.on_peer_announced(from, shard_config);
+                controller.transition();
+            }
         } else if let Some(manager) = &self.auto_sync_manager {
             let _ = manager.new_file_send.send(msg.tx_id.seq);
         }
     }
 
     /// Handle on AnnounceFile RPC message received.
-    async fn on_announce_file(&mut self, _peer_id: PeerId, announcement: FileAnnouncement) {
+    async fn on_announce_file(&mut self, peer_id: PeerId, announcement: FileAnnouncement) {
         if let Some(controller) = self.controllers.get_mut(&announcement.tx_id.seq) {
-            // Notify new peer found if file already in sync
-            // TODO qbit: do not require remote address since already TCP connected
-            // controller.on_peer_found(from, addr);
-            controller.transition();
+            // Notify new peer announced if file already in sync
+            if let Ok(shard_config) =
+                ShardConfig::new(announcement.shard_id, announcement.num_shard)
+            {
+                controller.on_peer_announced(peer_id, shard_config);
+                controller.transition();
+            }
         }
     }
 
