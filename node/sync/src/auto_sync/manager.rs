@@ -9,7 +9,7 @@ use storage_async::Store;
 use task_executor::TaskExecutor;
 use tokio::sync::{
     broadcast,
-    mpsc::{unbounded_channel, UnboundedSender},
+    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
     oneshot,
 };
 
@@ -22,7 +22,7 @@ use super::{
 };
 
 pub struct AutoSyncManager {
-    pub serial: SerialBatcher,
+    pub serial: Option<SerialBatcher>,
     pub random: RandomBatcher,
     pub file_announcement_send: UnboundedSender<u64>,
     pub new_file_send: UnboundedSender<u64>,
@@ -35,60 +35,73 @@ impl AutoSyncManager {
         executor: &TaskExecutor,
         store: Store,
         sync_send: SyncSender,
-        log_sync_recv: broadcast::Receiver<LogSyncEvent>,
+        _log_sync_recv: broadcast::Receiver<LogSyncEvent>,
         catch_up_end_recv: oneshot::Receiver<()>,
     ) -> Result<Self> {
-        let (file_announcement_send, file_announcement_recv) = unbounded_channel();
-        let (new_file_send, mut new_file_recv) = unbounded_channel();
-        let sync_store = Arc::new(SyncStore::new(store.clone()));
+        let (file_announcement_send, _file_announcement_recv) = unbounded_channel();
+        let (new_file_send, new_file_recv) = unbounded_channel();
+        // use v2 db to avoid reading v1 files that announced from the whole network instead of neighbors
+        let sync_store = Arc::new(SyncStore::new_with_name(
+            store.clone(),
+            "pendingv2",
+            "readyv2",
+        ));
         let catched_up = Arc::new(AtomicBool::new(false));
 
         // handle new file
-        let sync_store_cloned = sync_store.clone();
         executor.spawn(
-            async move {
-                while let Some(tx_seq) = new_file_recv.recv().await {
-                    if let Err(err) = sync_store_cloned.insert(tx_seq, Queue::Ready).await {
-                        warn!(?err, %tx_seq, "Failed to insert new file to ready queue");
-                    }
-                }
-            },
+            Self::handle_new_file(new_file_recv, sync_store.clone()),
             "auto_sync_handle_new_file",
         );
 
         // sync in sequence
-        let serial =
-            SerialBatcher::new(config, store.clone(), sync_send.clone(), sync_store.clone())
-                .await?;
-        executor.spawn(
-            serial
-                .clone()
-                .start(file_announcement_recv, log_sync_recv, catched_up.clone()),
-            "auto_sync_serial",
-        );
+        // let serial =
+        //     SerialBatcher::new(config, store.clone(), sync_send.clone(), sync_store.clone())
+        //         .await?;
+        // executor.spawn(
+        //     serial
+        //         .clone()
+        //         .start(file_announcement_recv, log_sync_recv, catched_up.clone()),
+        //     "auto_sync_serial",
+        // );
 
         // sync randomly
         let random = RandomBatcher::new(config, store, sync_send, sync_store);
         executor.spawn(random.clone().start(catched_up.clone()), "auto_sync_random");
 
         // handle on catched up notification
-        let catched_up_cloned = catched_up.clone();
         executor.spawn(
-            async move {
-                if catch_up_end_recv.await.is_ok() {
-                    info!("log entry catched up");
-                    catched_up_cloned.store(true, Ordering::Relaxed);
-                }
-            },
+            Self::listen_catch_up(catch_up_end_recv, catched_up.clone()),
             "auto_sync_wait_for_catchup",
         );
 
         Ok(Self {
-            serial,
+            serial: None,
             random,
             file_announcement_send,
             new_file_send,
             catched_up,
         })
+    }
+
+    async fn handle_new_file(
+        mut new_file_recv: UnboundedReceiver<u64>,
+        sync_store: Arc<SyncStore>,
+    ) {
+        while let Some(tx_seq) = new_file_recv.recv().await {
+            if let Err(err) = sync_store.insert(tx_seq, Queue::Ready).await {
+                warn!(?err, %tx_seq, "Failed to insert new file to ready queue");
+            }
+        }
+    }
+
+    async fn listen_catch_up(
+        catch_up_end_recv: oneshot::Receiver<()>,
+        catched_up: Arc<AtomicBool>,
+    ) {
+        if catch_up_end_recv.await.is_ok() {
+            info!("log entry catched up");
+            catched_up.store(true, Ordering::Relaxed);
+        }
     }
 }

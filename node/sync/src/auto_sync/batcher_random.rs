@@ -59,14 +59,13 @@ impl RandomBatcher {
     pub async fn start(mut self, catched_up: Arc<AtomicBool>) {
         info!("Start to sync files");
 
-        loop {
-            // disable file sync until catched up
-            if !catched_up.load(Ordering::Relaxed) {
-                trace!("Cannot sync file in catch-up phase");
-                sleep(self.config.auto_sync_idle_interval).await;
-                continue;
-            }
+        // wait for log entry sync catched up
+        while !catched_up.load(Ordering::Relaxed) {
+            trace!("Cannot sync file in catch-up phase");
+            sleep(self.config.auto_sync_idle_interval).await;
+        }
 
+        loop {
             if let Ok(state) = self.get_state().await {
                 metrics::RANDOM_STATE_TXS_SYNCING.update(state.tasks.len() as u64);
                 metrics::RANDOM_STATE_TXS_READY.update(state.ready_txs as u64);

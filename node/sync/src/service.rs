@@ -284,7 +284,10 @@ impl SyncService {
                     Some(manager) => SyncServiceState {
                         num_syncing: self.controllers.len(),
                         catched_up: Some(manager.catched_up.load(Ordering::Relaxed)),
-                        auto_sync_serial: Some(manager.serial.get_state().await),
+                        auto_sync_serial: match &manager.serial {
+                            Some(v) => Some(v.get_state().await),
+                            None => None,
+                        },
                         auto_sync_random: manager.random.get_state().await.ok(),
                     },
                     None => SyncServiceState {
