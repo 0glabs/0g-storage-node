@@ -220,6 +220,13 @@ impl Libp2pEventHandler {
                 });
                 metrics::LIBP2P_HANDLE_GET_CHUNKS_REQUEST.mark(1);
             }
+            Request::AnnounceFile(announcement) => {
+                self.send_to_sync(SyncMessage::AnnounceFile {
+                    peer_id,
+                    request_id,
+                    announcement,
+                });
+            }
             Request::DataByHash(_) => {
                 // ignore
             }

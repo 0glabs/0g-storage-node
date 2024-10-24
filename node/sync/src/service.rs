@@ -8,6 +8,7 @@ use anyhow::{anyhow, bail, Result};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
+use network::rpc::methods::FileAnnouncement;
 use network::types::{AnnounceChunks, FindFile, NewFile};
 use network::PubsubMessage;
 use network::{
@@ -73,6 +74,11 @@ pub enum SyncMessage {
     NewFile {
         from: PeerId,
         msg: NewFile,
+    },
+    AnnounceFile {
+        peer_id: PeerId,
+        request_id: PeerRequestId,
+        announcement: FileAnnouncement,
     },
 }
 
@@ -270,6 +276,11 @@ impl SyncService {
                 // FIXME: Check if controllers need to be reset?
             }
             SyncMessage::NewFile { from, msg } => self.on_new_file_gossip(from, msg).await,
+            SyncMessage::AnnounceFile {
+                peer_id,
+                announcement,
+                ..
+            } => self.on_announce_file(peer_id, announcement).await,
         }
     }
 
@@ -762,6 +773,7 @@ impl SyncService {
         }
     }
 
+    /// Handle on NewFile gossip message received.
     async fn on_new_file_gossip(&mut self, from: PeerId, msg: NewFile) {
         debug!(%from, ?msg, "Received NewFile gossip");
 
@@ -772,6 +784,16 @@ impl SyncService {
             controller.transition();
         } else if let Some(manager) = &self.auto_sync_manager {
             let _ = manager.new_file_send.send(msg.tx_id.seq);
+        }
+    }
+
+    /// Handle on AnnounceFile RPC message received.
+    async fn on_announce_file(&mut self, _peer_id: PeerId, announcement: FileAnnouncement) {
+        if let Some(controller) = self.controllers.get_mut(&announcement.tx_id.seq) {
+            // Notify new peer found if file already in sync
+            // TODO qbit: do not require remote address since already TCP connected
+            // controller.on_peer_found(from, addr);
+            controller.transition();
         }
     }
 

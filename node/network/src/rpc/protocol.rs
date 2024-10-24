@@ -91,6 +91,8 @@ pub enum Protocol {
     /// TODO
     DataByHash,
 
+    /// The file announce protocol.
+    AnnounceFile,
     /// The Chunk sync protocol.
     GetChunks,
 }
@@ -115,6 +117,7 @@ impl std::fmt::Display for Protocol {
             Protocol::Goodbye => "goodbye",
             Protocol::Ping => "ping",
             Protocol::DataByHash => "data_by_hash",
+            Protocol::AnnounceFile => "announce_file",
             Protocol::GetChunks => "get_chunks",
         };
         f.write_str(repr)
@@ -155,6 +158,7 @@ impl UpgradeInfo for RPCProtocol {
             ProtocolId::new(Protocol::Goodbye, Version::V1, Encoding::SSZSnappy),
             ProtocolId::new(Protocol::Ping, Version::V1, Encoding::SSZSnappy),
             ProtocolId::new(Protocol::DataByHash, Version::V1, Encoding::SSZSnappy),
+            ProtocolId::new(Protocol::AnnounceFile, Version::V1, Encoding::SSZSnappy),
             ProtocolId::new(Protocol::GetChunks, Version::V1, Encoding::SSZSnappy),
         ]
     }
@@ -216,6 +220,10 @@ impl ProtocolId {
                 // TODO
                 RpcLimits::new(1, *DATA_BY_HASH_REQUEST_MAX)
             }
+            Protocol::AnnounceFile => RpcLimits::new(
+                <FileAnnouncement as Encode>::ssz_fixed_len(),
+                <FileAnnouncement as Encode>::ssz_fixed_len(),
+            ),
             Protocol::GetChunks => RpcLimits::new(
                 <GetChunksRequest as Encode>::ssz_fixed_len(),
                 <GetChunksRequest as Encode>::ssz_fixed_len(),
@@ -243,6 +251,7 @@ impl ProtocolId {
                 <ZgsData as Encode>::ssz_fixed_len(),
             ),
 
+            Protocol::AnnounceFile => RpcLimits::new(0, 0), // AnnounceFile request has no response
             Protocol::GetChunks => RpcLimits::new(*CHUNKS_RESPONSE_MIN, *CHUNKS_RESPONSE_MAX),
         }
     }
@@ -325,6 +334,7 @@ pub enum InboundRequest {
     Goodbye(GoodbyeReason),
     Ping(Ping),
     DataByHash(DataByHashRequest),
+    AnnounceFile(FileAnnouncement),
     GetChunks(GetChunksRequest),
 }
 
@@ -363,6 +373,11 @@ impl InboundRequest {
                 Version::V1,
                 Encoding::SSZSnappy,
             )],
+            InboundRequest::AnnounceFile(_) => vec![ProtocolId::new(
+                Protocol::AnnounceFile,
+                Version::V1,
+                Encoding::SSZSnappy,
+            )],
             InboundRequest::GetChunks(_) => vec![ProtocolId::new(
                 Protocol::GetChunks,
                 Version::V1,
@@ -380,6 +395,7 @@ impl InboundRequest {
             InboundRequest::Goodbye(_) => 0,
             InboundRequest::DataByHash(req) => req.hashes.len() as u64,
             InboundRequest::Ping(_) => 1,
+            InboundRequest::AnnounceFile(_) => 0,
             InboundRequest::GetChunks(_) => 1,
         }
     }
@@ -391,6 +407,7 @@ impl InboundRequest {
             InboundRequest::Goodbye(_) => Protocol::Goodbye,
             InboundRequest::Ping(_) => Protocol::Ping,
             InboundRequest::DataByHash(_) => Protocol::DataByHash,
+            InboundRequest::AnnounceFile(_) => Protocol::AnnounceFile,
             InboundRequest::GetChunks(_) => Protocol::GetChunks,
         }
     }
@@ -405,6 +422,7 @@ impl InboundRequest {
             InboundRequest::Status(_) => unreachable!(),
             InboundRequest::Goodbye(_) => unreachable!(),
             InboundRequest::Ping(_) => unreachable!(),
+            InboundRequest::AnnounceFile(_) => unreachable!(),
             InboundRequest::GetChunks(_) => unreachable!(),
         }
     }
@@ -522,6 +540,9 @@ impl std::fmt::Display for InboundRequest {
             InboundRequest::Ping(ping) => write!(f, "Ping: {}", ping.data),
             InboundRequest::DataByHash(req) => {
                 write!(f, "Data by hash: {:?}", req)
+            }
+            InboundRequest::AnnounceFile(req) => {
+                write!(f, "Announce File: {:?}", req)
             }
             InboundRequest::GetChunks(req) => {
                 write!(f, "Get Chunks: {:?}", req)
