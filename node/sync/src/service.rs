@@ -1558,7 +1558,10 @@ mod tests {
         .await;
 
         wait_for_tx_finalized(runtime.store.clone(), tx_seq).await;
-        assert!(matches!(runtime.network_recv.try_recv().unwrap(), NetworkMessage::AnnounceLocalFile { .. }));
+        assert!(matches!(
+            runtime.network_recv.try_recv().unwrap(),
+            NetworkMessage::AnnounceLocalFile { .. }
+        ));
 
         assert!(!runtime.store.check_tx_completed(0).unwrap());
 
@@ -1568,7 +1571,7 @@ mod tests {
             .request(SyncRequest::SyncFile { tx_seq })
             .await
             .unwrap();
-        
+
         receive_dial(&mut runtime, &sync_send).await;
 
         receive_chunk_request(
@@ -1583,7 +1586,10 @@ mod tests {
         .await;
 
         wait_for_tx_finalized(runtime.store, tx_seq).await;
-        assert!(matches!(runtime.network_recv.try_recv().unwrap(), NetworkMessage::AnnounceLocalFile { .. }));
+        assert!(matches!(
+            runtime.network_recv.try_recv().unwrap(),
+            NetworkMessage::AnnounceLocalFile { .. }
+        ));
 
         sync_send
             .notify(SyncMessage::PeerDisconnected {

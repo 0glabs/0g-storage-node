@@ -1543,7 +1543,10 @@ mod tests {
 
         controller.on_response(peer_id, chunks).await;
         assert_eq!(*controller.get_status(), SyncState::Completed);
-        assert!(matches!(network_recv.try_recv().unwrap(), NetworkMessage::AnnounceLocalFile { .. }));
+        assert!(matches!(
+            network_recv.try_recv().unwrap(),
+            NetworkMessage::AnnounceLocalFile { .. }
+        ));
         assert!(network_recv.try_recv().is_err());
     }
 

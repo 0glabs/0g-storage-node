@@ -398,7 +398,8 @@ impl Libp2pEventHandler {
         };
 
         // update shard config cache
-        self.file_location_cache.insert_peer_config(from, announced_shard_config);
+        self.file_location_cache
+            .insert_peer_config(from, announced_shard_config);
 
         // ignore if already exists
         match self.store.check_tx_completed(msg.tx_id.seq).await {
