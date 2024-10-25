@@ -1,4 +1,5 @@
 mod merkle_tree;
+mod metrics;
 mod node_manager;
 mod proof;
 mod sha3;
@@ -10,6 +11,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::time::Instant;
 use tracing::{trace, warn};
 
 use crate::merkle_tree::MerkleTreeWrite;
@@ -145,6 +147,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     }
 
     pub fn append(&mut self, new_leaf: E) {
+        let start_time = Instant::now();
         if new_leaf == E::null() {
             // appending null is not allowed.
             return;
@@ -152,10 +155,13 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         self.node_manager.start_transaction();
         self.node_manager.push_node(0, new_leaf);
         self.recompute_after_append_leaves(self.leaves() - 1);
+
         self.node_manager.commit();
+        metrics::APPEND.update_since(start_time);
     }
 
     pub fn append_list(&mut self, leaf_list: Vec<E>) {
+        let start_time = Instant::now();
         if leaf_list.contains(&E::null()) {
             // appending null is not allowed.
             return;
@@ -165,6 +171,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         self.node_manager.append_nodes(0, &leaf_list);
         self.recompute_after_append_leaves(start_index);
         self.node_manager.commit();
+        metrics::APPEND_LIST.update_since(start_time);
     }
 
     /// Append a leaf list by providing their intermediate node hash.
@@ -173,6 +180,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
     /// Other nodes in the subtree will be set to `null` nodes.
     /// TODO: Optimize to avoid storing the `null` nodes?
     pub fn append_subtree(&mut self, subtree_depth: usize, subtree_root: E) -> Result<()> {
+        let start_time = Instant::now();
         if subtree_root == E::null() {
             // appending null is not allowed.
             bail!("subtree_root is null");
@@ -182,10 +190,13 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         self.append_subtree_inner(subtree_depth, subtree_root)?;
         self.recompute_after_append_subtree(start_index, subtree_depth - 1);
         self.node_manager.commit();
+        metrics::APPEND_SUBTREE.update_since(start_time);
+
         Ok(())
     }
 
     pub fn append_subtree_list(&mut self, subtree_list: Vec<(usize, E)>) -> Result<()> {
+        let start_time = Instant::now();
         if subtree_list.iter().any(|(_, root)| root == &E::null()) {
             // appending null is not allowed.
             bail!("subtree_list contains null");
@@ -197,12 +208,15 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
             self.recompute_after_append_subtree(start_index, subtree_depth - 1);
         }
         self.node_manager.commit();
+        metrics::APPEND_SUBTREE_LIST.update_since(start_time);
+
         Ok(())
     }
 
     /// Change the value of the last leaf and return the new merkle root.
     /// This is needed if our merkle-tree in memory only keeps intermediate nodes instead of real leaves.
     pub fn update_last(&mut self, updated_leaf: E) {
+        let start_time = Instant::now();
         if updated_leaf == E::null() {
             // updating to null is not allowed.
             return;
@@ -216,6 +230,7 @@ impl<E: HashElement, A: Algorithm<E>> AppendMerkleTree<E, A> {
         }
         self.recompute_after_append_leaves(self.leaves() - 1);
         self.node_manager.commit();
+        metrics::UPDATE_LAST.update_since(start_time);
     }
 
     /// Fill an unknown `null` leaf with its real value.

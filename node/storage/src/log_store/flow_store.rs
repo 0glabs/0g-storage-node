@@ -239,6 +239,7 @@ impl FlowWrite for FlowStore {
     /// Return the roots of completed chunks. The order is guaranteed to be increasing
     /// by chunk index.
     fn append_entries(&self, data: ChunkArray) -> Result<Vec<(u64, DataRoot)>> {
+        let start_time = Instant::now();
         let mut to_seal_set = self.seal_manager.to_seal_set.write();
         trace!("append_entries: {} {}", data.start_index, data.data.len());
         if data.data.len() % BYTES_PER_SECTOR != 0 {
@@ -281,6 +282,8 @@ impl FlowWrite for FlowStore {
 
             batch_list.push((chunk_index, batch));
         }
+
+        metrics::APPEND_ENTRIES.update_since(start_time);
         self.db.put_entry_batch_list(batch_list)
     }
 
@@ -390,6 +393,7 @@ impl FlowDBStore {
         &self,
         batch_list: Vec<(u64, EntryBatch)>,
     ) -> Result<Vec<(u64, DataRoot)>> {
+        let start_time = Instant::now();
         let mut completed_batches = Vec::new();
         let mut tx = self.kvdb.transaction();
         for (batch_index, batch) in batch_list {
@@ -410,6 +414,7 @@ impl FlowDBStore {
             }
         }
         self.kvdb.write(tx)?;
+        metrics::PUT_ENTRY_BATCH_LIST.update_since(start_time);
         Ok(completed_batches)
     }
 
