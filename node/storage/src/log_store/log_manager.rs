@@ -31,8 +31,6 @@ use std::time::{Duration, Instant};
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::log_store::metrics;
-use crate::log_store::tx_store::BlockHashAndSubmissionIndex;
-use crate::log_store::{FlowSeal, MineLoadChunk, SealAnswer, SealTask};
 
 /// 256 Bytes
 pub const ENTRY_SIZE: usize = 256;
@@ -921,6 +919,7 @@ impl LogManager {
     #[instrument(skip(self, merkle))]
     fn pad_tx(&self, tx_seq: u64, tx_start_index: u64, merkle: &mut MerkleManager) -> Result<()> {
         // Check if we need to pad the flow.
+        let start_time = Instant::now();
         let mut tx_start_flow_index =
             merkle.last_chunk_start_index() + merkle.last_chunk_merkle.leaves() as u64;
         let pad_size = tx_start_index - tx_start_flow_index;
@@ -1001,6 +1000,8 @@ impl LogManager {
         );
 
         self.flow_store.put_pad_data(&pad_list, tx_seq)?;
+
+        metrics::PAD_TX.update_since(start_time);
         Ok(())
     }
 
