@@ -213,7 +213,10 @@ impl TransactionStore {
     }
 
     pub fn check_tx_completed(&self, tx_seq: u64) -> Result<bool> {
+        let start_time = Instant::now();
         let status = self.get_tx_status(tx_seq)?;
+
+        metrics::CHECK_TX_COMPLETED.update_since(start_time);
         Ok(matches!(status, Some(TxStatus::Finalized)))
     }
 

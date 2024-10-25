@@ -1,13 +1,13 @@
-use super::load_chunk::EntryBatch;
-use super::log_manager::{COL_PAD_DATA_LIST, COL_PAD_DATA_SYNC_HEIGH};
-use super::seal_task_manager::SealTaskManager;
-use super::{MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
 use crate::error::Error;
+use crate::log_store::load_chunk::EntryBatch;
 use crate::log_store::log_manager::{
-    bytes_to_entries, COL_ENTRY_BATCH, COL_FLOW_MPT_NODES, PORA_CHUNK_SIZE,
+    bytes_to_entries, COL_ENTRY_BATCH, COL_FLOW_MPT_NODES, PORA_CHUNK_SIZE, COL_PAD_DATA_LIST, COL_PAD_DATA_SYNC_HEIGH
 };
-use crate::log_store::{FlowRead, FlowSeal, FlowWrite};
+use crate::log_store::seal_task_manager::SealTaskManager;
+use crate::log_store::{
+    metrics, FlowRead, FlowSeal, FlowWrite, MineLoadChunk, SealAnswer, SealTask,
+};
 use crate::{try_option, ZgsKeyValueDB};
 use any::Any;
 use anyhow::{anyhow, bail, Result};
@@ -21,6 +21,7 @@ use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Instant;
 use std::{any, cmp};
 use tracing::{debug, error, trace};
 use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
@@ -47,6 +48,7 @@ impl FlowStore {
         batch_index: usize,
         subtree_list: Vec<(usize, usize, DataRoot)>,
     ) -> Result<()> {
+        let start_time = Instant::now();
         let mut batch = self
             .data_db
             .get_entry_batch(batch_index as u64)?
@@ -54,7 +56,7 @@ impl FlowStore {
         batch.set_subtree_list(subtree_list);
         self.data_db
             .put_entry_raw(vec![(batch_index as u64, batch)])?;
-
+        metrics::INSERT_SUBTREE_LIST.update_since(start_time);
         Ok(())
     }
 
