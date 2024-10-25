@@ -23,7 +23,7 @@ pub struct Config {
     // sync service config
     /// Indicates whether to sync file from neighbor nodes only.
     /// This is to avoid flooding file announcements in the whole network,
-    /// which leads to high latency or event timeout to sync files.
+    /// which leads to high latency or even timeout to sync files.
     pub neighbors_only: bool,
     #[serde(deserialize_with = "deserialize_duration")]
     pub heartbeat_interval: Duration,
