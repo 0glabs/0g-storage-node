@@ -1,5 +1,3 @@
-use super::tx_store::BlockHashAndSubmissionIndex;
-use super::{FlowSeal, MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
 use crate::log_store::flow_store::{batch_iter_sharded, FlowConfig, FlowDBStore, FlowStore};
 use crate::log_store::tx_store::TransactionStore;
@@ -1242,6 +1240,7 @@ pub fn sub_merkle_tree(leaf_data: &[u8]) -> Result<FileMerkleTree> {
 }
 
 pub fn data_to_merkle_leaves(leaf_data: &[u8]) -> Result<Vec<H256>> {
+    let start_time = Instant::now();
     if leaf_data.len() % ENTRY_SIZE != 0 {
         bail!("merkle_tree: mismatched data size");
     }
@@ -1257,6 +1256,8 @@ pub fn data_to_merkle_leaves(leaf_data: &[u8]) -> Result<Vec<H256>> {
             .map(Sha3Algorithm::leaf)
             .collect()
     };
+
+    metrics::DATA_TO_MERKLE_LEAVES.update_since(start_time);
     Ok(r)
 }
 
