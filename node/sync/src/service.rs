@@ -1571,7 +1571,7 @@ mod tests {
             .request(SyncRequest::SyncFile { tx_seq })
             .await
             .unwrap();
-        
+
         receive_dial(&mut runtime, &sync_send).await;
 
         receive_chunk_request(
