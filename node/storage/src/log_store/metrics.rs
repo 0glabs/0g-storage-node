@@ -11,6 +11,9 @@ lazy_static::lazy_static! {
     pub static ref APPEND_SUBTREE_LIST: Arc<dyn Timer> =
         register_timer("log_store_log_manager_append_subtree_list");
 
+    pub static ref DATA_TO_MERKLE_LEAVES: Arc<dyn Timer> =
+        register_timer("log_store_log_manager_data_to_merkle_leaves");
+
     pub static ref COPY_TX_AND_FINALIZE: Arc<dyn Timer> =
         register_timer("log_store_log_manager_copy_tx_and_finalize");
 
@@ -19,7 +22,12 @@ lazy_static::lazy_static! {
     pub static ref PUT_BATCH_ROOT_LIST: Arc<dyn Timer> = register_timer("log_store_flow_store_put_batch_root_list");
 
     pub static ref INSERT_SUBTREE_LIST: Arc<dyn Timer> =
-        register_timer("log_store_log_manager_insert_subtree_list");
+        register_timer("log_store_flow_store_insert_subtree_list");
 
-    pub static ref PUT_MPT_NODE: Arc<dyn Timer> = register_timer("log_store_log_manager_put_mpt_node");
+    pub static ref PUT_MPT_NODE: Arc<dyn Timer> = register_timer("log_store_flow_store_put_mpt_node");
+
+    pub static ref PUT_ENTRY_BATCH_LIST: Arc<dyn Timer> =
+        register_timer("log_store_flow_store_put_entry_batch_list");
+
+    pub static ref APPEND_ENTRIES: Arc<dyn Timer> = register_timer("log_store_flow_store_append_entries");
 }
