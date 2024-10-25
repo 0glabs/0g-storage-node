@@ -1,13 +1,14 @@
-use super::load_chunk::EntryBatch;
-use super::seal_task_manager::SealTaskManager;
-use super::{MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
 use crate::error::Error;
+use crate::log_store::load_chunk::EntryBatch;
 use crate::log_store::log_manager::{
     bytes_to_entries, data_to_merkle_leaves, COL_ENTRY_BATCH, COL_ENTRY_BATCH_ROOT,
     COL_FLOW_MPT_NODES, ENTRY_SIZE, PORA_CHUNK_SIZE,
 };
-use crate::log_store::{FlowRead, FlowSeal, FlowWrite};
+use crate::log_store::seal_task_manager::SealTaskManager;
+use crate::log_store::{
+    metrics, FlowRead, FlowSeal, FlowWrite, MineLoadChunk, SealAnswer, SealTask,
+};
 use crate::{try_option, ZgsKeyValueDB};
 use any::Any;
 use anyhow::{anyhow, bail, Result};
@@ -22,6 +23,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Instant;
 use std::{any, cmp, mem};
 use tracing::{debug, error, trace};
 use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
@@ -42,7 +44,11 @@ impl FlowStore {
     }
 
     pub fn put_batch_root_list(&self, root_map: BTreeMap<usize, (DataRoot, usize)>) -> Result<()> {
-        self.db.put_batch_root_list(root_map)
+        let start_time = Instant::now();
+        let res = self.db.put_batch_root_list(root_map);
+
+        metrics::PUT_BATCH_ROOT_LIST.update_since(start_time);
+        res
     }
 
     pub fn insert_subtree_list_for_batch(
@@ -50,12 +56,15 @@ impl FlowStore {
         batch_index: usize,
         subtree_list: Vec<(usize, usize, DataRoot)>,
     ) -> Result<()> {
+        let start_time = Instant::now();
         let mut batch = self
             .db
             .get_entry_batch(batch_index as u64)?
             .unwrap_or_else(|| EntryBatch::new(batch_index as u64));
         batch.set_subtree_list(subtree_list);
         self.db.put_entry_raw(vec![(batch_index as u64, batch)])?;
+
+        metrics::INSERT_SUBTREE_LIST.update_since(start_time);
 
         Ok(())
     }
@@ -75,7 +84,10 @@ impl FlowStore {
     }
 
     pub fn put_mpt_node_list(&self, node_list: Vec<(usize, usize, DataRoot)>) -> Result<()> {
-        self.db.put_mpt_node_list(node_list)
+        let start_time = Instant::now();
+        let res = self.db.put_mpt_node_list(node_list);
+        metrics::PUT_MPT_NODE.update_since(start_time);
+        res
     }
 
     pub fn delete_batch_list(&self, batch_list: &[u64]) -> Result<()> {
