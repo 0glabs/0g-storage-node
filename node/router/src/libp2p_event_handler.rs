@@ -397,6 +397,9 @@ impl Libp2pEventHandler {
             Err(_) => return MessageAcceptance::Reject,
         };
 
+        // update shard config cache
+        self.file_location_cache.insert_peer_config(from, announced_shard_config);
+
         // ignore if already exists
         match self.store.check_tx_completed(msg.tx_id.seq).await {
             Ok(true) => return MessageAcceptance::Ignore,
@@ -422,9 +425,6 @@ impl Libp2pEventHandler {
         if my_shard_config.intersect(&announced_shard_config) {
             self.send_to_sync(SyncMessage::NewFile { from, msg });
         }
-
-        self.file_location_cache
-            .insert_peer_config(from, announced_shard_config);
 
         MessageAcceptance::Ignore
     }
