@@ -35,7 +35,7 @@ impl AutoSyncManager {
         executor: &TaskExecutor,
         store: Store,
         sync_send: SyncSender,
-        _log_sync_recv: broadcast::Receiver<LogSyncEvent>,
+        log_sync_recv: broadcast::Receiver<LogSyncEvent>,
         catch_up_end_recv: oneshot::Receiver<()>,
     ) -> Result<Self> {
         let (file_announcement_send, file_announcement_recv) = unbounded_channel();
@@ -86,7 +86,7 @@ impl AutoSyncManager {
         );
 
         Ok(Self {
-            serial: None,
+            serial,
             random,
             file_announcement_send,
             new_file_send,
