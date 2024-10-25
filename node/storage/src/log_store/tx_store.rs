@@ -175,8 +175,12 @@ impl TransactionStore {
     }
 
     pub fn check_tx_completed(&self, tx_seq: u64) -> Result<bool> {
-        Ok(self.kvdb.get(COL_TX_COMPLETED, &tx_seq.to_be_bytes())?
-            == Some(vec![TX_STATUS_FINALIZED]))
+        let start_time = Instant::now();
+        let res = self.kvdb.get(COL_TX_COMPLETED, &tx_seq.to_be_bytes())?
+            == Some(vec![TX_STATUS_FINALIZED]);
+
+        metrics::CHECK_TX_COMPLETED.update_since(start_time);
+        Ok(res)
     }
 
     pub fn check_tx_pruned(&self, tx_seq: u64) -> Result<bool> {
