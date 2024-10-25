@@ -30,7 +30,5 @@ class AutoRandomSyncV2Test(TestFramework):
             wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root_2) is not None)
             wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root_2)["finalized"])
 
-        assert 1 > 2
-
 if __name__ == "__main__":
     AutoRandomSyncV2Test().main()
