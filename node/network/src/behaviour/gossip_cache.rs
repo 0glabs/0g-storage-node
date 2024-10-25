@@ -39,7 +39,7 @@ pub struct GossipCacheBuilder {
     default_timeout: Option<Duration>,
     /// Timeout for Example messages.
     example: Option<Duration>,
-    /// Timeout for NewFile messges.
+    /// Timeout for NewFile messages.
     new_file: Option<Duration>,
     /// Timeout for blocks FindFile messages.
     find_file: Option<Duration>,

@@ -30,8 +30,12 @@ use crate::peer_manager::PeerManager;
 use crate::Config;
 
 lazy_static::lazy_static! {
+    /// Timeout to publish NewFile message to neighbor nodes.
     pub static ref NEW_FILE_TIMEOUT: chrono::Duration = chrono::Duration::seconds(30);
-    pub static ref FIND_FILE_TIMEOUT: chrono::Duration = chrono::Duration::seconds(30);
+    /// Timeout to publish FindFile message to neighbor nodes.
+    pub static ref FIND_FILE_NEIGHBORS_TIMEOUT: chrono::Duration = chrono::Duration::seconds(30);
+    /// Timeout to publish FindFile message in the whole network.
+    pub static ref FIND_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(5);
     pub static ref ANNOUNCE_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(5);
     pub static ref ANNOUNCE_SHARD_CONFIG_TIMEOUT: chrono::Duration = chrono::Duration::minutes(5);
     pub static ref TOLERABLE_DRIFT: chrono::Duration = chrono::Duration::seconds(10);
@@ -236,7 +240,7 @@ impl Libp2pEventHandler {
                         peer_id,
                         action: PeerAction::Fatal,
                         source: ReportSource::RPC,
-                        msg: "Invalid shard config in FileAnnouncement",
+                        msg: "Invalid shard config in AnnounceFile RPC message",
                     }),
                 }
             }
@@ -339,11 +343,11 @@ impl Libp2pEventHandler {
             PubsubMessage::ExampleMessage(_) => MessageAcceptance::Ignore,
             PubsubMessage::NewFile(msg) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_NEW_FILE.mark(1);
-                self.on_new_file(source, msg).await
+                self.on_new_file(propagation_source, msg).await
             }
             PubsubMessage::FindFile(msg) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE.mark(1);
-                self.on_find_file(source, msg).await
+                self.on_find_file(propagation_source, msg).await
             }
             PubsubMessage::FindChunks(msg) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_FIND_CHUNKS.mark(1);
@@ -373,6 +377,7 @@ impl Libp2pEventHandler {
         }
     }
 
+    /// Handle NewFile pubsub message `msg` that published by `from` peer.
     async fn on_new_file(&self, from: PeerId, msg: NewFile) -> MessageAcceptance {
         // verify timestamp
         let d = duration_since(
@@ -397,9 +402,11 @@ impl Libp2pEventHandler {
             Err(_) => return MessageAcceptance::Reject,
         };
 
-        // update shard config cache
-        self.file_location_cache
-            .insert_peer_config(from, announced_shard_config);
+        // ignore if shard config mismatch
+        let my_shard_config = self.store.get_store().get_shard_config();
+        if !my_shard_config.intersect(&announced_shard_config) {
+            return MessageAcceptance::Ignore;
+        }
 
         // ignore if already exists
         match self.store.check_tx_completed(msg.tx_id.seq).await {
@@ -421,11 +428,8 @@ impl Libp2pEventHandler {
             }
         }
 
-        // notify sync layer if shard config matches
-        let my_shard_config = self.store.get_store().get_shard_config();
-        if my_shard_config.intersect(&announced_shard_config) {
-            self.send_to_sync(SyncMessage::NewFile { from, msg });
-        }
+        // notify sync layer to handle in advance
+        self.send_to_sync(SyncMessage::NewFile { from, msg });
 
         MessageAcceptance::Ignore
     }
@@ -567,7 +571,7 @@ impl Libp2pEventHandler {
         Some(PubsubMessage::AnnounceShardConfig(signed))
     }
 
-    async fn on_find_file(&self, peer_id: PeerId, msg: FindFile) -> MessageAcceptance {
+    async fn on_find_file(&self, from: PeerId, msg: FindFile) -> MessageAcceptance {
         let FindFile {
             tx_id, timestamp, ..
         } = msg;
@@ -577,12 +581,17 @@ impl Libp2pEventHandler {
             timestamp,
             metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_LATENCY.clone(),
         );
-        if d < TOLERABLE_DRIFT.neg() || d > *FIND_FILE_TIMEOUT {
+        let timeout = if msg.neighbors_only {
+            *FIND_FILE_NEIGHBORS_TIMEOUT
+        } else {
+            *FIND_FILE_TIMEOUT
+        };
+        if d < TOLERABLE_DRIFT.neg() || d > timeout {
             debug!(%timestamp, ?d, "Invalid timestamp, ignoring FindFile message");
             metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_TIMEOUT.mark(1);
             if msg.neighbors_only {
                 self.send_to_network(NetworkMessage::ReportPeer {
-                    peer_id,
+                    peer_id: from,
                     action: PeerAction::LowToleranceError,
                     source: ReportSource::Gossipsub,
                     msg: "Received out of date FindFile message",
@@ -597,7 +606,7 @@ impl Libp2pEventHandler {
             Err(_) => return MessageAcceptance::Reject,
         };
 
-        // ignore if shard config mismatch
+        // handle on shard config mismatch
         let my_shard_config = self.store.get_store().get_shard_config();
         if !my_shard_config.intersect(&announced_shard_config) {
             return if msg.neighbors_only {
@@ -607,10 +616,6 @@ impl Libp2pEventHandler {
             };
         }
 
-        // update peer shard config in cache
-        self.file_location_cache
-            .insert_peer_config(peer_id, announced_shard_config);
-
         // check if we have it
         if matches!(self.store.check_tx_completed(tx_id.seq).await, Ok(true)) {
             if let Ok(Some(tx)) = self.store.get_tx_by_seq_number(tx_id.seq).await {
@@ -618,8 +623,9 @@ impl Libp2pEventHandler {
                     trace!(?tx_id, "Found file locally, responding to FindFile query");
 
                     if msg.neighbors_only {
+                        // announce file via RPC to avoid flooding pubsub message
                         self.send_to_network(NetworkMessage::SendRequest {
-                            peer_id,
+                            peer_id: from,
                             request: Request::AnnounceFile(FileAnnouncement {
                                 tx_id,
                                 num_shard: my_shard_config.num_shard,
@@ -635,8 +641,8 @@ impl Libp2pEventHandler {
             }
         }
 
+        // do not forward to whole network if only find file from neighbor nodes
         if msg.neighbors_only {
-            // do not forward to other peers anymore
             return MessageAcceptance::Ignore;
         }
 

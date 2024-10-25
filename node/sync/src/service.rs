@@ -774,7 +774,7 @@ impl SyncService {
         }
     }
 
-    /// Handle on NewFile gossip message received.
+    /// Handle on `NewFile` gossip message received.
     async fn on_new_file_gossip(&mut self, from: PeerId, msg: NewFile) {
         debug!(%from, ?msg, "Received NewFile gossip");
 
@@ -789,14 +789,14 @@ impl SyncService {
         }
     }
 
-    /// Handle on AnnounceFile RPC message received.
-    async fn on_announce_file(&mut self, peer_id: PeerId, announcement: FileAnnouncement) {
+    /// Handle on `AnnounceFile` RPC message received.
+    async fn on_announce_file(&mut self, from: PeerId, announcement: FileAnnouncement) {
+        // Notify new peer announced if file already in sync
         if let Some(controller) = self.controllers.get_mut(&announcement.tx_id.seq) {
-            // Notify new peer announced if file already in sync
             if let Ok(shard_config) =
                 ShardConfig::new(announcement.shard_id, announcement.num_shard)
             {
-                controller.on_peer_announced(peer_id, shard_config);
+                controller.on_peer_announced(from, shard_config);
                 controller.transition();
             }
         }

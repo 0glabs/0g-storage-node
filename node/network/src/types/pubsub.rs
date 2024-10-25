@@ -114,6 +114,7 @@ impl ssz::Decode for WrappedPeerId {
     }
 }
 
+/// Published when file uploaded or completed to sync from other peers.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct NewFile {
     pub tx_id: TxID,
@@ -127,6 +128,7 @@ pub struct FindFile {
     pub tx_id: TxID,
     pub num_shard: usize,
     pub shard_id: usize,
+    /// Indicates whether publish to neighboar nodes only.
     pub neighbors_only: bool,
     pub timestamp: u32,
 }

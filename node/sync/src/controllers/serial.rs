@@ -566,6 +566,7 @@ impl SerialSyncController {
                 info!(%self.tx_seq, "Succeeded to finalize file");
                 self.state = SyncState::Completed;
                 metrics::SERIAL_SYNC_FILE_COMPLETED.update_since(self.since.0);
+                // notify neighbor nodes about new file completed to sync
                 self.ctx
                     .send(NetworkMessage::AnnounceLocalFile { tx_id: self.tx_id });
             }
