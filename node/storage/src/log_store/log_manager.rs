@@ -48,7 +48,7 @@ pub const COL_NUM: u32 = 9;
 const PAD_MAX_SIZE: usize = 1 << 20;
 
 static PAD_SEGMENT_ROOT: Lazy<H256> = Lazy::new(|| {
-    *Merkle::new(
+    Merkle::new(
         data_to_merkle_leaves(&[0; ENTRY_SIZE * PORA_CHUNK_SIZE]).unwrap(),
         0,
         None,
