@@ -1,3 +1,5 @@
+use super::tx_store::BlockHashAndSubmissionIndex;
+use super::{FlowSeal, MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
 use crate::log_store::flow_store::{batch_iter_sharded, FlowConfig, FlowDBStore, FlowStore};
 use crate::log_store::tx_store::TransactionStore;
@@ -11,6 +13,7 @@ use ethereum_types::H256;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use merkle_light::merkle::{log2_pow2, MerkleTree};
 use merkle_tree::RawLeafSha3Algorithm;
+use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::ParallelSlice;
@@ -24,9 +27,6 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::sync::Arc;
 use tracing::{debug, error, info, instrument, trace, warn};
-
-use super::tx_store::BlockHashAndSubmissionIndex;
-use super::{FlowSeal, MineLoadChunk, SealAnswer, SealTask};
 
 /// 256 Bytes
 pub const ENTRY_SIZE: usize = 256;
@@ -47,6 +47,14 @@ pub const COL_NUM: u32 = 9;
 // Process at most 1M entries (256MB) pad data at a time.
 const PAD_MAX_SIZE: usize = 1 << 20;
 
+static PAD_SEGMENT_ROOT: Lazy<H256> = Lazy::new(|| {
+    Merkle::new(
+        data_to_merkle_leaves(&[0; ENTRY_SIZE * PORA_CHUNK_SIZE]).unwrap(),
+        0,
+        None,
+    )
+    .root()
+});
 pub struct UpdateFlowMessage {
     pub root_map: BTreeMap<usize, (H256, usize)>,
     pub pad_data: usize,
@@ -967,12 +975,11 @@ impl LogManager {
                     // Pad with more complete chunks.
                     let mut start_index = last_chunk_pad / ENTRY_SIZE;
                     while pad_data.len() >= (start_index + PORA_CHUNK_SIZE) * ENTRY_SIZE {
-                        let data = pad_data[start_index * ENTRY_SIZE
-                            ..(start_index + PORA_CHUNK_SIZE) * ENTRY_SIZE]
-                            .to_vec();
-                        let root = Merkle::new(data_to_merkle_leaves(&data)?, 0, None).root();
-                        merkle.pora_chunks_merkle.append(root);
-                        root_map.insert(merkle.pora_chunks_merkle.leaves() - 1, (root, 1));
+                        merkle.pora_chunks_merkle.append(*PAD_SEGMENT_ROOT);
+                        root_map.insert(
+                            merkle.pora_chunks_merkle.leaves() - 1,
+                            (*PAD_SEGMENT_ROOT, 1),
+                        );
                         start_index += PORA_CHUNK_SIZE;
                     }
                     assert_eq!(pad_data.len(), start_index * ENTRY_SIZE);
