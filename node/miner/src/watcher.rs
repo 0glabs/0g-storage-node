@@ -14,12 +14,12 @@ use tokio::{
     try_join,
 };
 
+use crate::{config::MineServiceMiddleware, mine::PoraPuzzle, MinerConfig, MinerMessage};
+use ethers::prelude::{Http, RetryClient};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{ops::DerefMut, str::FromStr};
-
-use crate::{config::MineServiceMiddleware, mine::PoraPuzzle, MinerConfig, MinerMessage};
 
 pub type MineContextMessage = Option<PoraPuzzle>;
 
@@ -29,9 +29,9 @@ lazy_static! {
 }
 
 pub struct MineContextWatcher {
-    provider: Arc<MineServiceMiddleware>,
-    flow_contract: ZgsFlow<MineServiceMiddleware>,
-    mine_contract: PoraMine<MineServiceMiddleware>,
+    provider: Arc<Provider<RetryClient<Http>>>,
+    flow_contract: ZgsFlow<Provider<RetryClient<Http>>>,
+    mine_contract: PoraMine<Provider<RetryClient<Http>>>,
 
     mine_context_sender: broadcast::Sender<MineContextMessage>,
     last_report: MineContextMessage,
@@ -44,7 +44,7 @@ impl MineContextWatcher {
     pub fn spawn(
         executor: TaskExecutor,
         msg_recv: broadcast::Receiver<MinerMessage>,
-        provider: Arc<MineServiceMiddleware>,
+        provider: Arc<Provider<RetryClient<Http>>>,
         config: &MinerConfig,
     ) -> broadcast::Receiver<MineContextMessage> {
         let mine_contract = PoraMine::new(config.mine_address, provider.clone());

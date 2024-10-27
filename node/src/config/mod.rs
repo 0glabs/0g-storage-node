@@ -60,6 +60,7 @@ build_config! {
     (prune_check_time_s, (u64), 60)
     (prune_batch_size, (usize), 16 * 1024)
     (prune_batch_wait_time_ms, (u64), 1000)
+    (merkle_node_cache_capacity, (usize), 32 * 1024 * 1024)
 
     // misc
     (log_config_file, (String), "log_config".to_string())

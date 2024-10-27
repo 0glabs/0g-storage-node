@@ -28,7 +28,7 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-metrics = { git = "https://github.com/Conflux-Chain/conflux-rust.git", rev = "992ebc5483d937c8f6b883e266f8ed2a67a7fa9a" }
+metrics = { git = "https://github.com/Conflux-Chain/conflux-rust.git", rev = "c4734e337c66d38e6396742cd5117b596e8d2603" }
 
 [patch.crates-io]
 discv5 = { path = "version-meld/discv5" }
@@ -37,3 +37,7 @@ enr = { path = "version-meld/enr" }
 
 [profile.bench.package.'storage']
 debug = true
+
+[profile.dev]
+# enabling debug_assertions will make node fail to start because of checks in `clap`.
+debug-assertions = false
