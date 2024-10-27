@@ -4,11 +4,10 @@ mod seal;
 mod serde;
 
 use ::serde::{Deserialize, Serialize};
-use std::cmp::min;
-
 use anyhow::Result;
 use ethereum_types::H256;
 use ssz_derive::{Decode, Encode};
+use std::cmp::min;
 
 use crate::log_store::log_manager::data_to_merkle_leaves;
 use crate::try_option;
@@ -206,7 +205,7 @@ impl EntryBatch {
             }
         }
         Ok(Some(
-            *try_option!(self.to_merkle_tree(is_first_chunk)?).root(),
+            try_option!(self.to_merkle_tree(is_first_chunk)?).root(),
         ))
     }
 

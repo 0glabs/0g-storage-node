@@ -292,6 +292,9 @@ impl TransactionStore {
             match tx.start_entry_index.cmp(&last_chunk_start_index) {
                 cmp::Ordering::Greater => {
                     tx_list.push((tx_seq, tx.merkle_nodes));
+                    if tx.start_entry_index >= last_chunk_start_index + PORA_CHUNK_SIZE as u64 {
+                        break;
+                    }
                 }
                 cmp::Ordering::Equal => {
                     tx_list.push((tx_seq, tx.merkle_nodes));

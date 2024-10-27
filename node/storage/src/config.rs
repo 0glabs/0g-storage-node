@@ -1,3 +1,4 @@
+use crate::log_store::log_manager::LogConfig;
 use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 use std::{cell::RefCell, path::PathBuf, rc::Rc, str::FromStr};
@@ -7,6 +8,7 @@ pub const SHARD_CONFIG_KEY: &str = "shard_config";
 #[derive(Clone)]
 pub struct Config {
     pub db_dir: PathBuf,
+    pub log_config: LogConfig,
 }
 
 #[derive(Clone, Copy, Debug, Decode, Encode, Serialize, Deserialize, Eq, PartialEq)]

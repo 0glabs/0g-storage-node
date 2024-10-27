@@ -49,7 +49,7 @@ pub trait Algorithm<E: HashElement> {
 
 pub trait MerkleTreeRead {
     type E: HashElement;
-    fn node(&self, layer: usize, index: usize) -> &Self::E;
+    fn node(&self, layer: usize, index: usize) -> Self::E;
     fn height(&self) -> usize;
     fn layer_len(&self, layer_height: usize) -> usize;
     fn padding_node(&self, height: usize) -> Self::E;
@@ -58,7 +58,7 @@ pub trait MerkleTreeRead {
         self.layer_len(0)
     }
 
-    fn root(&self) -> &Self::E {
+    fn root(&self) -> Self::E {
         self.node(self.height() - 1, 0)
     }
 
@@ -70,16 +70,16 @@ pub trait MerkleTreeRead {
                 self.leaves()
             );
         }
-        if self.node(0, leaf_index) == &Self::E::null() {
+        if self.node(0, leaf_index) == Self::E::null() {
             bail!("Not ready to generate proof for leaf_index={}", leaf_index);
         }
         if self.height() == 1 {
-            return Proof::new(vec![self.root().clone(), self.root().clone()], vec![]);
+            return Proof::new(vec![self.root(), self.root().clone()], vec![]);
         }
         let mut lemma: Vec<Self::E> = Vec::with_capacity(self.height()); // path + root
         let mut path: Vec<bool> = Vec::with_capacity(self.height() - 2); // path - 1
         let mut index_in_layer = leaf_index;
-        lemma.push(self.node(0, leaf_index).clone());
+        lemma.push(self.node(0, leaf_index));
         for height in 0..(self.height() - 1) {
             trace!(
                 "gen_proof: height={} index={} hash={:?}",
@@ -93,15 +93,15 @@ pub trait MerkleTreeRead {
                     // TODO: This can be skipped if the tree size is available in validation.
                     lemma.push(self.padding_node(height));
                 } else {
-                    lemma.push(self.node(height, index_in_layer + 1).clone());
+                    lemma.push(self.node(height, index_in_layer + 1));
                 }
             } else {
                 path.push(false);
-                lemma.push(self.node(height, index_in_layer - 1).clone());
+                lemma.push(self.node(height, index_in_layer - 1));
             }
             index_in_layer >>= 1;
         }
-        lemma.push(self.root().clone());
+        lemma.push(self.root());
         if lemma.contains(&Self::E::null()) {
             bail!(
                 "Not enough data to generate proof, lemma={:?} path={:?}",
@@ -128,6 +128,13 @@ pub trait MerkleTreeRead {
             right_proof,
         })
     }
+}
+
+pub trait MerkleTreeWrite {
+    type E: HashElement;
+    fn push_node(&mut self, layer: usize, node: Self::E);
+    fn append_nodes(&mut self, layer: usize, nodes: &[Self::E]);
+    fn update_node(&mut self, layer: usize, pos: usize, node: Self::E);
 }
 
 /// This includes the data to reconstruct an `AppendMerkleTree` root where some nodes
