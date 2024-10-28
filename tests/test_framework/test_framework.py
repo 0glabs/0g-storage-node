@@ -209,13 +209,11 @@ class TestFramework:
             if i > 0:
                 time.sleep(1)
             node.start()
+            node.wait_for_rpc_connection()
 
         self.log.info("Wait the zgs_node launch for %d seconds", self.launch_wait_seconds)
         time.sleep(self.launch_wait_seconds)
         
-        for node in self.nodes:
-            node.wait_for_rpc_connection()
-
     def add_arguments(self, parser: argparse.ArgumentParser):
         parser.add_argument(
             "--conflux-binary",
