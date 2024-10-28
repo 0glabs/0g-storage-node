@@ -258,6 +258,7 @@ impl LogStoreWrite for LogManager {
     /// `put_tx` for the last tx when we restart the node to ensure that it succeeds.
     ///
     fn put_tx(&self, tx: Transaction) -> Result<()> {
+        let start_time = Instant::now();
         let mut merkle = self.merkle.write();
         debug!("put_tx: tx={:?}", tx);
         let expected_seq = self.tx_store.next_tx_seq();
@@ -292,6 +293,7 @@ impl LogStoreWrite for LogManager {
                 self.copy_tx_and_finalize(old_tx_seq, vec![tx.seq])?;
             }
         }
+        metrics::PUT_TX.update_since(start_time);
         Ok(())
     }
 
