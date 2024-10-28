@@ -196,6 +196,7 @@ impl LogStoreChunkWrite for LogManager {
         chunks: ChunkArray,
         maybe_file_proof: Option<FlowProof>,
     ) -> Result<bool> {
+        let start_time = Instant::now();
         let mut merkle = self.merkle.write();
         let tx = self
             .tx_store
@@ -227,6 +228,7 @@ impl LogStoreChunkWrite for LogManager {
                 tx.start_entry_index,
             )?;
         }
+        metrics::PUT_CHUNKS.update_since(start_time);
         Ok(true)
     }
 
