@@ -3,6 +3,8 @@ use std::sync::Arc;
 use metrics::{register_timer, Timer};
 
 lazy_static::lazy_static! {
+    pub static ref PUT_TX: Arc<dyn Timer> = register_timer("log_store_put_tx");
+
     pub static ref TX_STORE_PUT: Arc<dyn Timer> = register_timer("log_store_tx_store_put_tx");
 
     pub static ref CHECK_TX_COMPLETED: Arc<dyn Timer> =
