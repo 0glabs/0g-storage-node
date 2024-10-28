@@ -42,6 +42,14 @@ impl SyncStore {
         }
     }
 
+    pub fn new_with_name(store: Store, pending: &'static str, ready: &'static str) -> Self {
+        Self {
+            store: Arc::new(RwLock::new(store)),
+            pending_txs: TxStore::new(pending),
+            ready_txs: TxStore::new(ready),
+        }
+    }
+
     /// Returns the number of pending txs and ready txs.
     pub async fn stat(&self) -> Result<(usize, usize)> {
         let async_store = self.store.read().await;

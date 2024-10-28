@@ -34,6 +34,7 @@ pub enum OutboundRequest {
     Goodbye(GoodbyeReason),
     Ping(Ping),
     DataByHash(DataByHashRequest),
+    AnnounceFile(FileAnnouncement),
     GetChunks(GetChunksRequest),
 }
 
@@ -72,6 +73,11 @@ impl OutboundRequest {
                 Version::V1,
                 Encoding::SSZSnappy,
             )],
+            OutboundRequest::AnnounceFile(_) => vec![ProtocolId::new(
+                Protocol::AnnounceFile,
+                Version::V1,
+                Encoding::SSZSnappy,
+            )],
             OutboundRequest::GetChunks(_) => vec![ProtocolId::new(
                 Protocol::GetChunks,
                 Version::V1,
@@ -89,6 +95,7 @@ impl OutboundRequest {
             OutboundRequest::Goodbye(_) => 0,
             OutboundRequest::Ping(_) => 1,
             OutboundRequest::DataByHash(req) => req.hashes.len() as u64,
+            OutboundRequest::AnnounceFile(_) => 0,
             OutboundRequest::GetChunks(_) => 1,
         }
     }
@@ -100,6 +107,7 @@ impl OutboundRequest {
             OutboundRequest::Goodbye(_) => Protocol::Goodbye,
             OutboundRequest::Ping(_) => Protocol::Ping,
             OutboundRequest::DataByHash(_) => Protocol::DataByHash,
+            OutboundRequest::AnnounceFile(_) => Protocol::AnnounceFile,
             OutboundRequest::GetChunks(_) => Protocol::GetChunks,
         }
     }
@@ -114,6 +122,7 @@ impl OutboundRequest {
             OutboundRequest::Status(_) => unreachable!(),
             OutboundRequest::Goodbye(_) => unreachable!(),
             OutboundRequest::Ping(_) => unreachable!(),
+            OutboundRequest::AnnounceFile(_) => unreachable!(),
             OutboundRequest::GetChunks(_) => unreachable!(),
         }
     }
@@ -169,6 +178,9 @@ impl std::fmt::Display for OutboundRequest {
             OutboundRequest::Ping(ping) => write!(f, "Ping: {}", ping.data),
             OutboundRequest::DataByHash(req) => {
                 write!(f, "Data by hash: {:?}", req)
+            }
+            OutboundRequest::AnnounceFile(req) => {
+                write!(f, "AnnounceFile: {:?}", req)
             }
             OutboundRequest::GetChunks(req) => {
                 write!(f, "GetChunks: {:?}", req)

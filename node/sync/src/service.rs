@@ -8,7 +8,8 @@ use anyhow::{anyhow, bail, Result};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
-use network::types::{AnnounceChunks, FindFile};
+use network::rpc::methods::FileAnnouncement;
+use network::types::{AnnounceChunks, FindFile, NewFile};
 use network::PubsubMessage;
 use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, PeerId,
@@ -69,6 +70,15 @@ pub enum SyncMessage {
     },
     AnnounceChunksGossip {
         msg: AnnounceChunks,
+    },
+    NewFile {
+        from: PeerId,
+        msg: NewFile,
+    },
+    AnnounceFile {
+        peer_id: PeerId,
+        request_id: PeerRequestId,
+        announcement: FileAnnouncement,
     },
 }
 
@@ -265,6 +275,12 @@ impl SyncService {
             SyncMessage::AnnounceShardConfig { .. } => {
                 // FIXME: Check if controllers need to be reset?
             }
+            SyncMessage::NewFile { from, msg } => self.on_new_file_gossip(from, msg).await,
+            SyncMessage::AnnounceFile {
+                peer_id,
+                announcement,
+                ..
+            } => self.on_announce_file(peer_id, announcement).await,
         }
     }
 
@@ -279,7 +295,10 @@ impl SyncService {
                     Some(manager) => SyncServiceState {
                         num_syncing: self.controllers.len(),
                         catched_up: Some(manager.catched_up.load(Ordering::Relaxed)),
-                        auto_sync_serial: Some(manager.serial.get_state().await),
+                        auto_sync_serial: match &manager.serial {
+                            Some(v) => Some(v.get_state().await),
+                            None => None,
+                        },
                         auto_sync_random: manager.random.get_state().await.ok(),
                     },
                     None => SyncServiceState {
@@ -577,8 +596,12 @@ impl SyncService {
             Some(tx) => tx,
             None => bail!("Transaction not found"),
         };
+        let shard_config = self.store.get_store().get_shard_config();
         self.ctx.publish(PubsubMessage::FindFile(FindFile {
             tx_id: tx.id(),
+            num_shard: shard_config.num_shard,
+            shard_id: shard_config.shard_id,
+            neighbors_only: false,
             timestamp: timestamp_now(),
         }));
         Ok(())
@@ -642,7 +665,10 @@ impl SyncService {
                             Some(s) => s,
                             None => {
                                 debug!(%tx.seq, "No more data needed");
-                                self.store.finalize_tx_with_hash(tx.seq, tx.hash()).await?;
+                                if self.store.finalize_tx_with_hash(tx.seq, tx.hash()).await? {
+                                    self.ctx
+                                        .send(NetworkMessage::AnnounceLocalFile { tx_id: tx.id() });
+                                }
                                 return Ok(());
                             }
                         };
@@ -743,6 +769,34 @@ impl SyncService {
                 && info.goal.index_end == msg.index_end
             {
                 controller.on_peer_found(msg.peer_id.into(), msg.at.into());
+                controller.transition();
+            }
+        }
+    }
+
+    /// Handle on `NewFile` gossip message received.
+    async fn on_new_file_gossip(&mut self, from: PeerId, msg: NewFile) {
+        debug!(%from, ?msg, "Received NewFile gossip");
+
+        if let Some(controller) = self.controllers.get_mut(&msg.tx_id.seq) {
+            // Notify new peer announced if file already in sync
+            if let Ok(shard_config) = ShardConfig::new(msg.shard_id, msg.num_shard) {
+                controller.on_peer_announced(from, shard_config);
+                controller.transition();
+            }
+        } else if let Some(manager) = &self.auto_sync_manager {
+            let _ = manager.new_file_send.send(msg.tx_id.seq);
+        }
+    }
+
+    /// Handle on `AnnounceFile` RPC message received.
+    async fn on_announce_file(&mut self, from: PeerId, announcement: FileAnnouncement) {
+        // Notify new peer announced if file already in sync
+        if let Some(controller) = self.controllers.get_mut(&announcement.tx_id.seq) {
+            if let Ok(shard_config) =
+                ShardConfig::new(announcement.shard_id, announcement.num_shard)
+            {
+                controller.on_peer_announced(from, shard_config);
                 controller.transition();
             }
         }
@@ -1504,6 +1558,10 @@ mod tests {
         .await;
 
         wait_for_tx_finalized(runtime.store.clone(), tx_seq).await;
+        assert!(matches!(
+            runtime.network_recv.try_recv().unwrap(),
+            NetworkMessage::AnnounceLocalFile { .. }
+        ));
 
         assert!(!runtime.store.check_tx_completed(0).unwrap());
 
@@ -1528,6 +1586,10 @@ mod tests {
         .await;
 
         wait_for_tx_finalized(runtime.store, tx_seq).await;
+        assert!(matches!(
+            runtime.network_recv.try_recv().unwrap(),
+            NetworkMessage::AnnounceLocalFile { .. }
+        ));
 
         sync_send
             .notify(SyncMessage::PeerDisconnected {

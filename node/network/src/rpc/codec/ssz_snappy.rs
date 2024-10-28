@@ -159,6 +159,7 @@ impl Encoder<OutboundRequest> for SSZSnappyOutboundCodec {
             OutboundRequest::Goodbye(req) => req.as_ssz_bytes(),
             OutboundRequest::Ping(req) => req.as_ssz_bytes(),
             OutboundRequest::DataByHash(req) => req.hashes.as_ssz_bytes(),
+            OutboundRequest::AnnounceFile(req) => req.as_ssz_bytes(),
             OutboundRequest::GetChunks(req) => req.as_ssz_bytes(),
         };
         // SSZ encoded bytes should be within `max_packet_size`
@@ -346,6 +347,9 @@ fn handle_v1_request(
         Protocol::DataByHash => Ok(Some(InboundRequest::DataByHash(DataByHashRequest {
             hashes: VariableList::from_ssz_bytes(decoded_buffer)?,
         }))),
+        Protocol::AnnounceFile => Ok(Some(InboundRequest::AnnounceFile(
+            FileAnnouncement::from_ssz_bytes(decoded_buffer)?,
+        ))),
         Protocol::GetChunks => Ok(Some(InboundRequest::GetChunks(
             GetChunksRequest::from_ssz_bytes(decoded_buffer)?,
         ))),
@@ -373,6 +377,10 @@ fn handle_v1_response(
         Protocol::DataByHash => Ok(Some(RPCResponse::DataByHash(Box::new(
             ZgsData::from_ssz_bytes(decoded_buffer)?,
         )))),
+        // This case should be unreachable as `AnnounceFile` has no response.
+        Protocol::AnnounceFile => Err(RPCError::InvalidData(
+            "AnnounceFile RPC message has no valid response".to_string(),
+        )),
         Protocol::GetChunks => Ok(Some(RPCResponse::Chunks(
             ChunkArrayWithProof::from_ssz_bytes(decoded_buffer)?,
         ))),

@@ -5,11 +5,14 @@ use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
 use futures::{channel::mpsc::Sender, prelude::*};
 use miner::MinerMessage;
+use network::types::NewFile;
+use network::PubsubMessage;
 use network::{
     BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage, RequestId,
     Service as LibP2PService, Swarm,
 };
 use pruner::PrunerMessage;
+use shared_types::timestamp_now;
 use std::sync::Arc;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
@@ -44,6 +47,8 @@ pub struct RouterService {
     /// Stores potentially created UPnP mappings to be removed on shutdown. (TCP port and UDP
     /// port).
     upnp_mappings: (Option<u16>, Option<u16>),
+
+    store: Arc<dyn LogStore>,
 }
 
 impl RouterService {
@@ -63,7 +68,6 @@ impl RouterService {
         local_keypair: Keypair,
         config: Config,
     ) {
-        let store = Store::new(store, executor.clone());
         let peers = Arc::new(RwLock::new(PeerManager::new(config.clone())));
 
         // create the network service and spawn the task
@@ -81,11 +85,12 @@ impl RouterService {
                 sync_send,
                 chunk_pool_send,
                 local_keypair,
-                store,
+                Store::new(store.clone(), executor.clone()),
                 file_location_cache,
                 peers,
             ),
             upnp_mappings: (None, None),
+            store,
         };
 
         // spawn service
@@ -328,14 +333,15 @@ impl RouterService {
                 }
             }
             NetworkMessage::AnnounceLocalFile { tx_id } => {
-                if self
-                    .libp2p_event_handler
-                    .publish_file(tx_id)
-                    .await
-                    .is_some()
-                {
-                    metrics::SERVICE_ROUTE_NETWORK_MESSAGE_ANNOUNCE_LOCAL_FILE.mark(1);
-                }
+                let shard_config = self.store.get_shard_config();
+                let msg = PubsubMessage::NewFile(NewFile {
+                    tx_id,
+                    num_shard: shard_config.num_shard,
+                    shard_id: shard_config.shard_id,
+                    timestamp: timestamp_now(),
+                });
+                self.libp2p.swarm.behaviour_mut().publish(vec![msg]);
+                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_ANNOUNCE_LOCAL_FILE.mark(1);
             }
             NetworkMessage::UPnPMappingEstablished {
                 tcp_socket,

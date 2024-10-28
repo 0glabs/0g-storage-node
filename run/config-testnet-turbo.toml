@@ -244,6 +244,10 @@ batcher_announcement_capacity = 100
 # all files, and sufficient disk space is required.
 auto_sync_enabled = true
 
+# Indicates whether to sync file from neighbor nodes only. This is to avoid flooding file
+# announcements in the whole network, which leads to high latency or even timeout to sync files.
+neighbors_only = true
+
 #  Maximum number of files in sync from other peers simultaneously.
 # max_sync_files = 8
 

@@ -14,12 +14,13 @@ use shared_types::{timestamp_now, ChunkArrayWithProof, TxID, CHUNK_SIZE};
 use ssz::Encode;
 use std::{sync::Arc, time::Instant};
 use storage::log_store::log_manager::{sector_to_segment, segment_to_sector, PORA_CHUNK_SIZE};
-use storage_async::Store;
+use storage_async::{ShardConfig, Store};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FailureReason {
     DBError(String),
     TxReverted(TxID),
+    TimeoutFindFile,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -159,11 +160,14 @@ impl SerialSyncController {
 
     /// Find more peers to sync chunks. Return whether `FindFile` pubsub message published,
     fn try_find_peers(&mut self) {
-        let (published, num_new_peers) = if self.goal.is_all_chunks() {
-            self.publish_find_file()
-        } else {
+        let (published, num_new_peers) = if !self.goal.is_all_chunks() {
             self.publish_find_chunks();
             (true, 0)
+        } else if self.config.neighbors_only {
+            self.do_publish_find_file();
+            (true, 0)
+        } else {
+            self.publish_find_file()
         };
 
         info!(%self.tx_seq, %published, %num_new_peers, "Finding peers");
@@ -199,12 +203,21 @@ impl SerialSyncController {
             return (false, num_new_peers);
         }
 
-        self.ctx.publish(PubsubMessage::FindFile(FindFile {
-            tx_id: self.tx_id,
-            timestamp: timestamp_now(),
-        }));
+        self.do_publish_find_file();
 
         (true, num_new_peers)
+    }
+
+    fn do_publish_find_file(&self) {
+        let shard_config = self.store.get_store().get_shard_config();
+
+        self.ctx.publish(PubsubMessage::FindFile(FindFile {
+            tx_id: self.tx_id,
+            num_shard: shard_config.num_shard,
+            shard_id: shard_config.shard_id,
+            neighbors_only: self.config.neighbors_only,
+            timestamp: timestamp_now(),
+        }));
     }
 
     fn publish_find_chunks(&self) {
@@ -335,6 +348,14 @@ impl SerialSyncController {
             info!(%self.tx_seq, %peer_id, %addr, "Found peer without shard config");
             false
         }
+    }
+
+    /// Triggered when any peer (TCP connected) announced file via RPC message.
+    pub fn on_peer_announced(&mut self, peer_id: PeerId, shard_config: ShardConfig) {
+        self.peers
+            .add_new_peer_with_config(peer_id, Multiaddr::empty(), shard_config);
+        self.peers
+            .update_state_force(&peer_id, PeerState::Connected);
     }
 
     pub fn on_dail_failed(&mut self, peer_id: PeerId, err: &DialError) {
@@ -545,6 +566,9 @@ impl SerialSyncController {
                 info!(%self.tx_seq, "Succeeded to finalize file");
                 self.state = SyncState::Completed;
                 metrics::SERIAL_SYNC_FILE_COMPLETED.update_since(self.since.0);
+                // notify neighbor nodes about new file completed to sync
+                self.ctx
+                    .send(NetworkMessage::AnnounceLocalFile { tx_id: self.tx_id });
             }
             Ok(false) => {
                 warn!(?self.tx_id, %self.tx_seq, "Transaction reverted during finalize_tx");
@@ -637,12 +661,19 @@ impl SerialSyncController {
                     {
                         self.state = SyncState::FoundPeers;
                     } else {
-                        // storage node may not have the specific file when `FindFile`
-                        // gossip message received. In this case, just broadcast the
-                        // `FindFile` message again.
+                        // FindFile timeout
                         if since.elapsed() >= self.config.peer_find_timeout {
-                            debug!(%self.tx_seq, "Finding peer timeout and try to find peers again");
-                            self.try_find_peers();
+                            if self.config.neighbors_only {
+                                self.state = SyncState::Failed {
+                                    reason: FailureReason::TimeoutFindFile,
+                                };
+                            } else {
+                                // storage node may not have the specific file when `FindFile`
+                                // gossip message received. In this case, just broadcast the
+                                // `FindFile` message again.
+                                debug!(%self.tx_seq, "Finding peer timeout and try to find peers again");
+                                self.try_find_peers();
+                            }
                         }
 
                         completed = true;
@@ -1513,6 +1544,10 @@ mod tests {
 
         controller.on_response(peer_id, chunks).await;
         assert_eq!(*controller.get_status(), SyncState::Completed);
+        assert!(matches!(
+            network_recv.try_recv().unwrap(),
+            NetworkMessage::AnnounceLocalFile { .. }
+        ));
         assert!(network_recv.try_recv().is_err());
     }
 
