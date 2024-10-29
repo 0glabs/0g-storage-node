@@ -316,6 +316,7 @@ impl LogStoreWrite for LogManager {
     }
 
     fn finalize_tx_with_hash(&self, tx_seq: u64, tx_hash: H256) -> crate::error::Result<bool> {
+        let start_time = Instant::now();
         trace!(
             "finalize_tx_with_hash: tx_seq={} tx_hash={:?}",
             tx_seq,
@@ -344,6 +345,7 @@ impl LogStoreWrite for LogManager {
             if same_root_seq_list.first() == Some(&tx_seq) {
                 self.copy_tx_and_finalize(tx_seq, same_root_seq_list[1..].to_vec())?;
             }
+            metrics::FINALIZE_TX_WITH_HASH.update_since(start_time);
             Ok(true)
         } else {
             bail!("finalize tx hash with data missing: tx_seq={}", tx_seq)

@@ -25,5 +25,12 @@ lazy_static::lazy_static! {
     pub static ref INSERT_SUBTREE_LIST: Arc<dyn Timer> =
         register_timer("log_store_log_manager_insert_subtree_list");
 
-    pub static ref PUT_MPT_NODE: Arc<dyn Timer> = register_timer("log_store_log_manager_put_mpt_node");
+    pub static ref PUT_MPT_NODE: Arc<dyn Timer> = register_timer("log_store_flow_store_put_mpt_node");
+
+    pub static ref PUT_ENTRY_BATCH_LIST: Arc<dyn Timer> =
+        register_timer("log_store_flow_store_put_entry_batch_list");
+
+    pub static ref APPEND_ENTRIES: Arc<dyn Timer> = register_timer("log_store_flow_store_append_entries");
+
+    pub static ref FINALIZE_TX_WITH_HASH: Arc<dyn Timer> = register_timer("log_store_log_manager_finalize_tx_with_hash");
 }
