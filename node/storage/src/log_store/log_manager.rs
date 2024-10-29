@@ -61,7 +61,7 @@ pub struct UpdateFlowMessage {
 }
 
 pub struct LogManager {
-    pub(crate) db: Arc<dyn ZgsKeyValueDB>,
+    pub(crate) flow_db: Arc<dyn ZgsKeyValueDB>,
     tx_store: TransactionStore,
     flow_store: Arc<FlowStore>,
     merkle: RwLock<MerkleManager>,
@@ -612,28 +612,37 @@ impl LogStoreRead for LogManager {
 impl LogManager {
     pub fn rocksdb(
         config: LogConfig,
-        path: impl AsRef<Path>,
+        flow_path: impl AsRef<Path>,
+        data_path: impl AsRef<Path>,
         executor: task_executor::TaskExecutor,
     ) -> Result<Self> {
         let mut db_config = DatabaseConfig::with_columns(COL_NUM);
         db_config.enable_statistics = true;
-        let db = Arc::new(Database::open(&db_config, path)?);
-        Self::new(db, config, executor)
+        let flow_db_source = Arc::new(Database::open(&db_config, flow_path)?);
+        let data_db_source = Arc::new(Database::open(&db_config, data_path)?);
+        Self::new(flow_db_source, data_db_source, config, executor)
     }
 
     pub fn memorydb(config: LogConfig, executor: task_executor::TaskExecutor) -> Result<Self> {
-        let db = Arc::new(kvdb_memorydb::create(COL_NUM));
-        Self::new(db, config, executor)
+        let flow_db = Arc::new(kvdb_memorydb::create(COL_NUM));
+        let data_db = Arc::new(kvdb_memorydb::create(COL_NUM));
+        Self::new(flow_db, data_db, config, executor)
     }
 
     fn new(
-        db: Arc<dyn ZgsKeyValueDB>,
+        flow_db_source: Arc<dyn ZgsKeyValueDB>,
+        data_db_source: Arc<dyn ZgsKeyValueDB>,
         config: LogConfig,
         executor: task_executor::TaskExecutor,
     ) -> Result<Self> {
-        let tx_store = TransactionStore::new(db.clone())?;
-        let flow_db = Arc::new(FlowDBStore::new(db.clone()));
-        let flow_store = Arc::new(FlowStore::new(flow_db.clone(), config.flow.clone()));
+        let tx_store = TransactionStore::new(flow_db_source.clone())?;
+        let flow_db = Arc::new(FlowDBStore::new(flow_db_source.clone()));
+        let data_db = Arc::new(FlowDBStore::new(data_db_source.clone()));
+        let flow_store = Arc::new(FlowStore::new(
+            flow_db.clone(),
+            data_db.clone(),
+            config.flow.clone(),
+        ));
         // If the last tx `put_tx` does not complete, we will revert it in `pora_chunks_merkle`
         // first and call `put_tx` later.
         let next_tx_seq = tx_store.next_tx_seq();
@@ -737,7 +746,7 @@ impl LogManager {
         let (sender, receiver) = mpsc::channel();
 
         let mut log_manager = Self {
-            db,
+            flow_db: flow_db_source,
             tx_store,
             flow_store,
             merkle,
