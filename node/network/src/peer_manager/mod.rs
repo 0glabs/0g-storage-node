@@ -30,10 +30,6 @@ use std::net::IpAddr;
 pub mod config;
 mod network_behaviour;
 
-/// The heartbeat performs regular updates such as updating reputations and performing discovery
-/// requests. This defines the interval in seconds.
-const HEARTBEAT_INTERVAL: u64 = 30;
-
 /// This is used in the pruning logic. We avoid pruning peers on sync-committees if doing so would
 /// lower our peer count below this number. Instead we favour a non-uniform distribution of subnet
 /// peers.
@@ -105,6 +101,7 @@ impl PeerManager {
         network_globals: Arc<NetworkGlobals>,
     ) -> error::Result<Self> {
         let config::Config {
+            heartbeat_interval,
             discovery_enabled,
             metrics_enabled,
             target_peer_count,
@@ -114,7 +111,7 @@ impl PeerManager {
         } = cfg;
 
         // Set up the peer manager heartbeat interval
-        let heartbeat = tokio::time::interval(tokio::time::Duration::from_secs(HEARTBEAT_INTERVAL));
+        let heartbeat = tokio::time::interval(heartbeat_interval);
 
         Ok(PeerManager {
             network_globals,

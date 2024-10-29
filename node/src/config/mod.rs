@@ -87,6 +87,9 @@ pub struct ZgsConfig {
     /// Network peer db config, configured by [network_peer_db] section by `config` crate.
     pub network_peer_db: network::peer_manager::peerdb::PeerDBConfig,
 
+    /// Network peer manager config, configured by [network_peer_manager] section by `config` crate.
+    pub network_peer_manager: network::peer_manager::config::Config,
+
     // router config, configured by [router] section by `config` crate.
     pub router: router::Config,
 

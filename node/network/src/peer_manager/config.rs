@@ -1,3 +1,8 @@
+use std::time::Duration;
+
+use duration_str::deserialize_duration;
+use serde::{Deserialize, Serialize};
+
 /// The time in seconds between re-status's peers.
 pub const DEFAULT_STATUS_INTERVAL: u64 = 300;
 
@@ -11,9 +16,14 @@ pub const DEFAULT_PING_INTERVAL_INBOUND: u64 = 20;
 pub const DEFAULT_TARGET_PEERS: usize = 50;
 
 /// Configurations for the PeerManager.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     /* Peer count related configurations */
+    /// The heartbeat performs regular updates such as updating reputations and performing discovery
+    /// requests. This defines the interval in seconds.
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub heartbeat_interval: Duration,
     /// Whether discovery is enabled.
     pub discovery_enabled: bool,
     /// Whether metrics are enabled.
@@ -35,6 +45,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
+            heartbeat_interval: Duration::from_secs(30),
             discovery_enabled: true,
             metrics_enabled: false,
             target_peer_count: DEFAULT_TARGET_PEERS,

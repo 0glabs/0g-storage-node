@@ -267,7 +267,7 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
             discovery_enabled: !config.disable_discovery,
             metrics_enabled: config.metrics_enabled,
             target_peer_count: config.target_peers,
-            ..Default::default()
+            ..config.peer_manager
         };
 
         let slot_duration = std::time::Duration::from_secs(12);
