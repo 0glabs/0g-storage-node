@@ -25,9 +25,14 @@ fn write_performance(c: &mut Criterion) {
     let executor = runtime.task_executor.clone();
 
     let store: Arc<RwLock<dyn Store>> = Arc::new(RwLock::new(
-        LogManager::rocksdb(LogConfig::default(), "db_write", executor)
-            .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))
-            .unwrap(),
+        LogManager::rocksdb(
+            LogConfig::default(),
+            "db_flow_write",
+            "db_data_write",
+            executor,
+        )
+        .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))
+        .unwrap(),
     ));
 
     let chunk_count = 2048;
@@ -114,9 +119,14 @@ fn read_performance(c: &mut Criterion) {
     let executor = runtime.task_executor.clone();
 
     let store: Arc<RwLock<dyn Store>> = Arc::new(RwLock::new(
-        LogManager::rocksdb(LogConfig::default(), "db_read", executor)
-            .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))
-            .unwrap(),
+        LogManager::rocksdb(
+            LogConfig::default(),
+            "db_flow_read",
+            "db_data_read",
+            executor,
+        )
+        .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))
+        .unwrap(),
     ));
 
     let tx_size = 1000;
