@@ -34,4 +34,6 @@ lazy_static::lazy_static! {
         register_timer("log_store_flow_store_put_entry_batch_list");
 
     pub static ref APPEND_ENTRIES: Arc<dyn Timer> = register_timer("log_store_flow_store_append_entries");
+
+    pub static ref FINALIZE_TX_WITH_HASH: Arc<dyn Timer> = register_timer("log_store_log_manager_finalize_tx_with_hash");
 }
