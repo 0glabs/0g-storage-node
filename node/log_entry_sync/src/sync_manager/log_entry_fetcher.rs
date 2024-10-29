@@ -1,5 +1,5 @@
 use crate::sync_manager::log_query::LogQuery;
-use crate::sync_manager::RETRY_WAIT_MS;
+use crate::sync_manager::{metrics, RETRY_WAIT_MS};
 use crate::{ContractAddress, LogSyncConfig};
 use anyhow::{anyhow, bail, Result};
 use append_merkle::{Algorithm, Sha3Algorithm};
@@ -13,15 +13,12 @@ use jsonrpsee::tracing::{debug, error, info, warn};
 use shared_types::{DataRoot, Transaction};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
 use task_executor::TaskExecutor;
-use tokio::{
-    sync::{
-        mpsc::{UnboundedReceiver, UnboundedSender},
-        RwLock,
-    },
-    time::Instant,
+use tokio::sync::{
+    mpsc::{UnboundedReceiver, UnboundedSender},
+    RwLock,
 };
 
 pub struct LogEntryFetcher {
@@ -242,6 +239,7 @@ impl LogEntryFetcher {
                 );
                 let (mut block_hash_sent, mut block_number_sent) = (None, None);
                 while let Some(maybe_log) = stream.next().await {
+                    let start_time = Instant::now();
                     match maybe_log {
                         Ok(log) => {
                             let sync_progress =
@@ -301,6 +299,7 @@ impl LogEntryFetcher {
                             tokio::time::sleep(Duration::from_millis(RETRY_WAIT_MS)).await;
                         }
                     }
+                    metrics::RECOVER_LOG.update_since(start_time);
                 }
 
                 info!("log recover end");
