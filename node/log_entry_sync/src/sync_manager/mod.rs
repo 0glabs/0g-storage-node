@@ -512,6 +512,7 @@ impl LogSyncManager {
             // If the call fails, we won't check the root here and return `true` directly.
             let flow_contract = self.log_fetcher.flow_contract();
 
+            let flow_time = Instant::now();
             match flow_contract
                 .get_flow_root_by_tx_seq(tx.seq.into())
                 .call()
@@ -542,6 +543,7 @@ impl LogSyncManager {
                     warn!(?e, "fail to read the on-chain flow root");
                 }
             }
+            metrics::FlOW_CONTRACT_ROOT.update_since(flow_time);
 
             metrics::STORE_PUT_TX_SPEED_IN_BYTES
                 .update((tx.size / start_time.elapsed().as_millis() as u64) as usize);

@@ -8,4 +8,6 @@ lazy_static::lazy_static! {
     pub static ref STORE_PUT_TX: Arc<dyn Timer> = register_timer("log_entry_sync_manager_put_tx_inner");
 
     pub static ref STORE_PUT_TX_SPEED_IN_BYTES: Arc<dyn Gauge<usize>> = GaugeUsize::register("log_entry_sync_manager_put_tx_speed_in_bytes");
+
+    pub static ref FlOW_CONTRACT_ROOT: Arc<dyn Timer> = register_timer("log_manager_flow_contract_root");
 }
