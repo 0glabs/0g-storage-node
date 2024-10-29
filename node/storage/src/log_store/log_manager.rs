@@ -22,7 +22,7 @@ use shared_types::{
     ChunkArrayWithProof, ChunkWithProof, DataRoot, FlowProof, FlowRangeProof, Merkle, Transaction,
 };
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+
 use std::path::Path;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -56,7 +56,6 @@ static PAD_SEGMENT_ROOT: Lazy<H256> = Lazy::new(|| {
     .root()
 });
 pub struct UpdateFlowMessage {
-    pub root_map: BTreeMap<usize, (H256, usize)>,
     pub pad_data: usize,
     pub tx_start_flow_index: u64,
 }
@@ -214,12 +213,11 @@ impl LogStoreChunkWrite for LogManager {
         self.append_entries(flow_entry_array, &mut merkle)?;
 
         if let Some(file_proof) = maybe_file_proof {
-            let updated_node_list = merkle.pora_chunks_merkle.fill_with_file_proof(
+            merkle.pora_chunks_merkle.fill_with_file_proof(
                 file_proof,
                 tx.merkle_nodes,
                 tx.start_entry_index,
             )?;
-            self.flow_store.put_mpt_node_list(updated_node_list)?;
         }
         Ok(true)
     }
@@ -385,10 +383,9 @@ impl LogStoreWrite for LogManager {
         // `merkle` is used in `validate_range_proof`.
         let mut merkle = self.merkle.write();
         if valid {
-            let updated_nodes = merkle
+            merkle
                 .pora_chunks_merkle
                 .fill_with_range_proof(data.proof.clone())?;
-            self.flow_store.put_mpt_node_list(updated_nodes)?;
         }
         Ok(valid)
     }
@@ -774,8 +771,6 @@ impl LogManager {
                 loop {
                     match rx.recv() {
                         std::result::Result::Ok(data) => {
-                            // Update the root index.
-                            flow_store.put_batch_root_list(data.root_map).unwrap();
                             // Update the flow database.
                             // This should be called before `complete_last_chunk_merkle` so that we do not save
                             // subtrees with data known.
@@ -848,21 +843,7 @@ impl LogManager {
                     .gen_proof(flow_index as usize % PORA_CHUNK_SIZE)?,
             }
         };
-        let r = entry_proof(&top_proof, &sub_proof);
-        if r.is_err() {
-            let raw_batch = self.flow_store.get_raw_batch(seg_index as u64)?.unwrap();
-            let db_root = self.flow_store.get_batch_root(seg_index as u64)?;
-            error!(
-                ?r,
-                ?db_root,
-                ?seg_index,
-                "gen proof error: top_leaves={}, last={}, raw_batch={}",
-                merkle.pora_chunks_merkle.leaves(),
-                merkle.last_chunk_merkle.leaves(),
-                serde_json::to_string(&raw_batch).unwrap(),
-            );
-        }
-        r
+        entry_proof(&top_proof, &sub_proof)
     }
 
     #[instrument(skip(self, merkle))]
@@ -878,7 +859,6 @@ impl LogManager {
 
         self.pad_tx(tx_start_index, &mut *merkle)?;
 
-        let mut batch_root_map = BTreeMap::new();
         for (subtree_depth, subtree_root) in merkle_list {
             let subtree_size = 1 << (subtree_depth - 1);
             if merkle.last_chunk_merkle.leaves() + subtree_size <= PORA_CHUNK_SIZE {
@@ -896,10 +876,6 @@ impl LogManager {
                         .update_last(merkle.last_chunk_merkle.root());
                 }
                 if merkle.last_chunk_merkle.leaves() == PORA_CHUNK_SIZE {
-                    batch_root_map.insert(
-                        merkle.pora_chunks_merkle.leaves() - 1,
-                        (merkle.last_chunk_merkle.root(), 1),
-                    );
                     self.complete_last_chunk_merkle(
                         merkle.pora_chunks_merkle.leaves() - 1,
                         &mut *merkle,
@@ -910,16 +886,11 @@ impl LogManager {
                 // the chunks boundary.
                 assert_eq!(merkle.last_chunk_merkle.leaves(), 0);
                 assert!(subtree_size >= PORA_CHUNK_SIZE);
-                batch_root_map.insert(
-                    merkle.pora_chunks_merkle.leaves(),
-                    (subtree_root, subtree_depth - log2_pow2(PORA_CHUNK_SIZE)),
-                );
                 merkle
                     .pora_chunks_merkle
                     .append_subtree(subtree_depth - log2_pow2(PORA_CHUNK_SIZE), subtree_root)?;
             }
         }
-        self.flow_store.put_batch_root_list(batch_root_map)?;
         Ok(())
     }
 
@@ -937,7 +908,6 @@ impl LogManager {
         if pad_size != 0 {
             for pad_data in Self::padding(pad_size as usize) {
                 let mut is_full_empty = true;
-                let mut root_map = BTreeMap::new();
 
                 // Update the in-memory merkle tree.
                 let last_chunk_pad = if merkle.last_chunk_merkle.leaves() == 0 {
@@ -965,10 +935,6 @@ impl LogManager {
                         merkle
                             .pora_chunks_merkle
                             .update_last(merkle.last_chunk_merkle.root());
-                        root_map.insert(
-                            merkle.pora_chunks_merkle.leaves() - 1,
-                            (merkle.last_chunk_merkle.root(), 1),
-                        );
                         completed_chunk_index = Some(merkle.pora_chunks_merkle.leaves() - 1);
                     }
 
@@ -976,10 +942,6 @@ impl LogManager {
                     let mut start_index = last_chunk_pad / ENTRY_SIZE;
                     while pad_data.len() >= (start_index + PORA_CHUNK_SIZE) * ENTRY_SIZE {
                         merkle.pora_chunks_merkle.append(*PAD_SEGMENT_ROOT);
-                        root_map.insert(
-                            merkle.pora_chunks_merkle.leaves() - 1,
-                            (*PAD_SEGMENT_ROOT, 1),
-                        );
                         start_index += PORA_CHUNK_SIZE;
                     }
                     assert_eq!(pad_data.len(), start_index * ENTRY_SIZE);
@@ -988,12 +950,10 @@ impl LogManager {
                 let data_size = pad_data.len() / ENTRY_SIZE;
                 if is_full_empty {
                     self.sender.send(UpdateFlowMessage {
-                        root_map,
                         pad_data: pad_data.len(),
                         tx_start_flow_index,
                     })?;
                 } else {
-                    self.flow_store.put_batch_root_list(root_map).unwrap();
                     // Update the flow database.
                     // This should be called before `complete_last_chunk_merkle` so that we do not save
                     // subtrees with data known.
