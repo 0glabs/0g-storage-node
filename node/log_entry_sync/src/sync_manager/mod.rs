@@ -552,7 +552,7 @@ impl LogSyncManager {
             }
 
             metrics::STORE_PUT_TX_SPEED_IN_BYTES
-                .update((tx.size / start_time.elapsed().as_millis() as u64) as usize);
+                .update((tx.size * 1000 / start_time.elapsed().as_micros() as u64) as usize);
             metrics::STORE_PUT_TX.update_since(start_time);
 
             true
