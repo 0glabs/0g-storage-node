@@ -26,6 +26,7 @@ const RETRY_WAIT_MS: u64 = 500;
 // Each tx has less than 10KB, so the cache size should be acceptable.
 const BROADCAST_CHANNEL_CAPACITY: usize = 25000;
 const CATCH_UP_END_GAP: u64 = 10;
+const CHECK_ROOT_INTERVAL: u64 = 500;
 
 /// Errors while handle data
 #[derive(Error, Debug)]
@@ -510,40 +511,40 @@ impl LogSyncManager {
 
             // Check if the computed data root matches on-chain state.
             // If the call fails, we won't check the root here and return `true` directly.
-            let flow_contract = self.log_fetcher.flow_contract();
+            if self.next_tx_seq % CHECK_ROOT_INTERVAL == 0 {
+                let flow_contract = self.log_fetcher.flow_contract();
 
-            let flow_time = Instant::now();
-            match flow_contract
-                .get_flow_root_by_tx_seq(tx.seq.into())
-                .call()
-                .await
-            {
-                Ok(contract_root_bytes) => {
-                    let contract_root = H256::from_slice(&contract_root_bytes);
-                    // contract_root is zero for tx submitted before upgrading.
-                    if !contract_root.is_zero() {
-                        match self.store.get_context() {
-                            Ok((local_root, _)) => {
-                                if contract_root != local_root {
-                                    error!(
-                                        ?contract_root,
-                                        ?local_root,
-                                        "local flow root and on-chain flow root mismatch"
-                                    );
-                                    return false;
+                match flow_contract
+                    .get_flow_root_by_tx_seq(tx.seq.into())
+                    .call()
+                    .await
+                {
+                    Ok(contract_root_bytes) => {
+                        let contract_root = H256::from_slice(&contract_root_bytes);
+                        // contract_root is zero for tx submitted before upgrading.
+                        if !contract_root.is_zero() {
+                            match self.store.get_context() {
+                                Ok((local_root, _)) => {
+                                    if contract_root != local_root {
+                                        error!(
+                                            ?contract_root,
+                                            ?local_root,
+                                            "local flow root and on-chain flow root mismatch"
+                                        );
+                                        return false;
+                                    }
                                 }
-                            }
-                            Err(e) => {
-                                warn!(?e, "fail to read the local flow root");
+                                Err(e) => {
+                                    warn!(?e, "fail to read the local flow root");
+                                }
                             }
                         }
                     }
-                }
-                Err(e) => {
-                    warn!(?e, "fail to read the on-chain flow root");
+                    Err(e) => {
+                        warn!(?e, "fail to read the on-chain flow root");
+                    }
                 }
             }
-            metrics::FlOW_CONTRACT_ROOT.update_since(flow_time);
 
             metrics::STORE_PUT_TX_SPEED_IN_BYTES
                 .update((tx.size / start_time.elapsed().as_millis() as u64) as usize);
