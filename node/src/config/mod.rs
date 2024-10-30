@@ -28,6 +28,7 @@ build_config! {
     (discv5_report_discovered_peers, (bool), false)
     (discv5_disable_packet_filter, (bool), false)
     (discv5_disable_ip_limit, (bool), false)
+    (discv5_disable_enr_network_id, (bool), false)
 
     // log sync
     (blockchain_rpc_endpoint, (String), "http://127.0.0.1:8545".to_string())
@@ -86,6 +87,9 @@ pub struct ZgsConfig {
 
     /// Network peer db config, configured by [network_peer_db] section by `config` crate.
     pub network_peer_db: network::peer_manager::peerdb::PeerDBConfig,
+
+    /// Network peer manager config, configured by [network_peer_manager] section by `config` crate.
+    pub network_peer_manager: network::peer_manager::config::Config,
 
     // router config, configured by [router] section by `config` crate.
     pub router: router::Config,

@@ -754,6 +754,7 @@ impl Handler {
         // failed.
         enr.node_id() == node_address.node_id
             && (enr.udp_socket().is_none() || enr.udp_socket() == Some(node_address.socket_addr))
+            && enr.get("network_identity").is_some()
     }
 
     /// Handle a message that contains an authentication header.

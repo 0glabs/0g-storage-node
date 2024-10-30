@@ -1,6 +1,5 @@
-use crate::peer_manager::peerdb::PeerDBConfig;
 use crate::types::GossipKind;
-use crate::{Enr, PeerIdSerialized};
+use crate::{peer_manager, Enr, PeerIdSerialized};
 use directory::{
     DEFAULT_BEACON_NODE_DIR, DEFAULT_HARDCODED_NETWORK, DEFAULT_NETWORK_DIR, DEFAULT_ROOT_DIR,
 };
@@ -128,7 +127,12 @@ pub struct Config {
     /// The id of the storage network.
     pub network_id: NetworkIdentity,
 
-    pub peer_db: PeerDBConfig,
+    pub peer_db: peer_manager::peerdb::PeerDBConfig,
+    pub peer_manager: peer_manager::config::Config,
+
+    /// Whether to disable network identity in ENR.
+    /// This is for test purpose only.
+    pub disable_enr_network_id: bool,
 }
 
 impl Default for Config {
@@ -208,6 +212,8 @@ impl Default for Config {
             metrics_enabled: false,
             network_id: Default::default(),
             peer_db: Default::default(),
+            peer_manager: Default::default(),
+            disable_enr_network_id: false,
         }
     }
 }

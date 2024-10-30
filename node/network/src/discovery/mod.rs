@@ -139,6 +139,7 @@ impl Discovery {
             udp = ?local_enr.udp(),
             tcp = ?local_enr.tcp(),
             udp4_socket = ?local_enr.udp_socket(),
+            network_id = ?local_enr.network_identity(),
             "ENR Initialised",
         );
 
@@ -158,6 +159,7 @@ impl Discovery {
                 ip = ?bootnode_enr.ip(),
                 udp = ?bootnode_enr.udp(),
                 tcp = ?bootnode_enr.tcp(),
+                network_id = ?bootnode_enr.network_identity(),
                 "Adding node to routing table",
             );
             let repr = bootnode_enr.to_string();
@@ -205,13 +207,37 @@ impl Discovery {
             match result {
                 Ok(enr) => {
                     debug!(
+                        multiaddr = %original_addr.to_string(),
                         node_id = %enr.node_id(),
                         peer_id = %enr.peer_id(),
                         ip = ?enr.ip(),
                         udp = ?enr.udp(),
                         tcp = ?enr.tcp(),
-                        "Adding node to routing table",
+                        network_id = ?enr.network_identity(),
+                        "Adding bootnode to routing table",
                     );
+
+                    // check network identity in bootnode ENR if required
+                    if !config.disable_enr_network_id {
+                        match enr.network_identity() {
+                            Some(Ok(id)) => {
+                                if id != config.network_id {
+                                    error!(bootnode=?id, local=?config.network_id, "Bootnode network identity mismatch");
+                                    continue;
+                                }
+                            }
+                            Some(Err(err)) => {
+                                error!(?err, "Failed to decode bootnode network identity");
+                                continue;
+                            }
+                            None => {
+                                error!("Bootnode has no network identity");
+                                continue;
+                            }
+                        }
+                    }
+
+                    // add bootnode into routing table
                     let _ = discv5.add_enr(enr).map_err(|e| {
                         error!(
                             addr = %original_addr.to_string(),
@@ -401,10 +427,16 @@ impl Discovery {
         // Generate a random target node id.
         let random_node = NodeId::random();
 
+        // only discover nodes with same network identity
+        let local_network_id = self.network_globals.network_id();
+        let predicate = move |enr: &Enr| -> bool {
+            matches!(enr.network_identity(), Some(Ok(id)) if id == local_network_id)
+        };
+
         // Build the future
         let query_future = self
             .discv5
-            .find_node_predicate(random_node, Box::new(|_| true), target_peers)
+            .find_node_predicate(random_node, Box::new(predicate), target_peers)
             .map(|v| QueryResult {
                 query_type: query,
                 result: v,

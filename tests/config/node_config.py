@@ -3,6 +3,10 @@ from web3 import Web3
 ZGS_CONFIG = {
     "log_config_file": "log_config",
     "confirmation_block_count": 1,
+    "discv5_disable_ip_limit": True,
+    "network_peer_manager": {
+        "heartbeat_interval": "1s"
+    },
     "router": {
         "private_ip_enabled": True,
     },
@@ -17,6 +21,8 @@ ZGS_CONFIG = {
         "random_find_peer_timeout": "10s",
     }
 }
+
+ZGS_NODEID = "16Uiu2HAmLkGFUbNFYdhuSbTQ5hmnPjFXx2zUDtwQ2uihHpN9YNNe"
 
 BSC_CONFIG = dict(
     NetworkId=1000,
