@@ -129,6 +129,10 @@ pub struct Config {
 
     pub peer_db: peer_manager::peerdb::PeerDBConfig,
     pub peer_manager: peer_manager::config::Config,
+
+    /// Whether to disable network identity in ENR.
+    /// This is for test purpose only.
+    pub disable_enr_network_id: bool,
 }
 
 impl Default for Config {
@@ -209,6 +213,7 @@ impl Default for Config {
             network_id: Default::default(),
             peer_db: Default::default(),
             peer_manager: Default::default(),
+            disable_enr_network_id: false,
         }
     }
 }

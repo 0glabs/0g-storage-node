@@ -1,9 +1,10 @@
 //! Helper functions and an extension trait for Ethereum 2 ENRs.
 
 pub use discv5::enr::{CombinedKey, EnrBuilder};
+use ssz::Encode;
 
-use super::enr_ext::CombinedKeyExt;
-use super::ENR_FILENAME;
+use super::enr_ext::{CombinedKeyExt, ENR_CONTENT_KEY_NETWORK_ID};
+use super::{EnrExt, ENR_FILENAME};
 use crate::types::Enr;
 use crate::NetworkConfig;
 use discv5::enr::EnrKey;
@@ -32,7 +33,9 @@ pub fn use_or_load_enr(
                     Ok(disk_enr) => {
                         // if the same node id, then we may need to update our sequence number
                         if local_enr.node_id() == disk_enr.node_id() {
-                            if compare_enr(local_enr, &disk_enr) {
+                            if compare_enr(local_enr, &disk_enr)
+                                && is_disk_enr_network_id_unchanged(&disk_enr, config)
+                            {
                                 debug!(file = ?enr_f, "ENR loaded from disk");
                                 // the stored ENR has the same configuration, use it
                                 *local_enr = disk_enr;
@@ -94,6 +97,13 @@ pub fn create_enr_builder_from_config<T: EnrKey>(
         let tcp_port = config.enr_tcp_port.unwrap_or(config.libp2p_port);
         builder.tcp(tcp_port);
     }
+    // add network identity info in ENR if not disabled
+    if !config.disable_enr_network_id {
+        builder.add_value(
+            ENR_CONTENT_KEY_NETWORK_ID,
+            &config.network_id.as_ssz_bytes(),
+        );
+    }
     builder
 }
 
@@ -115,6 +125,14 @@ fn compare_enr(local_enr: &Enr, disk_enr: &Enr) -> bool {
         && local_enr.tcp() == disk_enr.tcp()
         // take preference over disk udp port if one is not specified
         && (local_enr.udp().is_none() || local_enr.udp() == disk_enr.udp())
+}
+
+fn is_disk_enr_network_id_unchanged(disk_enr: &Enr, config: &NetworkConfig) -> bool {
+    match disk_enr.network_identity() {
+        Some(Ok(id)) => !config.disable_enr_network_id && id == config.network_id,
+        Some(Err(_)) => false,
+        None => config.disable_enr_network_id,
+    }
 }
 
 /// Loads enr from the given directory

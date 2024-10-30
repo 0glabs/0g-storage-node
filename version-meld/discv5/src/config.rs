@@ -2,7 +2,7 @@ use crate::{
     kbucket::MAX_NODES_PER_BUCKET, Enr, Executor, PermitBanList, RateLimiter, RateLimiterBuilder,
 };
 ///! A set of configuration parameters to tune the discovery protocol.
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 /// Configuration parameters that define the performance of the gossipsub network.
 #[derive(Clone)]
@@ -57,7 +57,7 @@ pub struct Discv5Config {
 
     /// A filter used to decide whether to insert nodes into our local routing table. Nodes can be
     /// excluded if they do not pass this filter. The default is to accept all nodes.
-    pub table_filter: fn(&Enr) -> bool,
+    pub table_filter: Arc<dyn Fn(&Enr) -> bool + Send + Sync>,
 
     /// The time between pings to ensure connectivity amongst connected nodes. Default: 300
     /// seconds.
@@ -123,7 +123,7 @@ impl Default for Discv5Config {
             query_parallelism: 3,
             ip_limit: false,
             incoming_bucket_limit: MAX_NODES_PER_BUCKET,
-            table_filter: |_| true,
+            table_filter: Arc::new(|_| true),
             ping_interval: Duration::from_secs(300),
             report_discovered_peers: true,
             filter_rate_limiter,
@@ -242,8 +242,8 @@ impl Discv5ConfigBuilder {
 
     /// A filter used to decide whether to insert nodes into our local routing table. Nodes can be
     /// excluded if they do not pass this filter.
-    pub fn table_filter(&mut self, filter: fn(&Enr) -> bool) -> &mut Self {
-        self.config.table_filter = filter;
+    pub fn table_filter<F>(&mut self, filter: F) -> &mut Self where F: Fn(&Enr) -> bool + Send + Sync + 'static {
+        self.config.table_filter = Arc::new(filter);
         self
     }
 

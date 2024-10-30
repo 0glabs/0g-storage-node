@@ -5,10 +5,11 @@ use ethereum_types::{H256, U256};
 use ethers::prelude::{Http, Middleware, Provider};
 use log_entry_sync::{CacheConfig, ContractAddress, LogSyncConfig};
 use miner::MinerConfig;
-use network::NetworkConfig;
+use network::{EnrExt, NetworkConfig};
 use pruner::PrunerConfig;
 use shared_types::{NetworkIdentity, ProtocolVersion};
 use std::net::IpAddr;
+use std::sync::Arc;
 use std::time::Duration;
 use storage::config::ShardConfig;
 use storage::log_store::log_manager::LogConfig;
@@ -38,7 +39,7 @@ impl ZgsConfig {
             .await
             .map_err(|e| format!("Unable to get chain id: {:?}", e))?
             .as_u64();
-        network_config.network_id = NetworkIdentity {
+        let local_network_id = NetworkIdentity {
             chain_id,
             flow_address,
             p2p_protocol_version: ProtocolVersion {
@@ -47,6 +48,7 @@ impl ZgsConfig {
                 build: network::PROTOCOL_VERSION[2],
             },
         };
+        network_config.network_id = local_network_id.clone();
 
         if !self.network_disable_discovery {
             network_config.enr_tcp_port = Some(self.network_enr_tcp_port);
@@ -82,7 +84,13 @@ impl ZgsConfig {
             .collect::<Result<_, _>>()
             .map_err(|e| format!("Unable to parse network_libp2p_nodes: {:?}", e))?;
 
-        network_config.discv5_config.table_filter = |_| true;
+        network_config.discv5_config.table_filter = if self.discv5_disable_enr_network_id {
+            Arc::new(|_| true)
+        } else {
+            Arc::new(
+                move |enr| matches!(enr.network_identity(), Some(Ok(id)) if id == local_network_id),
+            )
+        };
         network_config.discv5_config.request_timeout =
             Duration::from_secs(self.discv5_request_timeout_secs);
         network_config.discv5_config.query_peer_timeout =
@@ -98,6 +106,7 @@ impl ZgsConfig {
 
         network_config.peer_db = self.network_peer_db;
         network_config.peer_manager = self.network_peer_manager;
+        network_config.disable_enr_network_id = self.discv5_disable_enr_network_id;
 
         Ok(network_config)
     }

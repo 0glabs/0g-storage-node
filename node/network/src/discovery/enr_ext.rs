@@ -2,7 +2,11 @@
 use crate::{Enr, Multiaddr, PeerId};
 use discv5::enr::{CombinedKey, CombinedPublicKey};
 use libp2p::core::{identity::Keypair, identity::PublicKey, multiaddr::Protocol};
+use shared_types::NetworkIdentity;
+use ssz::Decode;
 use tiny_keccak::{Hasher, Keccak};
+
+pub(crate) const ENR_CONTENT_KEY_NETWORK_ID: &'static str = "network_identity";
 
 /// Extend ENR for libp2p types.
 pub trait EnrExt {
@@ -24,6 +28,9 @@ pub trait EnrExt {
 
     /// Returns any multiaddrs that contain the TCP protocol.
     fn multiaddr_tcp(&self) -> Vec<Multiaddr>;
+
+    /// Returns network identity in content.
+    fn network_identity(&self) -> Option<Result<NetworkIdentity, ssz::DecodeError>>;
 }
 
 /// Extend ENR CombinedPublicKey for libp2p types.
@@ -188,6 +195,12 @@ impl EnrExt for Enr {
             }
         }
         multiaddrs
+    }
+
+    /// Returns network identity in content.
+    fn network_identity(&self) -> Option<Result<NetworkIdentity, ssz::DecodeError>> {
+        let value = self.get(ENR_CONTENT_KEY_NETWORK_ID)?;
+        Some(NetworkIdentity::from_ssz_bytes(value))
     }
 }
 

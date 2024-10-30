@@ -7,14 +7,14 @@ from config.node_config import ZGS_NODEID
 from test_framework.test_framework import TestFramework
 from utility.utils import p2p_port
 
-class NetworkDiscoveryTest(TestFramework):
+class NetworkDiscoveryUpgradeTest(TestFramework):
     """
-    This is to test whether community nodes could connect to each other via UDP discovery.
+    This is to test that low version community nodes could not connect to bootnodes.
     """
 
     def setup_params(self):
-        # 1 bootnode and 2 community nodes
-        self.num_nodes = 3
+        # 1 bootnode and 1 community node
+        self.num_nodes = 2
 
         # setup for node 0 as bootnode
         tests_dir = os.path.dirname(__file__)
@@ -33,7 +33,7 @@ class NetworkDiscoveryTest(TestFramework):
             "network_libp2p_nodes": [],
         }
 
-        # setup node 1 & 2 as community nodes
+        # setup node 1 as community node
         bootnodes = [f"/ip4/127.0.0.1/udp/{bootnode_port}/p2p/{ZGS_NODEID}"]
         for i in range(1, self.num_nodes):
             self.zgs_node_configs[i] = {
@@ -45,13 +45,13 @@ class NetworkDiscoveryTest(TestFramework):
                 # disable trusted nodes and enable bootnodes
                 "network_libp2p_nodes": [],
                 "network_boot_nodes": bootnodes,
+
+                # disable network identity in ENR
+                "discv5_disable_enr_network_id": True,
             }
 
     def run_test(self):
-        timeout_secs = 10
-
-        for iter in range(timeout_secs + 1):
-            assert iter < timeout_secs, "Timeout to discover nodes for peer connection"
+        for iter in range(10):
             time.sleep(1)
             self.log.info("==================================== iter %s", iter)
 
@@ -64,11 +64,11 @@ class NetworkDiscoveryTest(TestFramework):
                     i, info["totalPeers"], info["bannedPeers"], info["disconnectedPeers"], info["connectedPeers"], info["connectedIncomingPeers"], info["connectedOutgoingPeers"],
                 )
 
-            if total_connected >= self.num_nodes * (self.num_nodes - 1):
-                break
+            # ENR incompatible and should not discover each other for TCP connection
+            assert total_connected == 0, "Nodes connected unexpectedly"
 
         self.log.info("====================================")
-        self.log.info("All nodes connected to each other successfully")
+        self.log.info("ENR incompatible nodes do not connect to each other")
 
 if __name__ == "__main__":
-    NetworkDiscoveryTest().main()
+    NetworkDiscoveryUpgradeTest().main()

@@ -28,6 +28,7 @@ build_config! {
     (discv5_report_discovered_peers, (bool), false)
     (discv5_disable_packet_filter, (bool), false)
     (discv5_disable_ip_limit, (bool), false)
+    (discv5_disable_enr_network_id, (bool), false)
 
     // log sync
     (blockchain_rpc_endpoint, (String), "http://127.0.0.1:8545".to_string())
