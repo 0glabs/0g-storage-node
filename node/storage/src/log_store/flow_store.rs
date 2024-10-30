@@ -25,16 +25,14 @@ use tracing::{debug, error, trace};
 use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
 pub struct FlowStore {
-    flow_db: Arc<FlowDBStore>,
     data_db: Arc<FlowDBStore>,
     seal_manager: SealTaskManager,
     config: FlowConfig,
 }
 
 impl FlowStore {
-    pub fn new(flow_db: Arc<FlowDBStore>, data_db: Arc<FlowDBStore>, config: FlowConfig) -> Self {
+    pub fn new(data_db: Arc<FlowDBStore>, config: FlowConfig) -> Self {
         Self {
-            flow_db,
             data_db,
             seal_manager: Default::default(),
             config,

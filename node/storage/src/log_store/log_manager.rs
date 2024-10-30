@@ -638,11 +638,7 @@ impl LogManager {
         let tx_store = TransactionStore::new(flow_db_source.clone())?;
         let flow_db = Arc::new(FlowDBStore::new(flow_db_source.clone()));
         let data_db = Arc::new(FlowDBStore::new(data_db_source.clone()));
-        let flow_store = Arc::new(FlowStore::new(
-            flow_db.clone(),
-            data_db.clone(),
-            config.flow.clone(),
-        ));
+        let flow_store = Arc::new(FlowStore::new(data_db.clone(), config.flow.clone()));
         // If the last tx `put_tx` does not complete, we will revert it in `pora_chunks_merkle`
         // first and call `put_tx` later.
         let next_tx_seq = tx_store.next_tx_seq();
