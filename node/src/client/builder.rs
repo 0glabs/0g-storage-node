@@ -114,8 +114,8 @@ impl ClientBuilder {
         let store = Arc::new(
             LogManager::rocksdb(
                 config.log_config.clone(),
-                &config.db_dir.join("flow_db"),
-                &config.db_dir.join("data_db"),
+                config.db_dir.join("flow_db"),
+                config.db_dir.join("data_db"),
                 executor,
             )
             .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))?,
