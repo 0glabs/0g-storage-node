@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate tracing;
 
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use shared_types::{
     Chunk, ChunkArray, ChunkArrayWithProof, DataRoot, FlowProof, FlowRangeProof, Transaction,
 };
@@ -136,17 +136,21 @@ impl Store {
         let store = self.store.clone();
         let (tx, rx) = oneshot::channel();
 
-        self.executor.spawn_blocking(
-            move || {
-                // FIXME(zz): Not all functions need `write`. Refactor store usage.
-                let res = f(&*store);
+        self.executor
+            .spawn_blocking_handle(
+                move || {
+                    // FIXME(zz): Not all functions need `write`. Refactor store usage.
+                    let res = f(&*store);
 
-                if tx.send(res).is_err() {
-                    error!("Unable to complete async storage operation: the receiver dropped");
-                }
-            },
-            WORKER_TASK_NAME,
-        );
+                    if tx.send(res).is_err() {
+                        error!("Unable to complete async storage operation: the receiver dropped");
+                    }
+                },
+                WORKER_TASK_NAME,
+            )
+            .ok_or(anyhow!("Unable to spawn async storage work"))?
+            .await
+            .map_err(|e| anyhow!("join error: e={:?}", e))?;
 
         rx.await
             .unwrap_or_else(|_| bail!(error::Error::Custom("Receiver error".to_string())))
