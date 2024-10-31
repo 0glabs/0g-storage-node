@@ -25,15 +25,15 @@ use tracing::{debug, error, trace};
 use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
 pub struct FlowStore {
-    db: Arc<FlowDBStore>,
+    data_db: Arc<FlowDBStore>,
     seal_manager: SealTaskManager,
     config: FlowConfig,
 }
 
 impl FlowStore {
-    pub fn new(db: Arc<FlowDBStore>, config: FlowConfig) -> Self {
+    pub fn new(data_db: Arc<FlowDBStore>, config: FlowConfig) -> Self {
         Self {
-            db,
+            data_db,
             seal_manager: Default::default(),
             config,
         }
@@ -45,18 +45,19 @@ impl FlowStore {
         subtree_list: Vec<(usize, usize, DataRoot)>,
     ) -> Result<()> {
         let mut batch = self
-            .db
+            .data_db
             .get_entry_batch(batch_index as u64)?
             .unwrap_or_else(|| EntryBatch::new(batch_index as u64));
         batch.set_subtree_list(subtree_list);
-        self.db.put_entry_raw(vec![(batch_index as u64, batch)])?;
+        self.data_db
+            .put_entry_raw(vec![(batch_index as u64, batch)])?;
 
         Ok(())
     }
 
     pub fn gen_proof_in_batch(&self, batch_index: usize, sector_index: usize) -> Result<FlowProof> {
         let batch = self
-            .db
+            .data_db
             .get_entry_batch(batch_index as u64)?
             .ok_or_else(|| anyhow!("batch missing, index={}", batch_index))?;
         let merkle = batch.to_merkle_tree(batch_index == 0)?.ok_or_else(|| {
@@ -70,7 +71,7 @@ impl FlowStore {
 
     pub fn delete_batch_list(&self, batch_list: &[u64]) -> Result<()> {
         self.seal_manager.delete_batch_list(batch_list);
-        self.db.delete_batch_list(batch_list)
+        self.data_db.delete_batch_list(batch_list)
     }
 }
 
@@ -116,7 +117,7 @@ impl FlowRead for FlowStore {
                 length -= 1;
             }
 
-            let entry_batch = try_option!(self.db.get_entry_batch(chunk_index)?);
+            let entry_batch = try_option!(self.data_db.get_entry_batch(chunk_index)?);
             let mut entry_batch_data =
                 try_option!(entry_batch.get_unsealed_data(offset as usize, length as usize));
             data.append(&mut entry_batch_data);
@@ -145,7 +146,7 @@ impl FlowRead for FlowStore {
             let chunk_index = start_entry_index / self.config.batch_size as u64;
 
             if let Some(mut data_list) = self
-                .db
+                .data_db
                 .get_entry_batch(chunk_index)?
                 .map(|b| b.into_data_list(start_entry_index))
             {
@@ -170,7 +171,7 @@ impl FlowRead for FlowStore {
     }
 
     fn load_sealed_data(&self, chunk_index: u64) -> Result<Option<MineLoadChunk>> {
-        let batch = try_option!(self.db.get_entry_batch(chunk_index)?);
+        let batch = try_option!(self.data_db.get_entry_batch(chunk_index)?);
         let mut mine_chunk = MineLoadChunk::default();
         for (seal_index, (sealed, validity)) in mine_chunk
             .loaded_chunk
@@ -188,7 +189,7 @@ impl FlowRead for FlowStore {
 
     fn get_num_entries(&self) -> Result<u64> {
         // This is an over-estimation as it assumes each batch is full.
-        self.db
+        self.data_db
             .kvdb
             .num_keys(COL_ENTRY_BATCH)
             .map(|num_batches| num_batches * PORA_CHUNK_SIZE as u64)
@@ -228,7 +229,7 @@ impl FlowWrite for FlowStore {
 
             // TODO: Try to avoid loading from db if possible.
             let mut batch = self
-                .db
+                .data_db
                 .get_entry_batch(chunk_index)?
                 .unwrap_or_else(|| EntryBatch::new(chunk_index));
             let completed_seals = batch.insert_data(
@@ -246,12 +247,12 @@ impl FlowWrite for FlowStore {
 
             batch_list.push((chunk_index, batch));
         }
-        self.db.put_entry_batch_list(batch_list)
+        self.data_db.put_entry_batch_list(batch_list)
     }
 
     fn truncate(&self, start_index: u64) -> crate::error::Result<()> {
         let mut to_seal_set = self.seal_manager.to_seal_set.write();
-        let to_reseal = self.db.truncate(start_index, self.config.batch_size)?;
+        let to_reseal = self.data_db.truncate(start_index, self.config.batch_size)?;
 
         to_seal_set.split_off(&(start_index as usize / SECTORS_PER_SEAL));
         let new_seal_version = self.seal_manager.inc_seal_version();
@@ -281,7 +282,7 @@ impl FlowSeal for FlowStore {
         let mut tasks = Vec::with_capacity(SEALS_PER_LOAD);
 
         let batch_data = self
-            .db
+            .data_db
             .get_entry_batch((first_index / SEALS_PER_LOAD) as u64)?
             .expect("Lost data chunk in to_seal_set");
 
@@ -320,7 +321,7 @@ impl FlowSeal for FlowStore {
             .chunk_by(|answer| answer.seal_index / SEALS_PER_LOAD as u64)
         {
             let mut batch_chunk = self
-                .db
+                .data_db
                 .get_entry_batch(load_index)?
                 .expect("Can not find chunk data");
             for answer in answers_in_chunk {
@@ -336,7 +337,7 @@ impl FlowSeal for FlowStore {
             to_seal_set.remove(&idx);
         }
 
-        self.db.put_entry_raw(updated_chunk)?;
+        self.data_db.put_entry_raw(updated_chunk)?;
 
         Ok(())
     }

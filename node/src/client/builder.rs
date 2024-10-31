@@ -112,8 +112,13 @@ impl ClientBuilder {
     pub fn with_rocksdb_store(mut self, config: &StorageConfig) -> Result<Self, String> {
         let executor = require!("sync", self, runtime_context).clone().executor;
         let store = Arc::new(
-            LogManager::rocksdb(config.log_config.clone(), &config.db_dir, executor)
-                .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))?,
+            LogManager::rocksdb(
+                config.log_config.clone(),
+                config.db_dir.join("flow_db"),
+                config.db_dir.join("data_db"),
+                executor,
+            )
+            .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))?,
         );
 
         self.store = Some(store.clone());

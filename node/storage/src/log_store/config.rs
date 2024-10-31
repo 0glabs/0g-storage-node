@@ -63,22 +63,22 @@ impl<T: ?Sized + Configurable> ConfigurableExt for T {}
 
 impl Configurable for LogManager {
     fn get_config(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        Ok(self.db.get(COL_MISC, key)?)
+        Ok(self.flow_db.get(COL_MISC, key)?)
     }
 
     fn set_config(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        self.db.put(COL_MISC, key, value)?;
+        self.flow_db.put(COL_MISC, key, value)?;
         Ok(())
     }
 
     fn remove_config(&self, key: &[u8]) -> Result<()> {
-        Ok(self.db.delete(COL_MISC, key)?)
+        Ok(self.flow_db.delete(COL_MISC, key)?)
     }
 
     fn exec_configs(&self, tx: ConfigTx) -> Result<()> {
-        let mut db_tx = self.db.transaction();
+        let mut db_tx = self.flow_db.transaction();
         db_tx.ops = tx.ops;
-        self.db.write(db_tx)?;
+        self.flow_db.write(db_tx)?;
 
         Ok(())
     }
