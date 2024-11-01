@@ -2,7 +2,8 @@ use crate::config::ShardConfig;
 use crate::error::Error;
 use crate::log_store::load_chunk::EntryBatch;
 use crate::log_store::log_manager::{
-    bytes_to_entries, COL_ENTRY_BATCH, COL_FLOW_MPT_NODES, PORA_CHUNK_SIZE, COL_PAD_DATA_LIST, COL_PAD_DATA_SYNC_HEIGH
+    bytes_to_entries, COL_ENTRY_BATCH, COL_FLOW_MPT_NODES, COL_PAD_DATA_LIST,
+    COL_PAD_DATA_SYNC_HEIGH, PORA_CHUNK_SIZE,
 };
 use crate::log_store::seal_task_manager::SealTaskManager;
 use crate::log_store::{
