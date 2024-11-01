@@ -1289,6 +1289,7 @@ pub fn data_to_merkle_leaves(leaf_data: &[u8]) -> Result<Vec<H256>> {
             .collect()
     };
 
+    metrics::DATA_TO_MERKLE_LEAVES_SIZE.update(leaf_data.len());
     metrics::DATA_TO_MERKLE_LEAVES.update_since(start_time);
     Ok(r)
 }
