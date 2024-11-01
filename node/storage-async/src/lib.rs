@@ -2,6 +2,7 @@
 extern crate tracing;
 
 use anyhow::bail;
+use backtrace::Backtrace;
 use shared_types::{
     Chunk, ChunkArray, ChunkArrayWithProof, DataRoot, FlowProof, FlowRangeProof, Transaction,
 };
@@ -152,8 +153,16 @@ impl Store {
             WORKER_TASK_NAME,
         );
 
-        rx.await
-            .unwrap_or_else(|_| bail!(error::Error::Custom("Receiver error".to_string())))
+        rx.await.unwrap_or_else(|_| {
+            let mut backtrace = Backtrace::new();
+            let mut frames = backtrace.frames().to_vec();
+            if frames.len() > 3 {
+                frames.drain(0..); //Remove the first 3 unnecessary frames to simplify// backtrace
+                backtrace = frames.into();
+                Some(format!("{:?}", backtrace));
+            }
+            bail!(error::Error::Custom("Receiver error".to_string()))
+        })
     }
 
     // FIXME(zz): Refactor the lock and async call here.
