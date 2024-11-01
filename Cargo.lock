@@ -7326,6 +7326,7 @@ name = "storage-async"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "backtrace",
  "eth2_ssz",
  "shared_types",
  "storage",
