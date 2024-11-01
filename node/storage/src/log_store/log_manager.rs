@@ -1242,6 +1242,7 @@ pub fn sub_merkle_tree(leaf_data: &[u8]) -> Result<FileMerkleTree> {
 }
 
 pub fn data_to_merkle_leaves(leaf_data: &[u8]) -> Result<Vec<H256>> {
+    let start_time = Instant::now();
     if leaf_data.len() % ENTRY_SIZE != 0 {
         bail!("merkle_tree: mismatched data size");
     }
