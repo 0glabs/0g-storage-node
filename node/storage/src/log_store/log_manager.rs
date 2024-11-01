@@ -1257,6 +1257,9 @@ pub fn data_to_merkle_leaves(leaf_data: &[u8]) -> Result<Vec<H256>> {
             .map(Sha3Algorithm::leaf)
             .collect()
     };
+
+    metrics::DATA_TO_MERKLE_LEAVES_SIZE.update(leaf_data.len() as usize);
+    metrics::DATA_TO_MERKLE_LEAVES.update_since(start_time);
     Ok(r)
 }
 

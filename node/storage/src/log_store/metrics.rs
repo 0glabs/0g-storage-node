@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use metrics::{register_timer, Timer};
+use metrics::{register_timer, Gauge, GaugeUsize, Timer};
 
 lazy_static::lazy_static! {
     pub static ref PUT_TX: Arc<dyn Timer> = register_timer("log_store_put_tx");
@@ -33,4 +33,6 @@ lazy_static::lazy_static! {
     pub static ref APPEND_ENTRIES: Arc<dyn Timer> = register_timer("log_store_flow_store_append_entries");
 
     pub static ref FINALIZE_TX_WITH_HASH: Arc<dyn Timer> = register_timer("log_store_log_manager_finalize_tx_with_hash");
+
+    pub static ref DATA_TO_MERKLE_LEAVES_SIZE: Arc<dyn Gauge<usize>> = GaugeUsize::register("log_store_data_to_merkle_leaves_size");
 }
