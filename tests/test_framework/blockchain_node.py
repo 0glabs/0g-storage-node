@@ -130,8 +130,9 @@ class TestNode:
             if self.process.poll() is not None:
                 raise FailedToStartError(
                     self._node_msg(
-                        "exited with status {} during initialization".format(
-                            self.process.returncode
+                        "exited with status {} during initialization \n\n{}\n\n".format(
+                            self.process.returncode,
+                            self.stderr.read(),
                         )
                     )
                 )
