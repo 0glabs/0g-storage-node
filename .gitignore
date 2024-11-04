@@ -4,6 +4,5 @@
 /.idea
 tests/**/__pycache__
 tests/tmp/**
-tests/config/zgs
 .vscode/*.json
 /0g-storage-contracts-dev
