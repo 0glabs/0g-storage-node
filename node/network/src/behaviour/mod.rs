@@ -592,7 +592,7 @@ where
                 // peer that originally published the message.
                 match PubsubMessage::decode(&gs_msg.topic, &gs_msg.data) {
                     Err(e) => {
-                        debug!(topic = ?gs_msg.topic, error = ?e, "Could not decode gossipsub message");
+                        debug!(topic = ?gs_msg.topic, %propagation_source, error = ?e, "Could not decode gossipsub message");
                         //reject the message
                         if let Err(e) = self.gossipsub.report_message_validation_result(
                             &id,
@@ -600,6 +600,24 @@ where
                             MessageAcceptance::Reject,
                         ) {
                             warn!(message_id = %id, peer_id = %propagation_source, error = ?e, "Failed to report message validation");
+                        }
+
+                        self.peer_manager.report_peer(
+                            &propagation_source,
+                            PeerAction::Fatal,
+                            ReportSource::Gossipsub,
+                            None,
+                            "gossipsub message decode error",
+                        );
+
+                        if let Some(source) = &gs_msg.source {
+                            self.peer_manager.report_peer(
+                                source,
+                                PeerAction::Fatal,
+                                ReportSource::Gossipsub,
+                                None,
+                                "gossipsub message decode error",
+                            );
                         }
                     }
                     Ok(msg) => {
