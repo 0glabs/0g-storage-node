@@ -128,10 +128,14 @@ class TestNode:
         poll_per_s = 4
         for _ in range(poll_per_s * self.rpc_timeout):
             if self.process.poll() is not None:
+                self.stderr.seek(0)
+                self.stdout.seek(0)
                 raise FailedToStartError(
                     self._node_msg(
-                        "exited with status {} during initialization".format(
-                            self.process.returncode
+                        "exited with status {} during initialization \n\nstderr: {}\n\nstdout: {}\n\n".format(
+                            self.process.returncode,
+                            self.stderr.read(),
+                            self.stdout.read(),
                         )
                     )
                 )

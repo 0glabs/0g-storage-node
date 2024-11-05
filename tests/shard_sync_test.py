@@ -40,14 +40,18 @@ class PrunerTest(TestFramework):
         for i in range(len(segments)):
             client_index = i % 2
             self.nodes[client_index].zgs_upload_segment(segments[i])
+        wait_until(lambda: self.nodes[0].zgs_get_file_info(data_root) is not None)
         wait_until(lambda: self.nodes[0].zgs_get_file_info(data_root)["finalized"])
+        wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root) is not None)
         wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root)["finalized"])
 
         self.nodes[2].admin_start_sync_file(0)
         self.nodes[3].admin_start_sync_file(0)
         wait_until(lambda: self.nodes[2].sync_status_is_completed_or_unknown(0))
+        wait_until(lambda: self.nodes[2].zgs_get_file_info(data_root) is not None)
         wait_until(lambda: self.nodes[2].zgs_get_file_info(data_root)["finalized"])
         wait_until(lambda: self.nodes[3].sync_status_is_completed_or_unknown(0))
+        wait_until(lambda: self.nodes[3].zgs_get_file_info(data_root) is not None)
         wait_until(lambda: self.nodes[3].zgs_get_file_info(data_root)["finalized"])
 
         for i in range(len(segments)):

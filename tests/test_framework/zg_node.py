@@ -3,13 +3,8 @@ import subprocess
 import tempfile
 
 from test_framework.blockchain_node import BlockChainNodeType, BlockchainNode
-from utility.utils import blockchain_rpc_port, arrange_port
+from utility.utils import blockchain_p2p_port, blockchain_rpc_port, blockchain_ws_port, blockchain_rpc_port_tendermint, pprof_port
 from utility.build_binary import build_zg
-
-ZGNODE_PORT_CATEGORY_WS = 0
-ZGNODE_PORT_CATEGORY_P2P = 1
-ZGNODE_PORT_CATEGORY_RPC = 2
-ZGNODE_PORT_CATEGORY_PPROF = 3
 
 def zg_node_init_genesis(binary: str, root_dir: str, num_nodes: int):
     assert num_nodes > 0, "Invalid number of blockchain nodes: %s" % num_nodes
@@ -26,7 +21,7 @@ def zg_node_init_genesis(binary: str, root_dir: str, num_nodes: int):
     os.mkdir(zgchaind_dir)
     
     log_file = tempfile.NamedTemporaryFile(dir=zgchaind_dir, delete=False, prefix="init_genesis_", suffix=".log")
-    p2p_port_start = arrange_port(ZGNODE_PORT_CATEGORY_P2P, 0)
+    p2p_port_start = blockchain_p2p_port(0)
 
     ret = subprocess.run(
         args=["bash", shell_script, zgchaind_dir, str(num_nodes), str(p2p_port_start)],
@@ -71,13 +66,13 @@ class ZGNode(BlockchainNode):
             # overwrite json rpc http port: 8545
             "--json-rpc.address", "127.0.0.1:%s" % blockchain_rpc_port(index),
             # overwrite json rpc ws port: 8546
-            "--json-rpc.ws-address", "127.0.0.1:%s" % arrange_port(ZGNODE_PORT_CATEGORY_WS, index),
+            "--json-rpc.ws-address", "127.0.0.1:%s" % blockchain_ws_port(index),
             # overwrite p2p port: 26656
-            "--p2p.laddr", "tcp://127.0.0.1:%s" % arrange_port(ZGNODE_PORT_CATEGORY_P2P, index),
+            "--p2p.laddr", "tcp://127.0.0.1:%s" % blockchain_p2p_port(index),
             # overwrite rpc port: 26657
-            "--rpc.laddr", "tcp://127.0.0.1:%s" % arrange_port(ZGNODE_PORT_CATEGORY_RPC, index),
+            "--rpc.laddr", "tcp://127.0.0.1:%s" % blockchain_rpc_port_tendermint(index),
             # overwrite pprof port: 6060
-            "--rpc.pprof_laddr", "127.0.0.1:%s" % arrange_port(ZGNODE_PORT_CATEGORY_PPROF, index),
+            "--rpc.pprof_laddr", "127.0.0.1:%s" % pprof_port(index),
             "--log_level", "debug"
         ]
 
