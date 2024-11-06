@@ -1,4 +1,5 @@
 use super::load_chunk::EntryBatch;
+use super::log_manager::{COL_PAD_DATA_LIST, COL_PAD_DATA_SYNC_HEIGH};
 use super::seal_task_manager::SealTaskManager;
 use super::{MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
@@ -343,6 +344,35 @@ impl FlowSeal for FlowStore {
     }
 }
 
+pub struct PadDataStore {
+    flow_db: Arc<FlowDBStore>,
+    data_db: Arc<FlowDBStore>,
+}
+
+impl PadDataStore {
+    pub fn new(flow_db: Arc<FlowDBStore>, data_db: Arc<FlowDBStore>) -> Self {
+        Self { flow_db, data_db }
+    }
+
+    pub fn put_pad_data(&self, data_size: usize, start_index: u64) -> Result<()> {
+        self.flow_db.put_pad_data(data_size, start_index)?;
+        Ok(())
+    }
+
+    pub fn put_pad_data_sync_height(&self, sync_index: u64) -> Result<()> {
+        self.data_db.put_pad_data_sync_height(sync_index)?;
+        Ok(())
+    }
+
+    pub fn get_pad_data_sync_height(&self) -> Result<Option<u64>> {
+        self.data_db.get_pad_data_sync_heigh()
+    }
+
+    pub fn get_pad_data(&self, start_index: u64) -> Result<Option<usize>> {
+        self.flow_db.get_pad_data(start_index)
+    }
+}
+
 pub struct FlowDBStore {
     kvdb: Arc<dyn ZgsKeyValueDB>,
 }
@@ -442,6 +472,49 @@ impl FlowDBStore {
             tx.delete(COL_ENTRY_BATCH, &i.to_be_bytes());
         }
         Ok(self.kvdb.write(tx)?)
+    }
+
+    fn put_pad_data(&self, data_size: usize, start_index: u64) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+        tx.put(
+            COL_PAD_DATA_LIST,
+            &start_index.to_be_bytes(),
+            &data_size.to_be_bytes(),
+        );
+        self.kvdb.write(tx)?;
+        Ok(())
+    }
+
+    fn put_pad_data_sync_height(&self, sync_index: u64) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+        tx.put(
+            COL_PAD_DATA_SYNC_HEIGH,
+            b"sync_height",
+            &sync_index.to_be_bytes(),
+        );
+        self.kvdb.write(tx)?;
+        Ok(())
+    }
+
+    fn get_pad_data_sync_heigh(&self) -> Result<Option<u64>> {
+        match self.kvdb.get(COL_PAD_DATA_SYNC_HEIGH, b"sync_height")? {
+            Some(v) => Ok(Some(u64::from_be_bytes(
+                v.try_into().map_err(|e| anyhow!("{:?}", e))?,
+            ))),
+            None => Ok(None),
+        }
+    }
+
+    fn get_pad_data(&self, start_index: u64) -> Result<Option<usize>> {
+        match self
+            .kvdb
+            .get(COL_PAD_DATA_LIST, &start_index.to_be_bytes())?
+        {
+            Some(v) => Ok(Some(usize::from_be_bytes(
+                v.try_into().map_err(|e| anyhow!("{:?}", e))?,
+            ))),
+            None => Ok(None),
+        }
     }
 }
 

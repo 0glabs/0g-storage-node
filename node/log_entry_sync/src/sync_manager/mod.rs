@@ -277,6 +277,8 @@ impl LogSyncManager {
                                 .remove_finalized_block_interval_minutes,
                         );
 
+                    // start the pad data store
+
                     let (watch_progress_tx, watch_progress_rx) =
                         tokio::sync::mpsc::unbounded_channel();
                     let watch_rx = log_sync_manager.log_fetcher.start_watch(

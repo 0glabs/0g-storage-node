@@ -1,7 +1,9 @@
 use super::tx_store::BlockHashAndSubmissionIndex;
 use super::{FlowSeal, MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
-use crate::log_store::flow_store::{batch_iter_sharded, FlowConfig, FlowDBStore, FlowStore};
+use crate::log_store::flow_store::{
+    batch_iter_sharded, FlowConfig, FlowDBStore, FlowStore, PadDataStore,
+};
 use crate::log_store::tx_store::TransactionStore;
 use crate::log_store::{
     FlowRead, FlowWrite, LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite,
@@ -43,6 +45,8 @@ pub const COL_SEAL_CONTEXT: u32 = 6;
 pub const COL_FLOW_MPT_NODES: u32 = 7;
 pub const COL_BLOCK_PROGRESS: u32 = 8;
 pub const COL_NUM: u32 = 9;
+pub const COL_PAD_DATA_LIST: u32 = 10;
+pub const COL_PAD_DATA_SYNC_HEIGH: u32 = 11;
 
 // Process at most 1M entries (256MB) pad data at a time.
 const PAD_MAX_SIZE: usize = 1 << 20;
@@ -61,7 +65,7 @@ pub struct UpdateFlowMessage {
 }
 
 pub struct LogManager {
-    pub(crate) flow_db: Arc<dyn ZgsKeyValueDB>,
+    pub(crate) pad_db: Arc<PadDataStore>,
     pub(crate) data_db: Arc<dyn ZgsKeyValueDB>,
     tx_store: TransactionStore,
     flow_store: Arc<FlowStore>,
@@ -640,6 +644,7 @@ impl LogManager {
         let flow_db = Arc::new(FlowDBStore::new(flow_db_source.clone()));
         let data_db = Arc::new(FlowDBStore::new(data_db_source.clone()));
         let flow_store = Arc::new(FlowStore::new(data_db.clone(), config.flow.clone()));
+        let pad_db = Arc::new(PadDataStore::new(flow_db.clone(), data_db.clone()));
         // If the last tx `put_tx` does not complete, we will revert it in `pora_chunks_merkle`
         // first and call `put_tx` later.
         let next_tx_seq = tx_store.next_tx_seq();
@@ -743,7 +748,7 @@ impl LogManager {
         let (sender, receiver) = mpsc::channel();
 
         let mut log_manager = Self {
-            flow_db: flow_db_source,
+            pad_db,
             data_db: data_db_source,
             tx_store,
             flow_store,
@@ -956,10 +961,6 @@ impl LogManager {
 
                 let data_size = pad_data.len() / ENTRY_SIZE;
                 if is_full_empty {
-                    self.sender.send(UpdateFlowMessage {
-                        pad_data: pad_data.len(),
-                        tx_start_flow_index,
-                    })?;
                 } else {
                     // Update the flow database.
                     // This should be called before `complete_last_chunk_merkle` so that we do not save
