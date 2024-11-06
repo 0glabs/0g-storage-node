@@ -62,6 +62,7 @@ pub struct UpdateFlowMessage {
 
 pub struct LogManager {
     pub(crate) flow_db: Arc<dyn ZgsKeyValueDB>,
+    pub(crate) data_db: Arc<dyn ZgsKeyValueDB>,
     tx_store: TransactionStore,
     flow_store: Arc<FlowStore>,
     merkle: RwLock<MerkleManager>,
@@ -635,7 +636,7 @@ impl LogManager {
         config: LogConfig,
         executor: task_executor::TaskExecutor,
     ) -> Result<Self> {
-        let tx_store = TransactionStore::new(flow_db_source.clone())?;
+        let tx_store = TransactionStore::new(data_db_source.clone())?;
         let flow_db = Arc::new(FlowDBStore::new(flow_db_source.clone()));
         let data_db = Arc::new(FlowDBStore::new(data_db_source.clone()));
         let flow_store = Arc::new(FlowStore::new(data_db.clone(), config.flow.clone()));
@@ -743,6 +744,7 @@ impl LogManager {
 
         let mut log_manager = Self {
             flow_db: flow_db_source,
+            data_db: data_db_source,
             tx_store,
             flow_store,
             merkle,
