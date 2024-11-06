@@ -3,7 +3,7 @@
 import os
 import time
 
-from config.node_config import ZGS_NODEID
+from config.node_config import ZGS_KEY_FILE, ZGS_NODEID
 from test_framework.test_framework import TestFramework
 from utility.utils import p2p_port
 
@@ -17,13 +17,9 @@ class NetworkDiscoveryUpgradeTest(TestFramework):
         self.num_nodes = 2
 
         # setup for node 0 as bootnode
-        tests_dir = os.path.dirname(__file__)
-        network_dir = os.path.join(tests_dir, "config", "zgs", "network")
+        self.zgs_node_key_files = [ZGS_KEY_FILE]
         bootnode_port = p2p_port(0)
         self.zgs_node_configs[0] = {
-            # load pre-defined keypair
-            "network_dir": network_dir,
-
             # enable UDP discovery relevant configs
             "network_enr_address": "127.0.0.1",
             "network_enr_tcp_port": bootnode_port,
