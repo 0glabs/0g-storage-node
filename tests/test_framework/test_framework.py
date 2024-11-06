@@ -55,6 +55,7 @@ class TestFramework:
         self.lifetime_seconds = 3600
         self.launch_wait_seconds = 1
         self.num_deployed_contracts = 0
+        self.zgs_node_key_files = []
 
         # Set default binary path
         binary_ext = ".exe" if is_windows_platform() else ""
@@ -190,6 +191,10 @@ class TestFramework:
             else:
                 updated_config = {}
 
+            zgs_node_key_file = None
+            if i < len(self.zgs_node_key_files):
+                zgs_node_key_file = self.zgs_node_key_files[i]
+
             assert os.path.exists(self.zgs_binary), (
                 "%s should be exist" % self.zgs_binary
             )
@@ -202,6 +207,7 @@ class TestFramework:
                 self.mine_contract.address(),
                 self.reward_contract.address(),
                 self.log,
+                key_file=zgs_node_key_file,
             )
             self.nodes.append(node)
             node.setup_config()

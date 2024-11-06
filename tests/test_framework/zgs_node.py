@@ -24,6 +24,7 @@ class ZgsNode(TestNode):
         log,
         rpc_timeout=10,
         libp2p_nodes=None,
+        key_file=None,
     ):
         local_conf = ZGS_CONFIG.copy()
         if libp2p_nodes is None:
@@ -54,6 +55,7 @@ class ZgsNode(TestNode):
         # Overwrite with personalized configs.
         update_config(local_conf, updated_config)
         data_dir = os.path.join(root_dir, "zgs_node" + str(index))
+        self.key_file = key_file
         rpc_url = "http://" + rpc_listen_address
         super().__init__(
             NodeType.Zgs,
@@ -68,9 +70,15 @@ class ZgsNode(TestNode):
 
     def setup_config(self):
         os.mkdir(self.data_dir)
+
         log_config_path = os.path.join(self.data_dir, self.config["log_config_file"])
         with open(log_config_path, "w") as f:
             f.write("trace,hyper=info,h2=info")
+
+        if self.key_file is not None:
+            network_dir = os.path.join(self.data_dir, "network")
+            os.mkdir(network_dir)
+            shutil.copy(self.key_file, network_dir)
 
         initialize_toml_config(self.config_file, self.config)
 

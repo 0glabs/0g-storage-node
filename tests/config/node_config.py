@@ -1,3 +1,5 @@
+import os
+
 from web3 import Web3
 
 ZGS_CONFIG = {
@@ -22,6 +24,8 @@ ZGS_CONFIG = {
     }
 }
 
+CONFIG_DIR = os.path.dirname(__file__)
+ZGS_KEY_FILE = os.path.join(CONFIG_DIR, "zgs", "network", "key")
 ZGS_NODEID = "16Uiu2HAmLkGFUbNFYdhuSbTQ5hmnPjFXx2zUDtwQ2uihHpN9YNNe"
 
 BSC_CONFIG = dict(
