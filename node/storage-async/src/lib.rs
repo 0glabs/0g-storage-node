@@ -74,9 +74,11 @@ impl Store {
     pub async fn get_config_decoded<K: AsRef<[u8]> + Send + Sync, T: Decode + Send + 'static>(
         &self,
         key: &K,
+        dest: &str,
     ) -> Result<Option<T>> {
         let key = key.as_ref().to_vec();
-        self.spawn(move |store| store.get_config_decoded(&key))
+        let dest = dest.to_string();
+        self.spawn(move |store| store.get_config_decoded(&key, &dest))
             .await
     }
 
@@ -84,10 +86,12 @@ impl Store {
         &self,
         key: &K,
         value: &T,
+        dest: &str,
     ) -> anyhow::Result<()> {
         let key = key.as_ref().to_vec();
         let value = value.as_ssz_bytes();
-        self.spawn(move |store| store.set_config(&key, &value))
+        let dest = dest.to_string();
+        self.spawn(move |store| store.set_config(&key, &value, &dest))
             .await
     }
 

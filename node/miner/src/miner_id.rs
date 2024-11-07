@@ -5,17 +5,20 @@ use ethereum_types::Address;
 use ethers::contract::ContractCall;
 use ethers::contract::EthEvent;
 use std::sync::Arc;
+use storage::log_store::log_manager::DATA_DB_KEY;
 use storage::H256;
 use storage_async::Store;
 
 const MINER_ID: &str = "mine.miner_id";
 
 pub async fn load_miner_id(store: &Store) -> storage::error::Result<Option<H256>> {
-    store.get_config_decoded(&MINER_ID).await
+    store.get_config_decoded(&MINER_ID, DATA_DB_KEY).await
 }
 
 async fn set_miner_id(store: &Store, miner_id: &H256) -> storage::error::Result<()> {
-    store.set_config_encoded(&MINER_ID, miner_id).await
+    store
+        .set_config_encoded(&MINER_ID, miner_id, DATA_DB_KEY)
+        .await
 }
 
 pub(crate) async fn check_and_request_miner_id(
