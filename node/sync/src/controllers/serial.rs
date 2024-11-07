@@ -1657,7 +1657,7 @@ mod tests {
         let num_chunks = 123;
 
         let config = LogConfig::default();
-        let store = Arc::new(LogManager::memorydb(config, task_executor.clone()).unwrap());
+        let store = Arc::new(LogManager::memorydb(config).unwrap());
 
         create_controller(task_executor, peer_id, store, tx_id, num_chunks)
     }

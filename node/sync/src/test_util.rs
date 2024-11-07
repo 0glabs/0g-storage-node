@@ -9,8 +9,6 @@ use storage::{
     LogManager,
 };
 
-use task_executor::test_utils::TestRuntime;
-
 /// Creates stores for local node and peers with initialized transaction of specified chunk count.
 /// The first store is for local node, and data not stored. The second store is for peers, and all
 /// transactions are finalized for file sync.
@@ -24,11 +22,8 @@ pub fn create_2_store(
     Vec<Vec<u8>>,
 ) {
     let config = LogConfig::default();
-    let runtime = TestRuntime::default();
-
-    let executor = runtime.task_executor.clone();
-    let mut store = LogManager::memorydb(config.clone(), executor.clone()).unwrap();
-    let mut peer_store = LogManager::memorydb(config, executor).unwrap();
+    let mut store = LogManager::memorydb(config.clone()).unwrap();
+    let mut peer_store = LogManager::memorydb(config).unwrap();
 
     let mut offset = 1;
     let mut txs = vec![];
@@ -120,10 +115,7 @@ pub mod tests {
 
     impl TestStoreRuntime {
         pub fn new_store() -> impl LogStore {
-            let runtime = TestRuntime::default();
-
-            let executor = runtime.task_executor.clone();
-            LogManager::memorydb(LogConfig::default(), executor).unwrap()
+            LogManager::memorydb(LogConfig::default()).unwrap()
         }
 
         pub fn new(store: Arc<dyn LogStore>) -> TestStoreRuntime {

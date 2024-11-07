@@ -1,6 +1,7 @@
 use crate::config::ShardConfig;
 
 use ethereum_types::H256;
+use flow_store::PadPair;
 use shared_types::{
     Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, FlowProof, FlowRangeProof,
     Transaction,
@@ -15,7 +16,6 @@ pub mod config;
 mod flow_store;
 mod load_chunk;
 pub mod log_manager;
-mod pad_data_store;
 mod seal_task_manager;
 #[cfg(test)]
 mod tests;
@@ -159,6 +159,8 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
     fn update_shard_config(&self, shard_config: ShardConfig);
 
     fn submit_seal_result(&self, answers: Vec<SealAnswer>) -> Result<()>;
+
+    fn start_padding(&self, executor: &task_executor::TaskExecutor);
 }
 
 pub trait LogStoreChunkWrite {
@@ -218,6 +220,10 @@ pub trait FlowRead {
     fn get_num_entries(&self) -> Result<u64>;
 
     fn get_shard_config(&self) -> ShardConfig;
+
+    fn get_pad_data(&self, start_index: u64) -> Result<Option<Vec<PadPair>>>;
+
+    fn get_pad_data_sync_height(&self) -> Result<Option<u64>>;
 }
 
 pub trait FlowWrite {
@@ -232,6 +238,10 @@ pub trait FlowWrite {
 
     /// Update the shard config.
     fn update_shard_config(&self, shard_config: ShardConfig);
+
+    fn put_pad_data(&self, data_sizes: &[PadPair], tx_seq: u64) -> Result<()>;
+
+    fn put_pad_data_sync_height(&self, tx_seq: u64) -> Result<()>;
 }
 
 pub struct SealTask {
@@ -270,3 +280,23 @@ pub trait FlowSeal {
 
 pub trait Flow: FlowRead + FlowWrite + FlowSeal {}
 impl<T: FlowRead + FlowWrite + FlowSeal> Flow for T {}
+
+pub trait PadDataStoreRead {
+    fn get_pad_data(&self, start_index: u64) -> Result<Option<Vec<PadPair>>>;
+    fn get_pad_data_sync_height(&self) -> Result<Option<u64>>;
+}
+
+pub trait PadDataStoreWrite {
+    fn put_pad_data(&self, data_sizes: &[PadPair], tx_seq: u64) -> Result<()>;
+    fn put_pad_data_sync_height(&self, tx_seq: u64) -> Result<()>;
+    fn start_padding(&mut self, executor: &task_executor::TaskExecutor);
+}
+
+pub trait PadDataStore:
+    PadDataStoreRead + PadDataStoreWrite + config::Configurable + Send + Sync + 'static
+{
+}
+impl<T: PadDataStoreRead + PadDataStoreWrite + config::Configurable + Send + Sync + 'static>
+    PadDataStore for T
+{
+}

@@ -1054,8 +1054,7 @@ mod tests {
             let (sync_send, sync_recv) = channel::Channel::unbounded("test");
             let (chunk_pool_send, _chunk_pool_recv) = mpsc::unbounded_channel();
 
-            let executor = runtime.task_executor.clone();
-            let store = LogManager::memorydb(LogConfig::default(), executor).unwrap();
+            let store = LogManager::memorydb(LogConfig::default()).unwrap();
             Self {
                 runtime,
                 network_globals: Arc::new(network_globals),

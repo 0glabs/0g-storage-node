@@ -278,6 +278,7 @@ impl LogSyncManager {
                         );
 
                     // start the pad data store
+                    log_sync_manager.store.start_padding(&executor_clone);
 
                     let (watch_progress_tx, watch_progress_rx) =
                         tokio::sync::mpsc::unbounded_channel();
@@ -511,6 +512,7 @@ impl LogSyncManager {
                 }
             }
             self.data_cache.garbage_collect(self.next_tx_seq);
+
             self.next_tx_seq += 1;
 
             // Check if the computed data root matches on-chain state.
