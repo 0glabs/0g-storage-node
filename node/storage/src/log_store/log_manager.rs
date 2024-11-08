@@ -26,6 +26,7 @@ use std::cmp::Ordering;
 
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 /// 256 Bytes
@@ -46,6 +47,7 @@ pub const COL_NUM: u32 = 9;
 
 pub const DATA_DB_KEY: &str = "data_db";
 pub const FLOW_DB_KEY: &str = "flow_db";
+const PAD_DELAY: Duration = Duration::from_secs(2);
 
 // Process at most 1M entries (256MB) pad data at a time.
 const PAD_MAX_SIZE: usize = 1 << 20;
@@ -437,6 +439,7 @@ impl LogStoreWrite for LogManager {
                         }
                         std::result::Result::Err(_) => {
                             debug!("Unable to get pad data, start_index={}", start_index);
+                            tokio::time::sleep(PAD_DELAY).await;
                         }
                     };
                 }
