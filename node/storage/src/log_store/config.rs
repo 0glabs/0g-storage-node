@@ -2,16 +2,55 @@ use anyhow::{anyhow, Result};
 use kvdb::{DBKey, DBOp};
 use ssz::{Decode, Encode};
 
+use crate::log_store::log_manager::{COL_MISC, DATA_DB_KEY, FLOW_DB_KEY};
 use crate::LogManager;
 
-use super::log_manager::COL_MISC;
+macro_rules! db_operation {
+    ($self:expr, $dest:expr, get, $key:expr) => {{
+        let db = match $dest {
+            DATA_DB_KEY => &$self.data_db,
+            FLOW_DB_KEY => &$self.flow_db,
+            _ => return Err(anyhow!("Invalid destination")),
+        };
+        Ok(db.get(COL_MISC, $key)?)
+    }};
+
+    ($self:expr, $dest:expr, put, $key:expr, $value:expr) => {{
+        let db = match $dest {
+            DATA_DB_KEY => &$self.data_db,
+            FLOW_DB_KEY => &$self.flow_db,
+            _ => return Err(anyhow!("Invalid destination")),
+        };
+        Ok(db.put(COL_MISC, $key, $value)?)
+    }};
+
+    ($self:expr, $dest:expr, delete, $key:expr) => {{
+        let db = match $dest {
+            DATA_DB_KEY => &$self.data_db,
+            FLOW_DB_KEY => &$self.flow_db,
+            _ => return Err(anyhow!("Invalid destination")),
+        };
+        Ok(db.delete(COL_MISC, $key)?)
+    }};
+
+    ($self:expr, $dest:expr, transaction, $tx:expr) => {{
+        let db = match $dest {
+            DATA_DB_KEY => &$self.data_db,
+            FLOW_DB_KEY => &$self.flow_db,
+            _ => return Err(anyhow!("Invalid destination")),
+        };
+        let mut db_tx = db.transaction();
+        db_tx.ops = $tx.ops;
+        Ok(db.write(db_tx)?)
+    }};
+}
 
 pub trait Configurable {
-    fn get_config(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
-    fn set_config(&self, key: &[u8], value: &[u8]) -> Result<()>;
-    fn remove_config(&self, key: &[u8]) -> Result<()>;
+    fn get_config(&self, key: &[u8], dest: &str) -> Result<Option<Vec<u8>>>;
+    fn set_config(&self, key: &[u8], value: &[u8], dest: &str) -> Result<()>;
+    fn remove_config(&self, key: &[u8], dest: &str) -> Result<()>;
 
-    fn exec_configs(&self, tx: ConfigTx) -> Result<()>;
+    fn exec_configs(&self, tx: ConfigTx, dest: &str) -> Result<()>;
 }
 
 #[derive(Default)]
@@ -41,8 +80,12 @@ impl ConfigTx {
 }
 
 pub trait ConfigurableExt: Configurable {
-    fn get_config_decoded<K: AsRef<[u8]>, T: Decode>(&self, key: &K) -> Result<Option<T>> {
-        match self.get_config(key.as_ref())? {
+    fn get_config_decoded<K: AsRef<[u8]>, T: Decode>(
+        &self,
+        key: &K,
+        dest: &str,
+    ) -> Result<Option<T>> {
+        match self.get_config(key.as_ref(), dest)? {
             Some(val) => Ok(Some(
                 T::from_ssz_bytes(&val).map_err(|e| anyhow!("SSZ decode error: {:?}", e))?,
             )),
@@ -50,36 +93,36 @@ pub trait ConfigurableExt: Configurable {
         }
     }
 
-    fn set_config_encoded<K: AsRef<[u8]>, T: Encode>(&self, key: &K, value: &T) -> Result<()> {
-        self.set_config(key.as_ref(), &value.as_ssz_bytes())
+    fn set_config_encoded<K: AsRef<[u8]>, T: Encode>(
+        &self,
+        key: &K,
+        value: &T,
+        dest: &str,
+    ) -> Result<()> {
+        self.set_config(key.as_ref(), &value.as_ssz_bytes(), dest)
     }
 
-    fn remove_config_by_key<K: AsRef<[u8]>>(&self, key: &K) -> Result<()> {
-        self.remove_config(key.as_ref())
+    fn remove_config_by_key<K: AsRef<[u8]>>(&self, key: &K, dest: &str) -> Result<()> {
+        self.remove_config(key.as_ref(), dest)
     }
 }
 
 impl<T: ?Sized + Configurable> ConfigurableExt for T {}
 
 impl Configurable for LogManager {
-    fn get_config(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        Ok(self.flow_db.get(COL_MISC, key)?)
+    fn get_config(&self, key: &[u8], dest: &str) -> Result<Option<Vec<u8>>> {
+        db_operation!(self, dest, get, key)
     }
 
-    fn set_config(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        self.flow_db.put(COL_MISC, key, value)?;
-        Ok(())
+    fn set_config(&self, key: &[u8], value: &[u8], dest: &str) -> Result<()> {
+        db_operation!(self, dest, put, key, value)
     }
 
-    fn remove_config(&self, key: &[u8]) -> Result<()> {
-        Ok(self.flow_db.delete(COL_MISC, key)?)
+    fn remove_config(&self, key: &[u8], dest: &str) -> Result<()> {
+        db_operation!(self, dest, delete, key)
     }
 
-    fn exec_configs(&self, tx: ConfigTx) -> Result<()> {
-        let mut db_tx = self.flow_db.transaction();
-        db_tx.ops = tx.ops;
-        self.flow_db.write(db_tx)?;
-
-        Ok(())
+    fn exec_configs(&self, tx: ConfigTx, dest: &str) -> Result<()> {
+        db_operation!(self, dest, transaction, tx)
     }
 }

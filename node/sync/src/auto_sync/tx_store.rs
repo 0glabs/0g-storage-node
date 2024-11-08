@@ -1,6 +1,7 @@
 use anyhow::Result;
 use rand::Rng;
 use storage::log_store::config::{ConfigTx, ConfigurableExt};
+use storage::log_store::log_manager::DATA_DB_KEY;
 use storage::log_store::Store;
 
 /// TxStore is used to store pending transactions that to be synchronized in advance.
@@ -32,11 +33,11 @@ impl TxStore {
     }
 
     fn index_of(&self, store: &dyn Store, tx_seq: u64) -> Result<Option<usize>> {
-        store.get_config_decoded(&self.key_seq_to_index(tx_seq))
+        store.get_config_decoded(&self.key_seq_to_index(tx_seq), DATA_DB_KEY)
     }
 
     fn at(&self, store: &dyn Store, index: usize) -> Result<Option<u64>> {
-        store.get_config_decoded(&self.key_index_to_seq(index))
+        store.get_config_decoded(&self.key_index_to_seq(index), DATA_DB_KEY)
     }
 
     pub fn has(&self, store: &dyn Store, tx_seq: u64) -> Result<bool> {
@@ -45,7 +46,7 @@ impl TxStore {
 
     pub fn count(&self, store: &dyn Store) -> Result<usize> {
         store
-            .get_config_decoded(&self.key_count)
+            .get_config_decoded(&self.key_count, DATA_DB_KEY)
             .map(|x| x.unwrap_or(0))
     }
 
@@ -70,7 +71,7 @@ impl TxStore {
         if let Some(db_tx) = db_tx {
             db_tx.append(&mut tx);
         } else {
-            store.exec_configs(tx)?;
+            store.exec_configs(tx, DATA_DB_KEY)?;
         }
 
         Ok(true)
@@ -130,7 +131,7 @@ impl TxStore {
         if let Some(db_tx) = db_tx {
             db_tx.append(&mut tx);
         } else {
-            store.exec_configs(tx)?;
+            store.exec_configs(tx, DATA_DB_KEY)?;
         }
 
         Ok(true)

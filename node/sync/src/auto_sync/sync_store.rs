@@ -1,7 +1,10 @@
 use super::tx_store::TxStore;
 use anyhow::Result;
 use std::sync::Arc;
-use storage::log_store::config::{ConfigTx, ConfigurableExt};
+use storage::log_store::{
+    config::{ConfigTx, ConfigurableExt},
+    log_manager::DATA_DB_KEY,
+};
 use storage_async::Store;
 use tokio::sync::RwLock;
 
@@ -66,10 +69,10 @@ impl SyncStore {
         let store = async_store.get_store();
 
         // load next_tx_seq
-        let next_tx_seq = store.get_config_decoded(&KEY_NEXT_TX_SEQ)?;
+        let next_tx_seq = store.get_config_decoded(&KEY_NEXT_TX_SEQ, DATA_DB_KEY)?;
 
         // load max_tx_seq
-        let max_tx_seq = store.get_config_decoded(&KEY_MAX_TX_SEQ)?;
+        let max_tx_seq = store.get_config_decoded(&KEY_MAX_TX_SEQ, DATA_DB_KEY)?;
 
         Ok((next_tx_seq, max_tx_seq))
     }
@@ -77,13 +80,13 @@ impl SyncStore {
     pub async fn set_next_tx_seq(&self, tx_seq: u64) -> Result<()> {
         let async_store = self.store.write().await;
         let store = async_store.get_store();
-        store.set_config_encoded(&KEY_NEXT_TX_SEQ, &tx_seq)
+        store.set_config_encoded(&KEY_NEXT_TX_SEQ, &tx_seq, DATA_DB_KEY)
     }
 
     pub async fn set_max_tx_seq(&self, tx_seq: u64) -> Result<()> {
         let async_store = self.store.write().await;
         let store = async_store.get_store();
-        store.set_config_encoded(&KEY_MAX_TX_SEQ, &tx_seq)
+        store.set_config_encoded(&KEY_MAX_TX_SEQ, &tx_seq, DATA_DB_KEY)
     }
 
     pub async fn contains(&self, tx_seq: u64) -> Result<Option<Queue>> {
@@ -114,7 +117,7 @@ impl SyncStore {
                 }
 
                 let removed = self.pending_txs.remove(store, Some(&mut tx), tx_seq)?;
-                store.exec_configs(tx)?;
+                store.exec_configs(tx, DATA_DB_KEY)?;
 
                 if removed {
                     Ok(InsertResult::Upgraded)
@@ -128,7 +131,7 @@ impl SyncStore {
                 }
 
                 let removed = self.ready_txs.remove(store, Some(&mut tx), tx_seq)?;
-                store.exec_configs(tx)?;
+                store.exec_configs(tx, DATA_DB_KEY)?;
 
                 if removed {
                     Ok(InsertResult::Downgraded)
@@ -151,7 +154,7 @@ impl SyncStore {
 
         let added = self.ready_txs.add(store, Some(&mut tx), tx_seq)?;
 
-        store.exec_configs(tx)?;
+        store.exec_configs(tx, DATA_DB_KEY)?;
 
         Ok(added)
     }

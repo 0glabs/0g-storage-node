@@ -1,10 +1,11 @@
-use super::tx_store::BlockHashAndSubmissionIndex;
-use super::{FlowSeal, MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
-use crate::log_store::flow_store::{batch_iter_sharded, FlowConfig, FlowDBStore, FlowStore};
-use crate::log_store::tx_store::TransactionStore;
+use crate::log_store::flow_store::{
+    batch_iter_sharded, FlowConfig, FlowDBStore, FlowStore, PadPair,
+};
+use crate::log_store::tx_store::{BlockHashAndSubmissionIndex, TransactionStore};
 use crate::log_store::{
-    FlowRead, FlowWrite, LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite,
+    FlowRead, FlowSeal, FlowWrite, LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead,
+    LogStoreWrite, MineLoadChunk, SealAnswer, SealTask,
 };
 use crate::{try_option, ZgsKeyValueDB};
 use anyhow::{anyhow, bail, Result};
@@ -24,8 +25,8 @@ use shared_types::{
 use std::cmp::Ordering;
 
 use std::path::Path;
-use std::sync::mpsc;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 /// 256 Bytes
@@ -33,16 +34,20 @@ pub const ENTRY_SIZE: usize = 256;
 /// 1024 Entries.
 pub const PORA_CHUNK_SIZE: usize = 1024;
 
-pub const COL_TX: u32 = 0;
-pub const COL_ENTRY_BATCH: u32 = 1;
-pub const COL_TX_DATA_ROOT_INDEX: u32 = 2;
-pub const COL_ENTRY_BATCH_ROOT: u32 = 3;
-pub const COL_TX_COMPLETED: u32 = 4;
-pub const COL_MISC: u32 = 5;
-pub const COL_SEAL_CONTEXT: u32 = 6;
-pub const COL_FLOW_MPT_NODES: u32 = 7;
-pub const COL_BLOCK_PROGRESS: u32 = 8;
+pub const COL_TX: u32 = 0; // flow db
+pub const COL_ENTRY_BATCH: u32 = 1; // data db
+pub const COL_TX_DATA_ROOT_INDEX: u32 = 2; // flow db
+pub const COL_TX_COMPLETED: u32 = 3; // data db
+pub const COL_MISC: u32 = 4; // flow db & data db
+pub const COL_FLOW_MPT_NODES: u32 = 5; // flow db
+pub const COL_BLOCK_PROGRESS: u32 = 6; // flow db
+pub const COL_PAD_DATA_LIST: u32 = 7; // flow db
+pub const COL_PAD_DATA_SYNC_HEIGH: u32 = 8; // data db
 pub const COL_NUM: u32 = 9;
+
+pub const DATA_DB_KEY: &str = "data_db";
+pub const FLOW_DB_KEY: &str = "flow_db";
+const PAD_DELAY: Duration = Duration::from_secs(2);
 
 // Process at most 1M entries (256MB) pad data at a time.
 const PAD_MAX_SIZE: usize = 1 << 20;
@@ -62,10 +67,10 @@ pub struct UpdateFlowMessage {
 
 pub struct LogManager {
     pub(crate) flow_db: Arc<dyn ZgsKeyValueDB>,
+    pub(crate) data_db: Arc<dyn ZgsKeyValueDB>,
     tx_store: TransactionStore,
     flow_store: Arc<FlowStore>,
     merkle: RwLock<MerkleManager>,
-    sender: mpsc::Sender<UpdateFlowMessage>,
 }
 
 struct MerkleManager {
@@ -264,7 +269,12 @@ impl LogStoreWrite for LogManager {
         }
         let maybe_same_data_tx_seq = self.tx_store.put_tx(tx.clone())?.first().cloned();
         // TODO(zz): Should we validate received tx?
-        self.append_subtree_list(tx.start_entry_index, tx.merkle_nodes.clone(), &mut merkle)?;
+        self.append_subtree_list(
+            tx.seq,
+            tx.start_entry_index,
+            tx.merkle_nodes.clone(),
+            &mut merkle,
+        )?;
         merkle.commit_merkle(tx.seq)?;
         debug!(
             "commit flow root: root={:?}",
@@ -400,6 +410,42 @@ impl LogStoreWrite for LogManager {
 
     fn submit_seal_result(&self, answers: Vec<SealAnswer>) -> Result<()> {
         self.flow_store.submit_seal_result(answers)
+    }
+
+    fn start_padding(&self, executor: &task_executor::TaskExecutor) {
+        let store = self.flow_store.clone();
+        executor.spawn(
+            async move {
+                let current_height = store.get_pad_data_sync_height().unwrap();
+                let mut start_index = current_height.unwrap_or(0);
+                loop {
+                    match store.get_pad_data(start_index) {
+                        std::result::Result::Ok(data) => {
+                            // Update the flow database.
+                            // This should be called before `complete_last_chunk_merkle` so that we do not save
+                            // subtrees with data known.
+                            if let Some(data) = data {
+                                for pad in data {
+                                    store
+                                        .append_entries(ChunkArray {
+                                            data: vec![0; pad.data_size as usize],
+                                            start_index: pad.start_index,
+                                        })
+                                        .unwrap();
+                                }
+                            };
+                            store.put_pad_data_sync_height(start_index).unwrap();
+                            start_index += 1;
+                        }
+                        std::result::Result::Err(_) => {
+                            debug!("Unable to get pad data, start_index={}", start_index);
+                            tokio::time::sleep(PAD_DELAY).await;
+                        }
+                    };
+                }
+            },
+            "pad_tx",
+        );
     }
 }
 
@@ -614,31 +660,33 @@ impl LogManager {
         config: LogConfig,
         flow_path: impl AsRef<Path>,
         data_path: impl AsRef<Path>,
-        executor: task_executor::TaskExecutor,
     ) -> Result<Self> {
         let mut db_config = DatabaseConfig::with_columns(COL_NUM);
         db_config.enable_statistics = true;
         let flow_db_source = Arc::new(Database::open(&db_config, flow_path)?);
         let data_db_source = Arc::new(Database::open(&db_config, data_path)?);
-        Self::new(flow_db_source, data_db_source, config, executor)
+        Self::new(flow_db_source, data_db_source, config)
     }
 
-    pub fn memorydb(config: LogConfig, executor: task_executor::TaskExecutor) -> Result<Self> {
+    pub fn memorydb(config: LogConfig) -> Result<Self> {
         let flow_db = Arc::new(kvdb_memorydb::create(COL_NUM));
         let data_db = Arc::new(kvdb_memorydb::create(COL_NUM));
-        Self::new(flow_db, data_db, config, executor)
+        Self::new(flow_db, data_db, config)
     }
 
     fn new(
         flow_db_source: Arc<dyn ZgsKeyValueDB>,
         data_db_source: Arc<dyn ZgsKeyValueDB>,
         config: LogConfig,
-        executor: task_executor::TaskExecutor,
     ) -> Result<Self> {
-        let tx_store = TransactionStore::new(flow_db_source.clone())?;
+        let tx_store = TransactionStore::new(data_db_source.clone())?;
         let flow_db = Arc::new(FlowDBStore::new(flow_db_source.clone()));
         let data_db = Arc::new(FlowDBStore::new(data_db_source.clone()));
-        let flow_store = Arc::new(FlowStore::new(data_db.clone(), config.flow.clone()));
+        let flow_store = Arc::new(FlowStore::new(
+            flow_db.clone(),
+            data_db.clone(),
+            config.flow.clone(),
+        ));
         // If the last tx `put_tx` does not complete, we will revert it in `pora_chunks_merkle`
         // first and call `put_tx` later.
         let next_tx_seq = tx_store.next_tx_seq();
@@ -739,17 +787,13 @@ impl LogManager {
             last_chunk_merkle,
         });
 
-        let (sender, receiver) = mpsc::channel();
-
-        let mut log_manager = Self {
+        let log_manager = Self {
             flow_db: flow_db_source,
+            data_db: data_db_source,
             tx_store,
             flow_store,
             merkle,
-            sender,
         };
-
-        log_manager.start_receiver(receiver, executor);
 
         if let Some(tx) = last_tx_to_insert {
             log_manager.put_tx(tx)?;
@@ -763,40 +807,6 @@ impl LogManager {
             log_manager.get_context()?
         );
         Ok(log_manager)
-    }
-
-    fn start_receiver(
-        &mut self,
-        rx: mpsc::Receiver<UpdateFlowMessage>,
-        executor: task_executor::TaskExecutor,
-    ) {
-        let flow_store = self.flow_store.clone();
-        executor.spawn(
-            async move {
-                loop {
-                    match rx.recv() {
-                        std::result::Result::Ok(data) => {
-                            // Update the flow database.
-                            // This should be called before `complete_last_chunk_merkle` so that we do not save
-                            // subtrees with data known.
-                            flow_store
-                                .append_entries(ChunkArray {
-                                    data: vec![0; data.pad_data],
-                                    start_index: data.tx_start_flow_index,
-                                })
-                                .unwrap();
-                        }
-                        std::result::Result::Err(_) => {
-                            debug!("Log manager inner channel closed");
-                            break;
-                        }
-                    };
-                }
-            },
-            "pad_tx",
-        );
-        // Wait for the spawned thread to finish
-        // let _ = handle.join().expect("Thread panicked");
     }
 
     fn gen_proof(&self, flow_index: u64, maybe_root: Option<DataRoot>) -> Result<FlowProof> {
@@ -854,6 +864,7 @@ impl LogManager {
     #[instrument(skip(self, merkle))]
     fn append_subtree_list(
         &self,
+        tx_seq: u64,
         tx_start_index: u64,
         merkle_list: Vec<(usize, DataRoot)>,
         merkle: &mut MerkleManager,
@@ -862,7 +873,7 @@ impl LogManager {
             return Ok(());
         }
 
-        self.pad_tx(tx_start_index, &mut *merkle)?;
+        self.pad_tx(tx_seq, tx_start_index, &mut *merkle)?;
 
         for (subtree_depth, subtree_root) in merkle_list {
             let subtree_size = 1 << (subtree_depth - 1);
@@ -900,7 +911,7 @@ impl LogManager {
     }
 
     #[instrument(skip(self, merkle))]
-    fn pad_tx(&self, tx_start_index: u64, merkle: &mut MerkleManager) -> Result<()> {
+    fn pad_tx(&self, tx_seq: u64, tx_start_index: u64, merkle: &mut MerkleManager) -> Result<()> {
         // Check if we need to pad the flow.
         let mut tx_start_flow_index =
             merkle.last_chunk_start_index() + merkle.last_chunk_merkle.leaves() as u64;
@@ -910,6 +921,7 @@ impl LogManager {
             merkle.pora_chunks_merkle.leaves(),
             merkle.last_chunk_merkle.leaves()
         );
+        let mut pad_list = vec![];
         if pad_size != 0 {
             for pad_data in Self::padding(pad_size as usize) {
                 let mut is_full_empty = true;
@@ -954,10 +966,10 @@ impl LogManager {
 
                 let data_size = pad_data.len() / ENTRY_SIZE;
                 if is_full_empty {
-                    self.sender.send(UpdateFlowMessage {
-                        pad_data: pad_data.len(),
-                        tx_start_flow_index,
-                    })?;
+                    pad_list.push(PadPair {
+                        data_size: pad_data.len() as u64,
+                        start_index: tx_start_flow_index,
+                    });
                 } else {
                     // Update the flow database.
                     // This should be called before `complete_last_chunk_merkle` so that we do not save
@@ -979,6 +991,8 @@ impl LogManager {
             merkle.pora_chunks_merkle.leaves(),
             merkle.last_chunk_merkle.leaves()
         );
+
+        self.flow_store.put_pad_data(&pad_list, tx_seq)?;
         Ok(())
     }
 

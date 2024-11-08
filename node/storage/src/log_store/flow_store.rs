@@ -1,4 +1,5 @@
 use super::load_chunk::EntryBatch;
+use super::log_manager::{COL_PAD_DATA_LIST, COL_PAD_DATA_SYNC_HEIGH};
 use super::seal_task_manager::SealTaskManager;
 use super::{MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
@@ -25,14 +26,16 @@ use tracing::{debug, error, trace};
 use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
 
 pub struct FlowStore {
+    flow_db: Arc<FlowDBStore>,
     data_db: Arc<FlowDBStore>,
     seal_manager: SealTaskManager,
     config: FlowConfig,
 }
 
 impl FlowStore {
-    pub fn new(data_db: Arc<FlowDBStore>, config: FlowConfig) -> Self {
+    pub fn new(flow_db: Arc<FlowDBStore>, data_db: Arc<FlowDBStore>, config: FlowConfig) -> Self {
         Self {
+            flow_db,
             data_db,
             seal_manager: Default::default(),
             config,
@@ -199,6 +202,14 @@ impl FlowRead for FlowStore {
     fn get_shard_config(&self) -> ShardConfig {
         *self.config.shard_config.read()
     }
+
+    fn get_pad_data(&self, start_index: u64) -> crate::error::Result<Option<Vec<PadPair>>> {
+        self.flow_db.get_pad_data(start_index)
+    }
+
+    fn get_pad_data_sync_height(&self) -> Result<Option<u64>> {
+        self.data_db.get_pad_data_sync_height()
+    }
 }
 
 impl FlowWrite for FlowStore {
@@ -265,6 +276,14 @@ impl FlowWrite for FlowStore {
 
     fn update_shard_config(&self, shard_config: ShardConfig) {
         *self.config.shard_config.write() = shard_config;
+    }
+
+    fn put_pad_data(&self, data_sizes: &[PadPair], tx_seq: u64) -> crate::error::Result<()> {
+        self.flow_db.put_pad_data(data_sizes, tx_seq)
+    }
+
+    fn put_pad_data_sync_height(&self, sync_index: u64) -> crate::error::Result<()> {
+        self.data_db.put_pad_data_sync_height(sync_index)
     }
 }
 
@@ -341,6 +360,12 @@ impl FlowSeal for FlowStore {
 
         Ok(())
     }
+}
+
+#[derive(Debug, PartialEq, DeriveEncode, DeriveDecode)]
+pub struct PadPair {
+    pub start_index: u64,
+    pub data_size: u64,
 }
 
 pub struct FlowDBStore {
@@ -442,6 +467,48 @@ impl FlowDBStore {
             tx.delete(COL_ENTRY_BATCH, &i.to_be_bytes());
         }
         Ok(self.kvdb.write(tx)?)
+    }
+
+    fn put_pad_data(&self, data_sizes: &[PadPair], tx_seq: u64) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+
+        let mut buffer = Vec::new();
+        for item in data_sizes {
+            buffer.extend(item.as_ssz_bytes());
+        }
+
+        tx.put(COL_PAD_DATA_LIST, &tx_seq.to_be_bytes(), &buffer);
+        self.kvdb.write(tx)?;
+        Ok(())
+    }
+
+    fn put_pad_data_sync_height(&self, tx_seq: u64) -> Result<()> {
+        let mut tx = self.kvdb.transaction();
+        tx.put(
+            COL_PAD_DATA_SYNC_HEIGH,
+            b"sync_height",
+            &tx_seq.to_be_bytes(),
+        );
+        self.kvdb.write(tx)?;
+        Ok(())
+    }
+
+    fn get_pad_data_sync_height(&self) -> Result<Option<u64>> {
+        match self.kvdb.get(COL_PAD_DATA_SYNC_HEIGH, b"sync_height")? {
+            Some(v) => Ok(Some(u64::from_be_bytes(
+                v.try_into().map_err(|e| anyhow!("{:?}", e))?,
+            ))),
+            None => Ok(None),
+        }
+    }
+
+    fn get_pad_data(&self, tx_seq: u64) -> Result<Option<Vec<PadPair>>> {
+        match self.kvdb.get(COL_PAD_DATA_LIST, &tx_seq.to_be_bytes())? {
+            Some(v) => Ok(Some(
+                Vec::<PadPair>::from_ssz_bytes(&v).map_err(Error::from)?,
+            )),
+            None => Ok(None),
+        }
     }
 }
 
