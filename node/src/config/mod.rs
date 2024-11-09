@@ -49,6 +49,8 @@ build_config! {
     (remove_finalized_block_interval_minutes, (u64), 30)
     (watch_loop_wait_time_ms, (u64), 500)
 
+    (blockchain_rpc_timeout_secs, (u64), 120)
+
     // chunk pool
     (chunk_pool_write_window_size, (usize), 4)
     (chunk_pool_max_cached_chunks_all, (usize), 4*1024*1024)    // 1G

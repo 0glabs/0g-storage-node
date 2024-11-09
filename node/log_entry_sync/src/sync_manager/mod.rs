@@ -86,16 +86,7 @@ impl LogSyncManager {
                         .expect("shutdown send error")
                 },
                 async move {
-                    let log_fetcher = LogEntryFetcher::new(
-                        &config.rpc_endpoint_url,
-                        config.contract_address,
-                        config.log_page_size,
-                        config.confirmation_block_count,
-                        config.rate_limit_retries,
-                        config.timeout_retries,
-                        config.initial_backoff,
-                    )
-                    .await?;
+                    let log_fetcher = LogEntryFetcher::new(&config).await?;
                     let data_cache = DataCache::new(config.cache_config.clone());
 
                     let block_hash_cache = Arc::new(RwLock::new(

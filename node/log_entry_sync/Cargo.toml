@@ -24,3 +24,5 @@ futures-util = "0.3.28"
 thiserror = "1.0.44"
 lazy_static = "1.4.0"
 metrics = { workspace = true }
+reqwest = {version = "0.11", features = ["json"]}
+url = { version = "2.4", default-features = false }

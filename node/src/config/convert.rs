@@ -146,6 +146,7 @@ impl ZgsConfig {
             self.remove_finalized_block_interval_minutes,
             self.watch_loop_wait_time_ms,
             self.force_log_sync_from_start_block_number,
+            Duration::from_secs(self.blockchain_rpc_timeout_secs),
         ))
     }
 

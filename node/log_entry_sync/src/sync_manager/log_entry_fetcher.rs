@@ -1,6 +1,6 @@
 use crate::sync_manager::log_query::LogQuery;
 use crate::sync_manager::RETRY_WAIT_MS;
-use crate::ContractAddress;
+use crate::{ContractAddress, LogSyncConfig};
 use anyhow::{anyhow, bail, Result};
 use append_merkle::{Algorithm, Sha3Algorithm};
 use contract_interface::{SubmissionNode, SubmitFilter, ZgsFlow};
@@ -12,7 +12,6 @@ use futures::StreamExt;
 use jsonrpsee::tracing::{debug, error, info, warn};
 use shared_types::{DataRoot, Transaction};
 use std::collections::{BTreeMap, HashMap};
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use storage::log_store::{tx_store::BlockHashAndSubmissionIndex, Store};
@@ -34,28 +33,29 @@ pub struct LogEntryFetcher {
 }
 
 impl LogEntryFetcher {
-    pub async fn new(
-        url: &str,
-        contract_address: ContractAddress,
-        log_page_size: u64,
-        confirmation_delay: u64,
-        rate_limit_retries: u32,
-        timeout_retries: u32,
-        initial_backoff: u64,
-    ) -> Result<Self> {
+    pub async fn new(config: &LogSyncConfig) -> Result<Self> {
         let provider = Arc::new(Provider::new(
             RetryClientBuilder::default()
-                .rate_limit_retries(rate_limit_retries)
-                .timeout_retries(timeout_retries)
-                .initial_backoff(Duration::from_millis(initial_backoff))
-                .build(Http::from_str(url)?, Box::new(HttpRateLimitRetryPolicy)),
+                .rate_limit_retries(config.rate_limit_retries)
+                .timeout_retries(config.timeout_retries)
+                .initial_backoff(Duration::from_millis(config.initial_backoff))
+                .build(
+                    Http::new_with_client(
+                        url::Url::parse(&config.rpc_endpoint_url)?,
+                        reqwest::Client::builder()
+                            .timeout(config.blockchain_rpc_timeout)
+                            .connect_timeout(config.blockchain_rpc_timeout)
+                            .build()?,
+                    ),
+                    Box::new(HttpRateLimitRetryPolicy),
+                ),
         ));
         // TODO: `error` types are removed from the ABI json file.
         Ok(Self {
-            contract_address,
+            contract_address: config.contract_address,
             provider,
-            log_page_size,
-            confirmation_delay,
+            log_page_size: config.log_page_size,
+            confirmation_delay: config.confirmation_block_count,
         })
     }
 
