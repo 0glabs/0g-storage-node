@@ -4652,12 +4652,14 @@ dependencies = [
  "jsonrpsee",
  "lazy_static",
  "metrics",
+ "reqwest",
  "serde_json",
  "shared_types",
  "storage",
  "task_executor",
  "thiserror",
  "tokio",
+ "url",
 ]
 
 [[package]]

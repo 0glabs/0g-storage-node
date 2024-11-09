@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::ContractAddress;
 
 pub struct LogSyncConfig {
@@ -34,6 +36,9 @@ pub struct LogSyncConfig {
     pub watch_loop_wait_time_ms: u64,
     // force to sync log from start block number
     pub force_log_sync_from_start_block_number: bool,
+
+    // the timeout for blockchain rpc connection
+    pub blockchain_rpc_timeout: Duration,
 }
 
 #[derive(Clone)]
@@ -61,6 +66,7 @@ impl LogSyncConfig {
         remove_finalized_block_interval_minutes: u64,
         watch_loop_wait_time_ms: u64,
         force_log_sync_from_start_block_number: bool,
+        blockchain_rpc_timeout: Duration,
     ) -> Self {
         Self {
             rpc_endpoint_url,
@@ -77,6 +83,7 @@ impl LogSyncConfig {
             remove_finalized_block_interval_minutes,
             watch_loop_wait_time_ms,
             force_log_sync_from_start_block_number,
+            blockchain_rpc_timeout,
         }
     }
 }
