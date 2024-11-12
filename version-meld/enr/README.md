@@ -28,7 +28,7 @@ Different identity schemes can be used to define the node id and signatures. Cur
 
 ## Signing Algorithms
 
-User's wishing to implement their own singing algorithms simply need to
+User's wishing to implement their own signing algorithms simply need to
 implement the `EnrKey` trait and apply it to an `Enr`.
 
 By default, `k256::SigningKey` implement `EnrKey` and can be used to sign and
