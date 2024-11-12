@@ -5,11 +5,9 @@ use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
 use futures::{channel::mpsc::Sender, prelude::*};
 use miner::MinerMessage;
-use network::types::NewFile;
-use network::PubsubMessage;
 use network::{
-    BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage, RequestId,
-    Service as LibP2PService, Swarm,
+    types::NewFile, BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage,
+    NetworkReceiver, NetworkSender, PubsubMessage, RequestId, Service as LibP2PService, Swarm,
 };
 use pruner::PrunerMessage;
 use shared_types::timestamp_now;
@@ -33,7 +31,7 @@ pub struct RouterService {
     network_globals: Arc<NetworkGlobals>,
 
     /// The receiver channel for Zgs to communicate with the network service.
-    network_recv: mpsc::UnboundedReceiver<NetworkMessage>,
+    network_recv: NetworkReceiver,
 
     /// The receiver channel for Zgs to communicate with the pruner service.
     pruner_recv: Option<mpsc::UnboundedReceiver<PrunerMessage>>,
@@ -57,8 +55,8 @@ impl RouterService {
         executor: task_executor::TaskExecutor,
         libp2p: LibP2PService<RequestId>,
         network_globals: Arc<NetworkGlobals>,
-        network_recv: mpsc::UnboundedReceiver<NetworkMessage>,
-        network_send: mpsc::UnboundedSender<NetworkMessage>,
+        network_recv: NetworkReceiver,
+        network_send: NetworkSender,
         sync_send: SyncSender,
         _miner_send: Option<broadcast::Sender<MinerMessage>>,
         chunk_pool_send: UnboundedSender<ChunkPoolMessage>,

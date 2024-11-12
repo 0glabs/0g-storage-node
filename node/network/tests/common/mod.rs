@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use libp2p::gossipsub::GossipsubConfigBuilder;
+use network::new_network_channel;
 use network::Enr;
 use network::EnrExt;
 use network::Multiaddr;
@@ -22,7 +23,6 @@ pub mod swarm;
 type ReqId = usize;
 
 use tempfile::Builder as TempBuilder;
-use tokio::sync::mpsc::unbounded_channel;
 
 #[allow(unused)]
 pub struct Libp2pInstance(LibP2PService<ReqId>, exit_future::Signal);
@@ -72,7 +72,7 @@ pub async fn build_libp2p_instance(rt: Weak<Runtime>, boot_nodes: Vec<Enr>) -> L
     let (shutdown_tx, _) = futures::channel::mpsc::channel(1);
     let executor = task_executor::TaskExecutor::new(rt, exit, shutdown_tx);
     let libp2p_context = network::Context { config: &config };
-    let (sender, _) = unbounded_channel();
+    let (sender, _) = new_network_channel();
     Libp2pInstance(
         LibP2PService::new(executor, sender, libp2p_context)
             .await

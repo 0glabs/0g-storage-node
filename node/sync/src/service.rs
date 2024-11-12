@@ -10,10 +10,9 @@ use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
 use network::rpc::methods::FileAnnouncement;
 use network::types::{AnnounceChunks, FindFile, NewFile};
-use network::PubsubMessage;
 use network::{
-    rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, PeerId,
-    PeerRequestId, SyncId as RequestId,
+    rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, NetworkSender,
+    PeerId, PeerRequestId, PubsubMessage, SyncId as RequestId,
 };
 use shared_types::{bytes_to_chunks, timestamp_now, ChunkArrayWithProof, Transaction, TxID};
 use std::sync::atomic::Ordering;
@@ -27,7 +26,7 @@ use storage::error::Result as StorageResult;
 use storage::log_store::log_manager::{sector_to_segment, segment_to_sector, PORA_CHUNK_SIZE};
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{broadcast, oneshot};
 
 pub type SyncSender = channel::Sender<SyncMessage, SyncRequest, SyncResponse>;
 pub type SyncReceiver = channel::Receiver<SyncMessage, SyncRequest, SyncResponse>;
@@ -142,7 +141,7 @@ pub struct SyncService {
 impl SyncService {
     pub async fn spawn(
         executor: task_executor::TaskExecutor,
-        network_send: mpsc::UnboundedSender<NetworkMessage>,
+        network_send: NetworkSender,
         store: Arc<dyn LogStore>,
         file_location_cache: Arc<FileLocationCache>,
         event_recv: broadcast::Receiver<LogSyncEvent>,
@@ -163,7 +162,7 @@ impl SyncService {
     pub async fn spawn_with_config(
         config: Config,
         executor: task_executor::TaskExecutor,
-        network_send: mpsc::UnboundedSender<NetworkMessage>,
+        network_send: NetworkSender,
         store: Arc<dyn LogStore>,
         file_location_cache: Arc<FileLocationCache>,
         event_recv: broadcast::Receiver<LogSyncEvent>,
@@ -897,7 +896,9 @@ mod tests {
     use crate::test_util::tests::create_file_location_cache;
     use libp2p::identity;
     use network::discovery::ConnectionId;
+    use network::new_network_channel;
     use network::rpc::SubstreamId;
+    use network::NetworkReceiver;
     use network::ReportSource;
     use shared_types::ChunkArray;
     use shared_types::Transaction;
@@ -909,8 +910,6 @@ mod tests {
     use storage::log_store::LogStoreRead;
     use storage::H256;
     use task_executor::test_utils::TestRuntime;
-    use tokio::sync::mpsc::UnboundedReceiver;
-    use tokio::sync::mpsc::UnboundedSender;
 
     struct TestSyncRuntime {
         runtime: TestRuntime,
@@ -924,8 +923,8 @@ mod tests {
         init_peer_id: PeerId,
         file_location_cache: Arc<FileLocationCache>,
 
-        network_send: UnboundedSender<NetworkMessage>,
-        network_recv: UnboundedReceiver<NetworkMessage>,
+        network_send: NetworkSender,
+        network_recv: NetworkReceiver,
         event_send: broadcast::Sender<LogSyncEvent>,
         catch_up_end_recv: Option<oneshot::Receiver<()>>,
     }
@@ -942,7 +941,7 @@ mod tests {
             let (store, peer_store, txs, data) = create_2_store(chunk_counts);
             let init_data = data[0].clone();
             let init_peer_id = identity::Keypair::generate_ed25519().public().to_peer_id();
-            let (network_send, network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
+            let (network_send, network_recv) = new_network_channel();
             let (event_send, _) = broadcast::channel(16);
             let (_, catch_up_end_recv) = oneshot::channel();
 
@@ -1006,7 +1005,7 @@ mod tests {
         let file_location_cache: Arc<FileLocationCache> =
             create_file_location_cache(init_peer_id, vec![txs[0].id()]);
 
-        let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
+        let (network_send, mut network_recv) = new_network_channel();
         let (_, sync_recv) = channel::Channel::unbounded("test");
 
         let mut sync = SyncService {
@@ -1035,7 +1034,7 @@ mod tests {
         let file_location_cache: Arc<FileLocationCache> =
             create_file_location_cache(init_peer_id, vec![txs[0].id()]);
 
-        let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
+        let (network_send, mut network_recv) = new_network_channel();
         let (_, sync_recv) = channel::Channel::unbounded("test");
 
         let mut sync = SyncService {
@@ -1354,7 +1353,7 @@ mod tests {
         let file_location_cache: Arc<FileLocationCache> =
             create_file_location_cache(init_peer_id, vec![]);
 
-        let (network_send, mut network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
+        let (network_send, mut network_recv) = new_network_channel();
         let (_event_send, event_recv) = broadcast::channel(16);
         let (_, catch_up_end_recv) = oneshot::channel();
         let sync_send = SyncService::spawn_with_config(
@@ -1781,7 +1780,7 @@ mod tests {
     }
 
     async fn receive_chunk_request(
-        network_recv: &mut UnboundedReceiver<NetworkMessage>,
+        network_recv: &mut NetworkReceiver,
         sync_send: &SyncSender,
         peer_store: Arc<LogManager>,
         init_peer_id: PeerId,

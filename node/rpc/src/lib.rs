@@ -17,15 +17,13 @@ use file_location_cache::FileLocationCache;
 use futures::channel::mpsc::Sender;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
-use network::NetworkGlobals;
-use network::NetworkMessage;
+use network::{NetworkGlobals, NetworkMessage, NetworkSender};
 use std::error::Error;
 use std::sync::Arc;
 use storage_async::Store;
 use sync::{SyncRequest, SyncResponse, SyncSender};
 use task_executor::ShutdownReason;
 use tokio::sync::broadcast;
-use tokio::sync::mpsc::UnboundedSender;
 use zgs::RpcServer as ZgsRpcServer;
 use zgs_miner::MinerMessage;
 
@@ -42,7 +40,7 @@ pub struct Context {
     pub config: RPCConfig,
     pub file_location_cache: Arc<FileLocationCache>,
     pub network_globals: Arc<NetworkGlobals>,
-    pub network_send: UnboundedSender<NetworkMessage>,
+    pub network_send: NetworkSender,
     pub sync_send: SyncSender,
     pub chunk_pool: Arc<MemoryChunkPool>,
     pub log_store: Arc<Store>,

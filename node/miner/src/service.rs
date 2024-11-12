@@ -3,13 +3,12 @@ use crate::monitor::Monitor;
 use crate::sealer::Sealer;
 use crate::submitter::Submitter;
 use crate::{config::MinerConfig, mine::PoraService, watcher::MineContextWatcher};
-use network::NetworkMessage;
+use network::NetworkSender;
 use std::sync::Arc;
 use std::time::Duration;
 use storage::config::ShardConfig;
 use storage_async::Store;
 use tokio::sync::broadcast;
-use tokio::sync::mpsc;
 
 #[derive(Clone, Debug)]
 pub enum MinerMessage {
@@ -29,7 +28,7 @@ pub struct MineService;
 impl MineService {
     pub async fn spawn(
         executor: task_executor::TaskExecutor,
-        _network_send: mpsc::UnboundedSender<NetworkMessage>,
+        _network_send: NetworkSender,
         config: MinerConfig,
         store: Arc<Store>,
     ) -> Result<broadcast::Sender<MinerMessage>, String> {
