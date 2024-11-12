@@ -4,8 +4,8 @@ use file_location_cache::FileLocationCache;
 use log_entry_sync::{LogSyncConfig, LogSyncEvent, LogSyncManager};
 use miner::{MineService, MinerConfig, MinerMessage, ShardConfig};
 use network::{
-    self, Keypair, NetworkConfig, NetworkGlobals, NetworkMessage, RequestId,
-    Service as LibP2PService,
+    self, new_network_channel, Keypair, NetworkConfig, NetworkGlobals, NetworkReceiver,
+    NetworkSender, RequestId, Service as LibP2PService,
 };
 use pruner::{Pruner, PrunerConfig, PrunerMessage};
 use router::RouterService;
@@ -27,15 +27,12 @@ macro_rules! require {
 }
 
 struct NetworkComponents {
-    send: mpsc::UnboundedSender<NetworkMessage>,
+    send: NetworkSender,
     globals: Arc<NetworkGlobals>,
     keypair: Keypair,
 
     // note: these will be owned by the router service
-    owned: Option<(
-        LibP2PService<RequestId>,
-        mpsc::UnboundedReceiver<NetworkMessage>,
-    )>,
+    owned: Option<(LibP2PService<RequestId>, NetworkReceiver)>,
 }
 
 struct SyncComponents {
@@ -144,7 +141,7 @@ impl ClientBuilder {
         let service_context = network::Context { config };
 
         // construct communication channel
-        let (send, recv) = mpsc::unbounded_channel::<NetworkMessage>();
+        let (send, recv) = new_network_channel();
 
         // launch libp2p service
         let (globals, keypair, libp2p) =

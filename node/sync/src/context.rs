@@ -1,12 +1,11 @@
-use network::{NetworkMessage, PeerAction, PeerId, PubsubMessage, ReportSource};
-use tokio::sync::mpsc;
+use network::{NetworkMessage, NetworkSender, PeerAction, PeerId, PubsubMessage, ReportSource};
 
 pub struct SyncNetworkContext {
-    network_send: mpsc::UnboundedSender<NetworkMessage>,
+    network_send: NetworkSender,
 }
 
 impl SyncNetworkContext {
-    pub fn new(network_send: mpsc::UnboundedSender<NetworkMessage>) -> Self {
+    pub fn new(network_send: NetworkSender) -> Self {
         Self { network_send }
     }
 

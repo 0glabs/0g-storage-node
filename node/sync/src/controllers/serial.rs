@@ -750,13 +750,13 @@ mod tests {
     use crate::test_util::create_2_store;
     use crate::test_util::tests::create_file_location_cache;
     use libp2p::identity;
+    use network::{new_network_channel, NetworkReceiver};
     use network::{ReportSource, Request};
     use storage::log_store::log_manager::LogConfig;
     use storage::log_store::log_manager::LogManager;
     use storage::log_store::LogStoreRead;
     use storage::H256;
     use task_executor::{test_utils::TestRuntime, TaskExecutor};
-    use tokio::sync::mpsc::{self, UnboundedReceiver};
 
     #[test]
     fn test_status() {
@@ -1649,7 +1649,7 @@ mod tests {
     fn create_default_controller(
         task_executor: TaskExecutor,
         peer_id: Option<PeerId>,
-    ) -> (SerialSyncController, UnboundedReceiver<NetworkMessage>) {
+    ) -> (SerialSyncController, NetworkReceiver) {
         let tx_id = TxID {
             seq: 0,
             hash: H256::random(),
@@ -1668,8 +1668,8 @@ mod tests {
         store: Arc<LogManager>,
         tx_id: TxID,
         num_chunks: usize,
-    ) -> (SerialSyncController, UnboundedReceiver<NetworkMessage>) {
-        let (network_send, network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
+    ) -> (SerialSyncController, NetworkReceiver) {
+        let (network_send, network_recv) = new_network_channel();
         let ctx = Arc::new(SyncNetworkContext::new(network_send));
 
         let peer_id = match peer_id {

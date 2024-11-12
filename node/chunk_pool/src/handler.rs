@@ -2,11 +2,11 @@ use super::mem_pool::MemoryChunkPool;
 use crate::mem_pool::FileID;
 use anyhow::Result;
 use metrics::{Histogram, Sample};
-use network::NetworkMessage;
+use network::{NetworkMessage, NetworkSender};
 use shared_types::{ChunkArray, FileProof};
 use std::{sync::Arc, time::Instant};
 use storage_async::{ShardConfig, Store};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 lazy_static::lazy_static! {
     pub static ref FINALIZE_FILE_LATENCY: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register("chunk_pool_finalize_file_latency", 1024);
@@ -18,7 +18,7 @@ pub struct ChunkPoolHandler {
     receiver: UnboundedReceiver<ChunkPoolMessage>,
     mem_pool: Arc<MemoryChunkPool>,
     log_store: Arc<Store>,
-    sender: UnboundedSender<NetworkMessage>,
+    sender: NetworkSender,
 }
 
 impl ChunkPoolHandler {
@@ -26,7 +26,7 @@ impl ChunkPoolHandler {
         receiver: UnboundedReceiver<ChunkPoolMessage>,
         mem_pool: Arc<MemoryChunkPool>,
         log_store: Arc<Store>,
-        sender: UnboundedSender<NetworkMessage>,
+        sender: NetworkSender,
     ) -> Self {
         ChunkPoolHandler {
             receiver,

@@ -3,10 +3,9 @@
 //! Currently supported strategies:
 //! - UPnP
 
-use crate::{NetworkConfig, NetworkMessage};
+use crate::{NetworkConfig, NetworkMessage, NetworkSender};
 use if_addrs::get_if_addrs;
 use std::net::{IpAddr, SocketAddr, SocketAddrV4};
-use tokio::sync::mpsc;
 
 /// Configuration required to construct the UPnP port mappings.
 pub struct UPnPConfig {
@@ -36,10 +35,7 @@ impl UPnPConfig {
 }
 
 /// Attempts to construct external port mappings with UPnP.
-pub fn construct_upnp_mappings(
-    config: UPnPConfig,
-    network_send: mpsc::UnboundedSender<NetworkMessage>,
-) {
+pub fn construct_upnp_mappings(config: UPnPConfig, network_send: NetworkSender) {
     info!("UPnP Attempting to initialise routes");
     match igd::search_gateway(Default::default()) {
         Err(e) => info!(error = %e, "UPnP not available"),

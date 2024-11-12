@@ -16,7 +16,7 @@ use network::{
     Keypair, MessageAcceptance, MessageId, NetworkGlobals, NetworkMessage, PeerId, PeerRequestId,
     PublicKey, PubsubMessage, Request, RequestId, Response,
 };
-use network::{Multiaddr, PeerAction, ReportSource};
+use network::{Multiaddr, NetworkSender, PeerAction, ReportSource};
 use shared_types::{bytes_to_chunks, timestamp_now, NetworkIdentity, TxID};
 use storage::config::ShardConfig;
 use storage_async::Store;
@@ -88,7 +88,7 @@ pub struct Libp2pEventHandler {
     /// A collection of global variables, accessible outside of the network service.
     network_globals: Arc<NetworkGlobals>,
     /// A channel to the router service.
-    network_send: mpsc::UnboundedSender<NetworkMessage>,
+    network_send: NetworkSender,
     /// A channel to the syncing service.
     sync_send: SyncSender,
     /// A channel to the RPC chunk pool service.
@@ -112,7 +112,7 @@ impl Libp2pEventHandler {
     pub fn new(
         config: Config,
         network_globals: Arc<NetworkGlobals>,
-        network_send: mpsc::UnboundedSender<NetworkMessage>,
+        network_send: NetworkSender,
         sync_send: SyncSender,
         chunk_pool_send: UnboundedSender<ChunkPoolMessage>,
         local_keypair: Keypair,
@@ -1010,10 +1010,12 @@ mod tests {
     use network::{
         discovery::{CombinedKey, ConnectionId},
         discv5::enr::EnrBuilder,
+        new_network_channel,
         rpc::{GetChunksRequest, StatusMessage, SubstreamId},
         types::FindFile,
         CombinedKeyExt, Keypair, MessageAcceptance, MessageId, Multiaddr, NetworkGlobals,
-        NetworkMessage, PeerId, PubsubMessage, Request, RequestId, Response, SyncId,
+        NetworkMessage, NetworkReceiver, PeerId, PubsubMessage, Request, RequestId, Response,
+        SyncId,
     };
     use shared_types::{timestamp_now, ChunkArray, ChunkArrayWithProof, FlowRangeProof, TxID};
     use storage::{
@@ -1035,8 +1037,8 @@ mod tests {
         runtime: TestRuntime,
         network_globals: Arc<NetworkGlobals>,
         keypair: Keypair,
-        network_send: mpsc::UnboundedSender<NetworkMessage>,
-        network_recv: mpsc::UnboundedReceiver<NetworkMessage>,
+        network_send: NetworkSender,
+        network_recv: NetworkReceiver,
         sync_send: SyncSender,
         sync_recv: SyncReceiver,
         chunk_pool_send: mpsc::UnboundedSender<ChunkPoolMessage>,
@@ -1050,7 +1052,7 @@ mod tests {
         fn default() -> Self {
             let runtime = TestRuntime::default();
             let (network_globals, keypair) = Context::new_network_globals();
-            let (network_send, network_recv) = mpsc::unbounded_channel();
+            let (network_send, network_recv) = new_network_channel();
             let (sync_send, sync_recv) = channel::Channel::unbounded("test");
             let (chunk_pool_send, _chunk_pool_recv) = mpsc::unbounded_channel();
 

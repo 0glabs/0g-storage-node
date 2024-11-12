@@ -159,3 +159,10 @@ pub enum NetworkMessage {
         udp_socket: Option<SocketAddr>,
     },
 }
+
+pub type NetworkSender = channel::metrics::Sender<NetworkMessage>;
+pub type NetworkReceiver = channel::metrics::Receiver<NetworkMessage>;
+
+pub fn new_network_channel() -> (NetworkSender, NetworkReceiver) {
+    channel::metrics::unbounded_channel("network")
+}

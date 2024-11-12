@@ -4,7 +4,7 @@ use crate::discovery::enr;
 use crate::multiaddr::Protocol;
 use crate::rpc::{GoodbyeReason, RPCResponseErrorCode, ReqId};
 use crate::types::{error, GossipKind};
-use crate::{EnrExt, NetworkMessage};
+use crate::{EnrExt, NetworkSender};
 use crate::{NetworkConfig, NetworkGlobals, PeerAction, ReportSource};
 use futures::prelude::*;
 use libp2p::core::{
@@ -21,7 +21,6 @@ use std::io::prelude::*;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::UnboundedSender;
 
 use crate::peer_manager::{MIN_OUTBOUND_ONLY_FACTOR, PEER_EXCESS_FACTOR, PRIORITY_PEER_EXCESS};
 
@@ -60,7 +59,7 @@ pub struct Context<'a> {
 impl<AppReqId: ReqId> Service<AppReqId> {
     pub async fn new(
         executor: task_executor::TaskExecutor,
-        network_sender: UnboundedSender<NetworkMessage>,
+        network_sender: NetworkSender,
         ctx: Context<'_>,
     ) -> error::Result<(Arc<NetworkGlobals>, Keypair, Self)> {
         trace!("Libp2p Service starting");
