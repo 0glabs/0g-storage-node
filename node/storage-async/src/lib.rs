@@ -140,6 +140,9 @@ impl Store {
     {
         let store = self.store.clone();
         let (tx, rx) = oneshot::channel();
+        let mut backtrace = Backtrace::new();
+        let frames = backtrace.frames().to_vec();
+        backtrace = frames.into();
 
         self.executor.spawn_blocking(
             move || {
@@ -147,22 +150,15 @@ impl Store {
                 let res = f(&*store);
 
                 if tx.send(res).is_err() {
+                    warn!("Backtrace: {:?}", backtrace);
                     error!("Unable to complete async storage operation: the receiver dropped");
                 }
             },
             WORKER_TASK_NAME,
         );
 
-        rx.await.unwrap_or_else(|_| {
-            let mut backtrace = Backtrace::new();
-            let mut frames = backtrace.frames().to_vec();
-            if frames.len() > 3 {
-                frames.drain(0..); //Remove the first 3 unnecessary frames to simplify// backtrace
-                backtrace = frames.into();
-                Some(format!("{:?}", backtrace));
-            }
-            bail!(error::Error::Custom("Receiver error".to_string()))
-        })
+        rx.await
+            .unwrap_or_else(|_| bail!(error::Error::Custom("Receiver error".to_string())))
     }
 
     // FIXME(zz): Refactor the lock and async call here.
