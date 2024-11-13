@@ -26,9 +26,9 @@ pub enum TxStatus {
     Pruned,
 }
 
-impl Into<u8> for TxStatus {
-    fn into(self) -> u8 {
-        match self {
+impl From<TxStatus> for u8 {
+    fn from(value: TxStatus) -> Self {
+        match value {
             TxStatus::Finalized => 0,
             TxStatus::Pruned => 1,
         }
@@ -201,7 +201,7 @@ impl TransactionStore {
 
     pub fn get_tx_status(&self, tx_seq: u64) -> Result<Option<TxStatus>> {
         let value = try_option!(self.kvdb.get(COL_TX_COMPLETED, &tx_seq.to_be_bytes())?);
-        match value.get(0) {
+        match value.first() {
             Some(v) => Ok(Some(TxStatus::try_from(*v)?)),
             None => Ok(None),
         }
