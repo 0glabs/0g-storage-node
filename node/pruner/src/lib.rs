@@ -11,7 +11,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use storage::config::{ShardConfig, SHARD_CONFIG_KEY};
-use storage::log_store::log_manager::{DATA_DB_KEY, FLOW_DB_KEY, PORA_CHUNK_SIZE};
+use storage::log_store::log_manager::{DATA_DB_KEY, PORA_CHUNK_SIZE};
 use storage_async::Store;
 use task_executor::TaskExecutor;
 use tokio::sync::{broadcast, mpsc};
@@ -270,7 +270,7 @@ impl Pruner {
             .set_config_encoded(
                 &FIRST_REWARDABLE_CHUNK_KEY,
                 &(new_first_rewardable_chunk, new_first_tx_seq),
-                FLOW_DB_KEY,
+                DATA_DB_KEY,
             )
             .await
     }
@@ -284,7 +284,7 @@ async fn get_shard_config(store: &Store) -> Result<Option<ShardConfig>> {
 
 async fn get_first_rewardable_chunk(store: &Store) -> Result<Option<(u64, u64)>> {
     store
-        .get_config_decoded(&FIRST_REWARDABLE_CHUNK_KEY, FLOW_DB_KEY)
+        .get_config_decoded(&FIRST_REWARDABLE_CHUNK_KEY, DATA_DB_KEY)
         .await
 }
 
