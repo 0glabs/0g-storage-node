@@ -21,8 +21,31 @@ const LOG_SYNC_PROGRESS_KEY: &str = "log_sync_progress";
 const NEXT_TX_KEY: &str = "next_tx_seq";
 const LOG_LATEST_BLOCK_NUMBER_KEY: &str = "log_latest_block_number_key";
 
-const TX_STATUS_FINALIZED: u8 = 0;
-const TX_STATUS_PRUNED: u8 = 1;
+pub enum TxStatus {
+    Finalized,
+    Pruned,
+}
+
+impl From<TxStatus> for u8 {
+    fn from(value: TxStatus) -> Self {
+        match value {
+            TxStatus::Finalized => 0,
+            TxStatus::Pruned => 1,
+        }
+    }
+}
+
+impl TryFrom<u8> for TxStatus {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
+        match value {
+            0 => Ok(TxStatus::Finalized),
+            1 => Ok(TxStatus::Pruned),
+            _ => Err(anyhow!("invalid value for tx status {}", value)),
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct BlockHashAndSubmissionIndex {
@@ -163,24 +186,35 @@ impl TransactionStore {
         Ok(self.kvdb.put(
             COL_TX_COMPLETED,
             &tx_seq.to_be_bytes(),
-            &[TX_STATUS_FINALIZED],
+            &[TxStatus::Finalized.into()],
         )?)
     }
 
     #[instrument(skip(self))]
     pub fn prune_tx(&self, tx_seq: u64) -> Result<()> {
-        Ok(self
-            .kvdb
-            .put(COL_TX_COMPLETED, &tx_seq.to_be_bytes(), &[TX_STATUS_PRUNED])?)
+        Ok(self.kvdb.put(
+            COL_TX_COMPLETED,
+            &tx_seq.to_be_bytes(),
+            &[TxStatus::Pruned.into()],
+        )?)
+    }
+
+    pub fn get_tx_status(&self, tx_seq: u64) -> Result<Option<TxStatus>> {
+        let value = try_option!(self.kvdb.get(COL_TX_COMPLETED, &tx_seq.to_be_bytes())?);
+        match value.first() {
+            Some(v) => Ok(Some(TxStatus::try_from(*v)?)),
+            None => Ok(None),
+        }
     }
 
     pub fn check_tx_completed(&self, tx_seq: u64) -> Result<bool> {
-        Ok(self.kvdb.get(COL_TX_COMPLETED, &tx_seq.to_be_bytes())?
-            == Some(vec![TX_STATUS_FINALIZED]))
+        let status = self.get_tx_status(tx_seq)?;
+        Ok(matches!(status, Some(TxStatus::Finalized)))
     }
 
     pub fn check_tx_pruned(&self, tx_seq: u64) -> Result<bool> {
-        Ok(self.kvdb.get(COL_TX_COMPLETED, &tx_seq.to_be_bytes())? == Some(vec![TX_STATUS_PRUNED]))
+        let status = self.get_tx_status(tx_seq)?;
+        Ok(matches!(status, Some(TxStatus::Pruned)))
     }
 
     pub fn next_tx_seq(&self) -> u64 {
