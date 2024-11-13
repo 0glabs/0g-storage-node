@@ -27,8 +27,11 @@ use std::cmp::Ordering;
 
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
 use tracing::{debug, error, info, instrument, trace, warn};
+
+use crate::log_store::metrics;
 
 /// 256 Bytes
 pub const ENTRY_SIZE: usize = 256;
@@ -194,6 +197,7 @@ impl LogStoreChunkWrite for LogManager {
         chunks: ChunkArray,
         maybe_file_proof: Option<FlowProof>,
     ) -> Result<bool> {
+        let start_time = Instant::now();
         let mut merkle = self.merkle.write();
         let tx = self
             .tx_store
@@ -225,6 +229,7 @@ impl LogStoreChunkWrite for LogManager {
                 tx.start_entry_index,
             )?;
         }
+        metrics::PUT_CHUNKS.update_since(start_time);
         Ok(true)
     }
 
@@ -255,6 +260,7 @@ impl LogStoreWrite for LogManager {
     /// `put_tx` for the last tx when we restart the node to ensure that it succeeds.
     ///
     fn put_tx(&self, tx: Transaction) -> Result<()> {
+        let start_time = Instant::now();
         let mut merkle = self.merkle.write();
         debug!("put_tx: tx={:?}", tx);
         let expected_seq = self.tx_store.next_tx_seq();
@@ -289,6 +295,7 @@ impl LogStoreWrite for LogManager {
                 self.copy_tx_and_finalize(old_tx_seq, vec![tx.seq])?;
             }
         }
+        metrics::PUT_TX.update_since(start_time);
         Ok(())
     }
 
@@ -319,6 +326,7 @@ impl LogStoreWrite for LogManager {
     }
 
     fn finalize_tx_with_hash(&self, tx_seq: u64, tx_hash: H256) -> crate::error::Result<bool> {
+        let start_time = Instant::now();
         trace!(
             "finalize_tx_with_hash: tx_seq={} tx_hash={:?}",
             tx_seq,
@@ -347,6 +355,7 @@ impl LogStoreWrite for LogManager {
             if same_root_seq_list.first() == Some(&tx_seq) {
                 self.copy_tx_and_finalize(tx_seq, same_root_seq_list[1..].to_vec())?;
             }
+            metrics::FINALIZE_TX_WITH_HASH.update_since(start_time);
             Ok(true)
         } else {
             bail!("finalize tx hash with data missing: tx_seq={}", tx_seq)
@@ -884,6 +893,7 @@ impl LogManager {
         if merkle_list.is_empty() {
             return Ok(());
         }
+        let start_time = Instant::now();
 
         self.pad_tx(tx_seq, tx_start_index, &mut *merkle)?;
 
@@ -919,12 +929,15 @@ impl LogManager {
                     .append_subtree(subtree_depth - log2_pow2(PORA_CHUNK_SIZE), subtree_root)?;
             }
         }
+
+        metrics::APPEND_SUBTREE_LIST.update_since(start_time);
         Ok(())
     }
 
     #[instrument(skip(self, merkle))]
     fn pad_tx(&self, tx_seq: u64, tx_start_index: u64, merkle: &mut MerkleManager) -> Result<()> {
         // Check if we need to pad the flow.
+        let start_time = Instant::now();
         let mut tx_start_flow_index =
             merkle.last_chunk_start_index() + merkle.last_chunk_merkle.leaves() as u64;
         let pad_size = tx_start_index - tx_start_flow_index;
@@ -1005,6 +1018,8 @@ impl LogManager {
         );
 
         self.flow_store.put_pad_data(&pad_list, tx_seq)?;
+
+        metrics::PAD_TX.update_since(start_time);
         Ok(())
     }
 
@@ -1133,6 +1148,8 @@ impl LogManager {
     }
 
     fn copy_tx_and_finalize(&self, from_tx_seq: u64, to_tx_seq_list: Vec<u64>) -> Result<()> {
+        let start_time = Instant::now();
+
         let mut merkle = self.merkle.write();
         let shard_config = self.flow_store.get_shard_config();
         // We have all the data need for this tx, so just copy them.
@@ -1181,6 +1198,8 @@ impl LogManager {
         for (seq, _) in to_tx_offset_list {
             self.tx_store.finalize_tx(seq)?;
         }
+
+        metrics::COPY_TX_AND_FINALIZE.update_since(start_time);
         Ok(())
     }
 
@@ -1253,6 +1272,7 @@ pub fn sub_merkle_tree(leaf_data: &[u8]) -> Result<FileMerkleTree> {
 }
 
 pub fn data_to_merkle_leaves(leaf_data: &[u8]) -> Result<Vec<H256>> {
+    let start_time = Instant::now();
     if leaf_data.len() % ENTRY_SIZE != 0 {
         bail!("merkle_tree: mismatched data size");
     }
@@ -1268,6 +1288,9 @@ pub fn data_to_merkle_leaves(leaf_data: &[u8]) -> Result<Vec<H256>> {
             .map(Sha3Algorithm::leaf)
             .collect()
     };
+
+    metrics::DATA_TO_MERKLE_LEAVES_SIZE.update(leaf_data.len());
+    metrics::DATA_TO_MERKLE_LEAVES.update_since(start_time);
     Ok(r)
 }
 

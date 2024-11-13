@@ -1,13 +1,14 @@
-use super::load_chunk::EntryBatch;
-use super::log_manager::{COL_PAD_DATA_LIST, COL_PAD_DATA_SYNC_HEIGH};
-use super::seal_task_manager::SealTaskManager;
-use super::{MineLoadChunk, SealAnswer, SealTask};
 use crate::config::ShardConfig;
 use crate::error::Error;
+use crate::log_store::load_chunk::EntryBatch;
 use crate::log_store::log_manager::{
-    bytes_to_entries, COL_ENTRY_BATCH, COL_FLOW_MPT_NODES, PORA_CHUNK_SIZE,
+    bytes_to_entries, COL_ENTRY_BATCH, COL_FLOW_MPT_NODES, COL_PAD_DATA_LIST,
+    COL_PAD_DATA_SYNC_HEIGH, PORA_CHUNK_SIZE,
 };
-use crate::log_store::{FlowRead, FlowSeal, FlowWrite};
+use crate::log_store::seal_task_manager::SealTaskManager;
+use crate::log_store::{
+    metrics, FlowRead, FlowSeal, FlowWrite, MineLoadChunk, SealAnswer, SealTask,
+};
 use crate::{try_option, ZgsKeyValueDB};
 use any::Any;
 use anyhow::{anyhow, bail, Result};
@@ -21,6 +22,7 @@ use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Instant;
 use std::{any, cmp};
 use tracing::{debug, error, trace};
 use zgs_spec::{BYTES_PER_SECTOR, SEALS_PER_LOAD, SECTORS_PER_LOAD, SECTORS_PER_SEAL};
@@ -47,6 +49,7 @@ impl FlowStore {
         batch_index: usize,
         subtree_list: Vec<(usize, usize, DataRoot)>,
     ) -> Result<()> {
+        let start_time = Instant::now();
         let mut batch = self
             .data_db
             .get_entry_batch(batch_index as u64)?
@@ -54,7 +57,7 @@ impl FlowStore {
         batch.set_subtree_list(subtree_list);
         self.data_db
             .put_entry_raw(vec![(batch_index as u64, batch)])?;
-
+        metrics::INSERT_SUBTREE_LIST.update_since(start_time);
         Ok(())
     }
 
@@ -216,6 +219,7 @@ impl FlowWrite for FlowStore {
     /// Return the roots of completed chunks. The order is guaranteed to be increasing
     /// by chunk index.
     fn append_entries(&self, data: ChunkArray) -> Result<Vec<(u64, DataRoot)>> {
+        let start_time = Instant::now();
         let mut to_seal_set = self.seal_manager.to_seal_set.write();
         trace!("append_entries: {} {}", data.start_index, data.data.len());
         if data.data.len() % BYTES_PER_SECTOR != 0 {
@@ -258,6 +262,8 @@ impl FlowWrite for FlowStore {
 
             batch_list.push((chunk_index, batch));
         }
+
+        metrics::APPEND_ENTRIES.update_since(start_time);
         self.data_db.put_entry_batch_list(batch_list)
     }
 
@@ -381,6 +387,7 @@ impl FlowDBStore {
         &self,
         batch_list: Vec<(u64, EntryBatch)>,
     ) -> Result<Vec<(u64, DataRoot)>> {
+        let start_time = Instant::now();
         let mut completed_batches = Vec::new();
         let mut tx = self.kvdb.transaction();
         for (batch_index, batch) in batch_list {
@@ -395,6 +402,7 @@ impl FlowDBStore {
             }
         }
         self.kvdb.write(tx)?;
+        metrics::PUT_ENTRY_BATCH_LIST.update_since(start_time);
         Ok(completed_batches)
     }
 

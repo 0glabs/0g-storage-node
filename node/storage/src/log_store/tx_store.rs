@@ -3,6 +3,7 @@ use crate::log_store::log_manager::{
     data_to_merkle_leaves, sub_merkle_tree, COL_BLOCK_PROGRESS, COL_MISC, COL_TX, COL_TX_COMPLETED,
     COL_TX_DATA_ROOT_INDEX, ENTRY_SIZE, PORA_CHUNK_SIZE,
 };
+use crate::log_store::metrics;
 use crate::{try_option, LogManager, ZgsKeyValueDB};
 use anyhow::{anyhow, Result};
 use append_merkle::{AppendMerkleTree, MerkleTreeRead, Sha3Algorithm};
@@ -15,6 +16,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use tracing::{error, instrument};
 
 const LOG_SYNC_PROGRESS_KEY: &str = "log_sync_progress";
@@ -74,6 +76,8 @@ impl TransactionStore {
     #[instrument(skip(self))]
     /// Return `Ok(Some(tx_seq))` if a previous transaction has the same tx root.
     pub fn put_tx(&self, mut tx: Transaction) -> Result<Vec<u64>> {
+        let start_time = Instant::now();
+
         let old_tx_seq_list = self.get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
         if old_tx_seq_list.last().is_some_and(|seq| *seq == tx.seq) {
             // The last tx is inserted again, so no need to process it.
@@ -109,6 +113,7 @@ impl TransactionStore {
         );
         self.next_tx_seq.store(tx.seq + 1, Ordering::SeqCst);
         self.kvdb.write(db_tx)?;
+        metrics::TX_STORE_PUT.update_since(start_time);
         Ok(old_tx_seq_list)
     }
 
@@ -208,7 +213,10 @@ impl TransactionStore {
     }
 
     pub fn check_tx_completed(&self, tx_seq: u64) -> Result<bool> {
+        let start_time = Instant::now();
         let status = self.get_tx_status(tx_seq)?;
+
+        metrics::CHECK_TX_COMPLETED.update_since(start_time);
         Ok(matches!(status, Some(TxStatus::Finalized)))
     }
 
