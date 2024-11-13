@@ -4,13 +4,13 @@ use ethereum_types::H256;
 use flow_store::PadPair;
 use shared_types::{
     Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, FlowProof, FlowRangeProof,
-    Transaction,
+    Transaction, TxSeqOrRoot,
 };
 use zgs_spec::{BYTES_PER_SEAL, SEALS_PER_LOAD};
 
 use crate::error::Result;
 
-use self::tx_store::BlockHashAndSubmissionIndex;
+use self::tx_store::{BlockHashAndSubmissionIndex, TxStatus};
 
 pub mod config;
 mod flow_store;
@@ -56,6 +56,8 @@ pub trait LogStoreRead: LogStoreChunkRead {
     fn check_tx_completed(&self, tx_seq: u64) -> Result<bool>;
 
     fn check_tx_pruned(&self, tx_seq: u64) -> Result<bool>;
+
+    fn get_tx_status(&self, tx_seq_or_data_root: TxSeqOrRoot) -> Result<Option<TxStatus>>;
 
     fn next_tx_seq(&self) -> u64;
 

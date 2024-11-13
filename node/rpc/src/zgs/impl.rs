@@ -8,6 +8,7 @@ use jsonrpsee::core::RpcResult;
 use shared_types::{DataRoot, FlowProof, Transaction, TxSeqOrRoot, CHUNK_SIZE};
 use std::fmt::{Debug, Formatter, Result};
 use storage::config::ShardConfig;
+use storage::log_store::tx_store::TxStatus;
 use storage::{try_option, H256};
 
 pub struct RpcServerImpl {
@@ -245,8 +246,17 @@ impl RpcServerImpl {
     }
 
     async fn get_file_info_by_tx(&self, tx: Transaction) -> RpcResult<FileInfo> {
-        let finalized = self.ctx.log_store.check_tx_completed(tx.seq).await?;
-        let pruned = self.ctx.log_store.check_tx_pruned(tx.seq).await?;
+        let (finalized, pruned) = match self
+            .ctx
+            .log_store
+            .get_store()
+            .get_tx_status(TxSeqOrRoot::TxSeq(tx.seq))?
+        {
+            Some(TxStatus::Finalized) => (true, false),
+            Some(TxStatus::Pruned) => (false, true),
+            None => (false, false),
+        };
+
         let (uploaded_seg_num, is_cached) = match self
             .ctx
             .chunk_pool
