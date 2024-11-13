@@ -53,6 +53,7 @@ pub struct FileInfo {
     pub finalized: bool,
     pub is_cached: bool,
     pub uploaded_seg_num: usize,
+    pub pruned: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
