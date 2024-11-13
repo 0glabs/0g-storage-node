@@ -223,21 +223,26 @@ impl Pruner {
     }
 
     async fn prune_tx(&mut self, start_sector: u64, end_sector: u64) -> Result<()> {
-        while let Some(tx) = self.store.get_tx_by_seq_number(self.first_tx_seq).await? {
-            // If a part of the tx data is pruned, we mark the tx as pruned.
-            if tx.start_entry_index() >= start_sector && tx.start_entry_index() < end_sector {
-                self.store.prune_tx(tx.seq).await?;
-            } else if tx.start_entry_index() >= end_sector {
-                break;
+        loop {
+            if let Some(tx) = self.store.get_tx_by_seq_number(self.first_tx_seq).await? {
+                // If a part of the tx data is pruned, we mark the tx as pruned.
+                if tx.start_entry_index() >= start_sector && tx.start_entry_index() < end_sector {
+                    self.store.prune_tx(tx.seq).await?;
+                } else if tx.start_entry_index() >= end_sector {
+                    break;
+                } else {
+                    bail!(
+                        "prune tx out of range: tx={:?}, start={} end={}",
+                        tx,
+                        start_sector,
+                        end_sector
+                    );
+                }
+                self.first_tx_seq += 1;
             } else {
-                bail!(
-                    "prune tx out of range: tx={:?}, start={} end={}",
-                    tx,
-                    start_sector,
-                    end_sector
-                );
+                // Wait for `first_tx_seq` to be processed.
+                tokio::time::sleep(Duration::from_secs(60)).await;
             }
-            self.first_tx_seq += 1;
         }
         Ok(())
     }
