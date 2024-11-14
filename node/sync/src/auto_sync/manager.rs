@@ -77,7 +77,13 @@ impl AutoSyncManager {
         };
 
         // sync randomly
-        let random = RandomBatcher::new("random".into(), config, store.clone(), sync_send.clone(), sync_store);
+        let random = RandomBatcher::new(
+            "random".into(),
+            config,
+            store.clone(),
+            sync_send.clone(),
+            sync_store,
+        );
         executor.spawn(random.clone().start(catched_up.clone()), "auto_sync_random");
 
         // handle on catched up notification
@@ -99,8 +105,13 @@ impl AutoSyncManager {
                     .await?;
             executor.spawn(writer.start(), "auto_sync_historical_writer");
 
-            let random_historical =
-                RandomBatcher::new("random_historical".into(), config, store, sync_send, historical_sync_store);
+            let random_historical = RandomBatcher::new(
+                "random_historical".into(),
+                config,
+                store,
+                sync_send,
+                historical_sync_store,
+            );
             executor.spawn(
                 random_historical.start(catched_up.clone()),
                 "auto_sync_random_historical",

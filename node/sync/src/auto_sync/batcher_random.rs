@@ -71,11 +71,11 @@ impl RandomBatcher {
         }
 
         loop {
-            if let Ok(state) = self.get_state().await {
-                metrics::RANDOM_STATE_TXS_SYNCING.update(state.tasks.len() as u64);
-                metrics::RANDOM_STATE_TXS_READY.update(state.ready_txs as u64);
-                metrics::RANDOM_STATE_TXS_PENDING.update(state.pending_txs as u64);
-            }
+            // if let Ok(state) = self.get_state().await {
+            //     metrics::RANDOM_STATE_TXS_SYNCING.update(state.tasks.len() as u64);
+            //     metrics::RANDOM_STATE_TXS_READY.update(state.ready_txs as u64);
+            //     metrics::RANDOM_STATE_TXS_PENDING.update(state.pending_txs as u64);
+            // }
 
             match self.sync_once().await {
                 Ok(true) => {}
