@@ -128,6 +128,12 @@ impl DataRange for Subtree {
     }
 }
 
+impl Default for EntryBatchData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EntryBatchData {
     pub fn new() -> Self {
         EntryBatchData::Incomplete(IncompleteData {
