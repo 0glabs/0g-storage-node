@@ -15,6 +15,7 @@ use tokio::time::sleep;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RandomBatcherState {
+    pub name: String,
     pub tasks: Vec<u64>,
     pub pending_txs: usize,
     pub ready_txs: usize,
@@ -22,6 +23,7 @@ pub struct RandomBatcherState {
 
 #[derive(Clone)]
 pub struct RandomBatcher {
+    name: String,
     config: Config,
     batcher: Batcher,
     sync_store: Arc<SyncStore>,
@@ -29,12 +31,14 @@ pub struct RandomBatcher {
 
 impl RandomBatcher {
     pub fn new(
+        name: String,
         config: Config,
         store: Store,
         sync_send: SyncSender,
         sync_store: Arc<SyncStore>,
     ) -> Self {
         Self {
+            name,
             config,
             batcher: Batcher::new(
                 config.max_random_workers,
@@ -50,6 +54,7 @@ impl RandomBatcher {
         let (pending_txs, ready_txs) = self.sync_store.stat().await?;
 
         Ok(RandomBatcherState {
+            name: self.name.clone(),
             tasks: self.batcher.tasks().await,
             pending_txs,
             ready_txs,
@@ -57,7 +62,7 @@ impl RandomBatcher {
     }
 
     pub async fn start(mut self, catched_up: Arc<AtomicBool>) {
-        info!("Start to sync files");
+        info!("Start to sync files, state = {:?}", self.get_state().await);
 
         // wait for log entry sync catched up
         while !catched_up.load(Ordering::Relaxed) {
