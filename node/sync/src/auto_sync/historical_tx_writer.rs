@@ -79,16 +79,22 @@ impl HistoricalTxWriter {
     }
 
     async fn write_once(&mut self) -> Result<bool> {
-        let max_tx_seq = self.store.get_store().next_tx_seq();
         let mut next_tx_seq = self.next_tx_seq.load(Ordering::Relaxed);
 
         // no tx to write in sync store
-        if next_tx_seq >= max_tx_seq {
+        if next_tx_seq >= self.store.get_store().next_tx_seq() {
             return Ok(false);
         }
 
-        // write tx in sync store
-        self.sync_store.insert(next_tx_seq, Queue::Ready).await?;
+        // write tx in sync store if not finalized or pruned
+        if self
+            .store
+            .get_store()
+            .get_tx_status(shared_types::TxSeqOrRoot::TxSeq(next_tx_seq))?
+            .is_none()
+        {
+            self.sync_store.insert(next_tx_seq, Queue::Ready).await?;
+        }
 
         // move forward
         next_tx_seq += 1;
