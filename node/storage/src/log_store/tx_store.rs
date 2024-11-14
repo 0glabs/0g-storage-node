@@ -118,11 +118,13 @@ impl TransactionStore {
     }
 
     pub fn get_tx_by_seq_number(&self, seq: u64) -> Result<Option<Transaction>> {
+        let start_time = Instant::now();
         if seq >= self.next_tx_seq() {
             return Ok(None);
         }
         let value = try_option!(self.kvdb.get(COL_TX, &seq.to_be_bytes())?);
         let tx = Transaction::from_ssz_bytes(&value).map_err(Error::from)?;
+        metrics::TX_BY_SEQ_NUMBER.update_since(start_time);
         Ok(Some(tx))
     }
 
