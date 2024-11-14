@@ -38,4 +38,6 @@ lazy_static::lazy_static! {
     pub static ref FINALIZE_TX_WITH_HASH: Arc<dyn Timer> = register_timer("log_store_log_manager_finalize_tx_with_hash");
 
     pub static ref DATA_TO_MERKLE_LEAVES_SIZE: Arc<dyn Gauge<usize>> = GaugeUsize::register("log_store_data_to_merkle_leaves_size");
+
+    pub static ref TX_BY_SEQ_NUMBER: Arc<dyn Timer> = register_timer("log_store_tx_store_get_tx_by_seq_number");
 }
