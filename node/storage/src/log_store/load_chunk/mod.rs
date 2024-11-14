@@ -20,7 +20,7 @@ use zgs_spec::{
 };
 
 use super::SealAnswer;
-use chunk_data::EntryBatchData;
+pub use chunk_data::EntryBatchData;
 use seal::SealInfo;
 
 #[derive(Debug, Encode, Decode, Deserialize, Serialize)]
