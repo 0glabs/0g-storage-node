@@ -23,6 +23,7 @@ const LOG_SYNC_PROGRESS_KEY: &str = "log_sync_progress";
 const NEXT_TX_KEY: &str = "next_tx_seq";
 const LOG_LATEST_BLOCK_NUMBER_KEY: &str = "log_latest_block_number_key";
 
+#[derive(Debug)]
 pub enum TxStatus {
     Finalized,
     Pruned,

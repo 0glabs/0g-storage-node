@@ -1,6 +1,7 @@
 use crate::{controllers::SyncState, SyncRequest, SyncResponse, SyncSender};
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
+use shared_types::TxSeqOrRoot;
 use std::{collections::HashSet, fmt::Debug, sync::Arc, time::Duration};
 use storage_async::Store;
 use tokio::sync::RwLock;
@@ -84,14 +85,16 @@ impl Batcher {
     }
 
     async fn poll_tx(&self, tx_seq: u64) -> Result<Option<SyncResult>> {
-        // file already exists
-        if self.store.check_tx_completed(tx_seq).await?
-            || self.store.check_tx_pruned(tx_seq).await?
+        // file already finalized or even pruned
+        if let Some(tx_status) = self
+            .store
+            .get_store()
+            .get_tx_status(TxSeqOrRoot::TxSeq(tx_seq))?
         {
-            // File may be finalized during file sync, e.g. user uploaded file via RPC.
-            // In this case, just terminate the file sync.
-            let num_terminated = self.terminate_file_sync(tx_seq, false).await;
-            info!(%tx_seq, %num_terminated, "Terminate file sync due to file already finalized in db");
+            let num_terminated: usize = self.terminate_file_sync(tx_seq, false).await;
+            if num_terminated > 0 {
+                info!(%tx_seq, %num_terminated, ?tx_status, "Terminate file sync due to file already completed in db");
+            }
             return Ok(Some(SyncResult::Completed));
         }
 
