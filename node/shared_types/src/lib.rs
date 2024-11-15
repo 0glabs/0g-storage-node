@@ -9,13 +9,11 @@ use merkle_light::merkle::MerkleTree;
 use merkle_light::proof::Proof as RawFileProof;
 use merkle_light::{hash::Algorithm, merkle::next_pow2};
 use merkle_tree::RawLeafSha3Algorithm;
-use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
 use ssz::Encode;
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 use std::fmt;
 use std::hash::Hasher;
-use std::str::FromStr;
 use tiny_keccak::{Hasher as KeccakHasher, Keccak};
 use tracing::debug;
 
@@ -398,82 +396,39 @@ pub struct ProtocolVersion {
     pub build: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum TxSeqOrRoot {
     TxSeq(u64),
     Root(DataRoot),
 }
 
-impl Serialize for TxSeqOrRoot {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            TxSeqOrRoot::TxSeq(seq) => seq.serialize(serializer),
-            TxSeqOrRoot::Root(root) => root.serialize(serializer),
-        }
-    }
-}
-
-impl<'a> Deserialize<'a> for TxSeqOrRoot {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'a>,
-    {
-        deserializer.deserialize_any(TxSeqOrRootVisitor)
-    }
-}
-
-struct TxSeqOrRootVisitor;
-
-impl<'a> Visitor<'a> for TxSeqOrRootVisitor {
-    type Value = TxSeqOrRoot;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(formatter, "an u64 integer or a hex64 value")
-    }
-
-    fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(TxSeqOrRoot::TxSeq(v))
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        let root: H256 = H256::from_str(v).map_err(E::custom)?;
-        Ok(TxSeqOrRoot::Root(root))
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
     fn test_tx_seq_or_root_serde() {
-        // serialize tx seq
+        // serialize tx seq as number
         let tx_seq = TxSeqOrRoot::TxSeq(666);
         assert_eq!(serde_json::to_string(&tx_seq).unwrap(), "666".to_string());
 
-        // serialize root
+        // serialize root as quoted string
         let hash_str = "0xa906f46f8b9f15908dbee7adc5492ff30779c3abe114ccdb7079ecdcb72eb855";
         let hash_quoted = format!("\"{}\"", hash_str);
         let hash = H256::from_str(hash_str).unwrap();
         let root = TxSeqOrRoot::Root(hash);
         assert_eq!(serde_json::to_string(&root).unwrap(), hash_quoted);
 
-        // deserialize tx seq
+        // deserialize tx seq from number
         assert!(matches!(
             serde_json::from_str::<TxSeqOrRoot>("777").unwrap(),
             TxSeqOrRoot::TxSeq(777)
         ));
 
-        // deserialize root
+        // deserialize root from quoted string
         assert!(matches!(
             serde_json::from_str::<TxSeqOrRoot>(hash_quoted.as_str()).unwrap(),
             TxSeqOrRoot::Root(v) if v == hash,
