@@ -14,7 +14,7 @@ use self::tx_store::{BlockHashAndSubmissionIndex, TxStatus};
 
 pub mod config;
 mod flow_store;
-mod load_chunk;
+pub mod load_chunk;
 pub mod log_manager;
 mod metrics;
 mod seal_task_manager;
