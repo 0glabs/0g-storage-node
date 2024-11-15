@@ -18,6 +18,7 @@ use crate::{Config, SyncSender};
 use super::{
     batcher_random::RandomBatcher,
     batcher_serial::SerialBatcher,
+    historical_tx_writer::HistoricalTxWriter,
     sync_store::{Queue, SyncStore},
 };
 
@@ -76,7 +77,13 @@ impl AutoSyncManager {
         };
 
         // sync randomly
-        let random = RandomBatcher::new(config, store, sync_send, sync_store);
+        let random = RandomBatcher::new(
+            "random".into(),
+            config,
+            store.clone(),
+            sync_send.clone(),
+            sync_store,
+        );
         executor.spawn(random.clone().start(catched_up.clone()), "auto_sync_random");
 
         // handle on catched up notification
@@ -84,6 +91,32 @@ impl AutoSyncManager {
             Self::listen_catch_up(catch_up_end_recv, catched_up.clone()),
             "auto_sync_wait_for_catchup",
         );
+
+        // sync randomly for files without NewFile announcement
+        if config.neighbors_only {
+            let historical_sync_store = Arc::new(SyncStore::new_with_name(
+                store.clone(),
+                "pendingv2_historical",
+                "readyv2_historical",
+            ));
+
+            let writer =
+                HistoricalTxWriter::new(config, store.clone(), historical_sync_store.clone())
+                    .await?;
+            executor.spawn(writer.start(), "auto_sync_historical_writer");
+
+            let random_historical = RandomBatcher::new(
+                "random_historical".into(),
+                config,
+                store,
+                sync_send,
+                historical_sync_store,
+            );
+            executor.spawn(
+                random_historical.start(catched_up.clone()),
+                "auto_sync_random_historical",
+            );
+        }
 
         Ok(Self {
             serial,
