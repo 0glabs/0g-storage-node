@@ -44,7 +44,7 @@ class TestFramework:
         self.num_blockchain_nodes = 1
         self.num_nodes = 1
         self.blockchain_nodes = []
-        self.nodes = []
+        self.nodes: list[ZgsNode] = []
         self.contract = None
         self.blockchain_node_configs = {}
         self.zgs_node_configs = {}
