@@ -21,7 +21,6 @@ use rayon::prelude::ParallelSlice;
 use shared_types::{
     bytes_to_chunks, compute_padded_chunk_size, compute_segment_size, Chunk, ChunkArray,
     ChunkArrayWithProof, ChunkWithProof, DataRoot, FlowProof, FlowRangeProof, Merkle, Transaction,
-    TxSeqOrRoot,
 };
 use std::cmp::Ordering;
 
@@ -582,14 +581,7 @@ impl LogStoreRead for LogManager {
         }))
     }
 
-    fn get_tx_status(&self, tx_seq_or_data_root: TxSeqOrRoot) -> Result<Option<TxStatus>> {
-        let tx_seq = match tx_seq_or_data_root {
-            TxSeqOrRoot::TxSeq(v) => v,
-            TxSeqOrRoot::Root(root) => {
-                try_option!(self.tx_store.get_first_tx_seq_by_data_root(&root)?)
-            }
-        };
-
+    fn get_tx_status(&self, tx_seq: u64) -> Result<Option<TxStatus>> {
         self.tx_store.get_tx_status(tx_seq)
     }
 
