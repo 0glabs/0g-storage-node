@@ -181,14 +181,6 @@ impl TransactionStore {
         Ok(Vec::<u64>::from_ssz_bytes(&value).map_err(Error::from)?)
     }
 
-    pub fn get_first_tx_seq_by_data_root(&self, data_root: &DataRoot) -> Result<Option<u64>> {
-        let value = try_option!(self
-            .kvdb
-            .get(COL_TX_DATA_ROOT_INDEX, data_root.as_bytes())?);
-        let seq_list = Vec::<u64>::from_ssz_bytes(&value).map_err(Error::from)?;
-        Ok(seq_list.first().cloned())
-    }
-
     #[instrument(skip(self))]
     pub fn finalize_tx(&self, tx_seq: u64) -> Result<()> {
         Ok(self.kvdb.put(
