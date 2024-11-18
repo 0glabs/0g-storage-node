@@ -14,6 +14,7 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
     let network_config = config.network_config().await?;
     let storage_config = config.storage_config()?;
     let log_sync_config = config.log_sync_config()?;
+    let chunk_pool_config = config.chunk_pool_config()?;
     let miner_config = config.mine_config()?;
     let router_config = config.router_config(&network_config)?;
     let pruner_config = config.pruner_config()?;
@@ -27,6 +28,8 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
         .with_file_location_cache(config.file_location_cache)
         .with_network(&network_config)
         .await?
+        .with_chunk_pool(chunk_pool_config)
+        .await?
         .with_sync(config.sync)
         .await?
         .with_miner(miner_config)
@@ -35,7 +38,7 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
         .await?
         .with_pruner(pruner_config)
         .await?
-        .with_rpc(config.rpc, config.chunk_pool_config()?)
+        .with_rpc(config.rpc)
         .await?
         .with_router(router_config)?
         .build()
