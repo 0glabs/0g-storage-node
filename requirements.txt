@@ -1,6 +1,6 @@
 jsonrpcclient==4.0.3
 pyyaml==6.0.1
-safe-pysha3=1.0.4
+safe-pysha3==1.0.4
 coincurve==20.0.0
 eth-utils==5.1.0
 py-ecc==7.0.0
