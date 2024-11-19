@@ -1,7 +1,6 @@
 use crate::{controllers::SyncState, SyncRequest, SyncResponse, SyncSender};
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
-use shared_types::TxSeqOrRoot;
 use std::{collections::HashSet, fmt::Debug, sync::Arc, time::Duration};
 use storage_async::Store;
 use tokio::sync::RwLock;
@@ -86,11 +85,7 @@ impl Batcher {
 
     async fn poll_tx(&self, tx_seq: u64) -> Result<Option<SyncResult>> {
         // file already finalized or even pruned
-        if let Some(tx_status) = self
-            .store
-            .get_store()
-            .get_tx_status(TxSeqOrRoot::TxSeq(tx_seq))?
-        {
+        if let Some(tx_status) = self.store.get_store().get_tx_status(tx_seq)? {
             let num_terminated: usize = self.terminate_file_sync(tx_seq, false).await;
             if num_terminated > 0 {
                 info!(%tx_seq, %num_terminated, ?tx_status, "Terminate file sync due to file already completed in db");

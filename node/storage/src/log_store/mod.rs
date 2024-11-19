@@ -4,7 +4,7 @@ use ethereum_types::H256;
 use flow_store::PadPair;
 use shared_types::{
     Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, FlowProof, FlowRangeProof,
-    Transaction, TxSeqOrRoot,
+    Transaction,
 };
 use zgs_spec::{BYTES_PER_SEAL, SEALS_PER_LOAD};
 
@@ -31,8 +31,12 @@ pub trait LogStoreRead: LogStoreChunkRead {
     fn get_tx_by_seq_number(&self, seq: u64) -> Result<Option<Transaction>>;
 
     /// Get a transaction by the data root of its data.
+    /// If all txs are not finalized, return the first one.
+    /// Otherwise, return the first finalized tx.
     fn get_tx_seq_by_data_root(&self, data_root: &DataRoot) -> Result<Option<u64>>;
 
+    /// If all txs are not finalized, return the first one.
+    /// Otherwise, return the first finalized tx.
     fn get_tx_by_data_root(&self, data_root: &DataRoot) -> Result<Option<Transaction>> {
         match self.get_tx_seq_by_data_root(data_root)? {
             Some(seq) => self.get_tx_by_seq_number(seq),
@@ -58,7 +62,7 @@ pub trait LogStoreRead: LogStoreChunkRead {
 
     fn check_tx_pruned(&self, tx_seq: u64) -> Result<bool>;
 
-    fn get_tx_status(&self, tx_seq_or_data_root: TxSeqOrRoot) -> Result<Option<TxStatus>>;
+    fn get_tx_status(&self, tx_seq: u64) -> Result<Option<TxStatus>>;
 
     fn next_tx_seq(&self) -> u64;
 

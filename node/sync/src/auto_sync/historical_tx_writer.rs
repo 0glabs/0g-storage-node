@@ -87,12 +87,7 @@ impl HistoricalTxWriter {
         }
 
         // write tx in sync store if not finalized or pruned
-        if self
-            .store
-            .get_store()
-            .get_tx_status(shared_types::TxSeqOrRoot::TxSeq(next_tx_seq))?
-            .is_none()
-        {
+        if self.store.get_store().get_tx_status(next_tx_seq)?.is_none() {
             self.sync_store.insert(next_tx_seq, Queue::Ready).await?;
         }
 

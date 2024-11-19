@@ -21,7 +21,6 @@ use rayon::prelude::ParallelSlice;
 use shared_types::{
     bytes_to_chunks, compute_padded_chunk_size, compute_segment_size, Chunk, ChunkArray,
     ChunkArrayWithProof, ChunkWithProof, DataRoot, FlowProof, FlowRangeProof, Merkle, Transaction,
-    TxSeqOrRoot,
 };
 use std::cmp::Ordering;
 
@@ -538,7 +537,15 @@ impl LogStoreRead for LogManager {
     }
 
     fn get_tx_seq_by_data_root(&self, data_root: &DataRoot) -> crate::error::Result<Option<u64>> {
-        self.tx_store.get_first_tx_seq_by_data_root(data_root)
+        let seq_list = self.tx_store.get_tx_seq_list_by_data_root(data_root)?;
+        for tx_seq in &seq_list {
+            if self.tx_store.check_tx_completed(*tx_seq)? {
+                // Return the first finalized tx if possible.
+                return Ok(Some(*tx_seq));
+            }
+        }
+        // No tx is finalized, return the first one.
+        Ok(seq_list.first().cloned())
     }
 
     fn get_chunk_with_proof_by_tx_and_index(
@@ -582,14 +589,7 @@ impl LogStoreRead for LogManager {
         }))
     }
 
-    fn get_tx_status(&self, tx_seq_or_data_root: TxSeqOrRoot) -> Result<Option<TxStatus>> {
-        let tx_seq = match tx_seq_or_data_root {
-            TxSeqOrRoot::TxSeq(v) => v,
-            TxSeqOrRoot::Root(root) => {
-                try_option!(self.tx_store.get_first_tx_seq_by_data_root(&root)?)
-            }
-        };
-
+    fn get_tx_status(&self, tx_seq: u64) -> Result<Option<TxStatus>> {
         self.tx_store.get_tx_status(tx_seq)
     }
 

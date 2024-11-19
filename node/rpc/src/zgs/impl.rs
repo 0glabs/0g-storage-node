@@ -246,12 +246,7 @@ impl RpcServerImpl {
     }
 
     async fn get_file_info_by_tx(&self, tx: Transaction) -> RpcResult<FileInfo> {
-        let (finalized, pruned) = match self
-            .ctx
-            .log_store
-            .get_store()
-            .get_tx_status(TxSeqOrRoot::TxSeq(tx.seq))?
-        {
+        let (finalized, pruned) = match self.ctx.log_store.get_store().get_tx_status(tx.seq)? {
             Some(TxStatus::Finalized) => (true, false),
             Some(TxStatus::Pruned) => (false, true),
             None => (false, false),
