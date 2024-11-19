@@ -26,10 +26,11 @@ class SnapshotTask(TestFramework):
         wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_1) is not None)
         wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_1)["finalized"])
 
-        # Start the last node to verify historical file sync
-        self.nodes[1].shutdown()
-        shutil.rmtree(os.path.join(self.nodes[1].data_dir, 'db/data_db'))
-        
+        # Stop the last node to remove entire db folder and copy the flow_db (snapshot) from the first node
+        self.stop_storage_node(1, clean=True)
+        shutil.copytree(os.path.join(self.nodes[0].data_dir, 'db/flow_db'), os.path.join(self.nodes[1].data_dir, 'db/flow_db'))
+    
+        # Start the last node to verify snapshot sync
         self.start_storage_node(1)
         self.nodes[1].wait_for_rpc_connection()
         
