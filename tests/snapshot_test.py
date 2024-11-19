@@ -16,12 +16,11 @@ class SnapshotTask(TestFramework):
                     "auto_sync_enabled": True,
                     "max_sequential_workers": 3,
                     "max_random_workers": 3,
+                    "neighbors_only": True,
                 }
             }
 
     def run_test(self):
-        # Stop the last node to verify historical file sync
-
         # Submit and upload files on node 0
         data_root_1 = self.__upload_file__(0, 256 * 1024)
         wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_1) is not None)
@@ -34,10 +33,9 @@ class SnapshotTask(TestFramework):
         self.start_storage_node(1)
         self.nodes[1].wait_for_rpc_connection()
         
-        # Submit and upload files on node 0
-        data_root_1 = self.__upload_file__(1, 256 * 1024)
-        wait_until(lambda: self.nodes[0].zgs_get_file_info(data_root_1) is not None)
-        wait_until(lambda: self.nodes[0].zgs_get_file_info(data_root_1)["finalized"])
+        wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_1) is not None)
+        wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_1)["finalized"])
+
 
 if __name__ == "__main__":
     SnapshotTask().main()
