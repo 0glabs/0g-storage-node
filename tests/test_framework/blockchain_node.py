@@ -4,7 +4,7 @@ import tempfile
 import time
 
 from web3 import Web3, HTTPProvider
-from web3.middleware import construct_sign_and_send_raw_middleware
+from web3.middleware import SignAndSendRawMiddlewareBuilder
 from enum import Enum, unique
 from config.node_config import (
     GENESIS_PRIV_KEY,
@@ -262,7 +262,7 @@ class BlockchainNode(TestNode):
         account1 = w3.eth.account.from_key(GENESIS_PRIV_KEY)
         account2 = w3.eth.account.from_key(GENESIS_PRIV_KEY1)
         w3.middleware_onion.add(
-            construct_sign_and_send_raw_middleware([account1, account2])
+            SignAndSendRawMiddlewareBuilder.build([account1, account2])
         )
         # account = w3.eth.account.from_key(GENESIS_PRIV_KEY1)
         # w3.middleware_onion.add(construct_sign_and_send_raw_middleware(account))
@@ -365,7 +365,7 @@ class BlockchainNode(TestNode):
         account1 = w3.eth.account.from_key(GENESIS_PRIV_KEY)
         account2 = w3.eth.account.from_key(GENESIS_PRIV_KEY1)
         w3.middleware_onion.add(
-            construct_sign_and_send_raw_middleware([account1, account2])
+            SignAndSendRawMiddlewareBuilder.build([account1, account2])
         )
 
         contract_interface = load_contract_metadata(self.contract_path, "Flow")
