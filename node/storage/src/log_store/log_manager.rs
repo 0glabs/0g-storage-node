@@ -700,7 +700,7 @@ impl LogManager {
         data_db_source: Arc<dyn ZgsKeyValueDB>,
         config: LogConfig,
     ) -> Result<Self> {
-        let tx_store = TransactionStore::new(data_db_source.clone())?;
+        let tx_store = TransactionStore::new(flow_db_source.clone(), data_db_source.clone())?;
         let flow_db = Arc::new(FlowDBStore::new(flow_db_source.clone()));
         let data_db = Arc::new(FlowDBStore::new(data_db_source.clone()));
         let flow_store = Arc::new(FlowStore::new(
