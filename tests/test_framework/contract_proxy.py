@@ -42,7 +42,7 @@ class ContractProxy:
 
         contract = self._get_contract(node_idx)
     
-        return getattr(contract.events, event_name).create_filter(fromBlock =0, toBlock="latest").get_all_entries()
+        return getattr(contract.events, event_name).create_filter(from_block=0, to_block="latest").get_all_entries()
 
     def transfer(self, value, node_idx = 0):
         tx_params = copy(TX_PARAMS)
