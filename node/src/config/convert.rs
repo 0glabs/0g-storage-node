@@ -110,7 +110,7 @@ impl ZgsConfig {
         network_config.private = self.network_private;
 
         network_config.peer_db = self.network_peer_db;
-        network_config.peer_manager = self.network_peer_manager;
+        network_config.peer_manager = self.network_peer_manager.clone();
         network_config.disable_enr_network_id = self.discv5_disable_enr_network_id;
 
         Ok(network_config)
