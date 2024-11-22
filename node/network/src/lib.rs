@@ -152,6 +152,8 @@ pub enum NetworkMessage {
     },
     /// Start dialing a new peer.
     DialPeer { address: Multiaddr, peer_id: PeerId },
+    /// Disconnect a peer.
+    DisconnectPeer { peer_id: PeerId },
     /// Notify that new file stored in db.
     AnnounceLocalFile { tx_id: TxID },
     /// Called if a known external TCP socket address has been updated.
@@ -167,5 +169,5 @@ pub type NetworkSender = channel::metrics::Sender<NetworkMessage>;
 pub type NetworkReceiver = channel::metrics::Receiver<NetworkMessage>;
 
 pub fn new_network_channel() -> (NetworkSender, NetworkReceiver) {
-    channel::metrics::unbounded_channel("network")
+    channel::metrics::unbounded_channel("network_channel")
 }

@@ -257,15 +257,8 @@ impl Libp2pEventHandler {
 
         let network_id = self.network_globals.network_id();
         let shard_config = self.store.get_store().get_shard_config();
-
-        if !self.verify_status_message(peer_id, status, network_id.clone(), &shard_config) {
-            return;
-        }
-
-        self.send_to_sync(SyncMessage::PeerConnected { peer_id });
-
         let status_message = StatusMessage {
-            data: network_id,
+            data: network_id.clone(),
             num_shard: shard_config.num_shard,
             shard_id: shard_config.shard_id,
         };
@@ -276,6 +269,10 @@ impl Libp2pEventHandler {
             id: request_id,
             response: Response::Status(status_message),
         });
+
+        if self.verify_status_message(peer_id, status, network_id, &shard_config) {
+            self.send_to_sync(SyncMessage::PeerConnected { peer_id });
+        }
     }
 
     fn on_status_response(&self, peer_id: PeerId, status: StatusMessage) {
@@ -996,19 +993,20 @@ impl Libp2pEventHandler {
             }
         };
 
+        self.file_location_cache
+            .insert_peer_config(peer_id, peer_shard_config);
+
         if !peer_shard_config.intersect(shard_config) {
             info!(%peer_id, ?shard_config, ?status, "Report peer with mismatched shard config");
             self.send_to_network(NetworkMessage::ReportPeer {
                 peer_id,
-                action: PeerAction::Fatal,
+                action: PeerAction::LowToleranceError,
                 source: ReportSource::RPC,
                 msg: "Shard config mismatch in StatusMessage",
             });
+            self.send_to_network(NetworkMessage::DisconnectPeer { peer_id });
             return false;
         }
-
-        self.file_location_cache
-            .insert_peer_config(peer_id, peer_shard_config);
 
         true
     }

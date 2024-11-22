@@ -5,6 +5,8 @@ use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
 use futures::{channel::mpsc::Sender, prelude::*};
 use miner::MinerMessage;
+use network::rpc::GoodbyeReason;
+use network::PeerId;
 use network::{
     types::NewFile, BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage,
     NetworkReceiver, NetworkSender, PubsubMessage, RequestId, Service as LibP2PService, Swarm,
@@ -330,6 +332,9 @@ impl RouterService {
                     };
                 }
             }
+            NetworkMessage::DisconnectPeer { peer_id } => {
+                self.disconnect_peer(peer_id);
+            }
             NetworkMessage::AnnounceLocalFile { tx_id } => {
                 let shard_config = self.store.get_shard_config();
                 let msg = PubsubMessage::NewFile(NewFile {
@@ -399,24 +404,16 @@ impl RouterService {
             debug!(%num_expired_peers, "Heartbeat, remove expired peers")
         }
 
-        let mut num_succeeded = 0;
-        let mut num_failed = 0;
         for peer_id in expired_peers {
-            // async operation, once peer disconnected, swarm event `PeerDisconnected`
-            // will be polled to handle in advance.
-            match self.libp2p.swarm.disconnect_peer_id(peer_id) {
-                Ok(_) => {
-                    debug!(%peer_id, "Peer expired and disconnect it");
-                    num_succeeded += 1;
-                }
-                Err(_) => {
-                    debug!(%peer_id, "Peer expired but failed to disconnect");
-                    num_failed += 1;
-                }
-            }
+            self.disconnect_peer(peer_id);
         }
-        metrics::SERVICE_EXPIRED_PEERS_DISCONNECT_OK.update(num_succeeded);
-        metrics::SERVICE_EXPIRED_PEERS_DISCONNECT_FAIL.update(num_failed);
+    }
+
+    fn disconnect_peer(&mut self, peer_id: PeerId) {
+        let pm = self.libp2p.swarm.behaviour_mut().peer_manager_mut();
+        if pm.is_connected(&peer_id) {
+            pm.disconnect_peer(peer_id, GoodbyeReason::IrrelevantNetwork);
+        }
     }
 }
 

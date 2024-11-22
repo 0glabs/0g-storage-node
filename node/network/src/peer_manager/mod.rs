@@ -701,7 +701,7 @@ impl PeerManager {
     }
 
     // Gracefully disconnects a peer without banning them.
-    fn disconnect_peer(&mut self, peer_id: PeerId, reason: GoodbyeReason) {
+    pub fn disconnect_peer(&mut self, peer_id: PeerId, reason: GoodbyeReason) {
         self.events
             .push(PeerManagerEvent::DisconnectPeer(peer_id, reason));
         self.network_globals
