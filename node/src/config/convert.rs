@@ -39,18 +39,17 @@ impl ZgsConfig {
             .await
             .map_err(|e| format!("Unable to get chain id: {:?}", e))?
             .as_u64();
-        let network_protocol_version = if self.sync.neighbors_only {
-            network::PROTOCOL_VERSION_V2
-        } else {
-            network::PROTOCOL_VERSION_V1
-        };
         let local_network_id = NetworkIdentity {
             chain_id,
             flow_address,
             p2p_protocol_version: ProtocolVersion {
-                major: network_protocol_version[0],
-                minor: network_protocol_version[1],
-                build: network_protocol_version[2],
+                major: network::PROTOCOL_VERSION_V3[0],
+                minor: network::PROTOCOL_VERSION_V3[1],
+                build: if self.sync.neighbors_only {
+                    network::PROTOCOL_VERSION_V3[2] + 1
+                } else {
+                    network::PROTOCOL_VERSION_V3[2]
+                },
             },
         };
         network_config.network_id = local_network_id.clone();
