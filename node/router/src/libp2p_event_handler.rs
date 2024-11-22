@@ -1230,10 +1230,7 @@ mod tests {
 
         assert_eq!(handler.peers.read().await.size(), 1);
         ctx.assert_status_request(alice);
-        assert!(matches!(
-            ctx.sync_recv.try_recv(),
-            Ok(Notification(SyncMessage::PeerConnected {peer_id})) if peer_id == alice
-        ));
+        assert!(matches!(ctx.sync_recv.try_recv(), Err(TryRecvError::Empty)));
     }
 
     #[tokio::test]
