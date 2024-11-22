@@ -194,7 +194,6 @@ impl Libp2pEventHandler {
 
         if outgoing {
             self.send_status(peer_id);
-            self.send_to_sync(SyncMessage::PeerConnected { peer_id });
             metrics::LIBP2P_HANDLE_PEER_CONNECTED_OUTGOING.mark(1);
         } else {
             metrics::LIBP2P_HANDLE_PEER_CONNECTED_INCOMING.mark(1);
@@ -263,6 +262,8 @@ impl Libp2pEventHandler {
             return;
         }
 
+        self.send_to_sync(SyncMessage::PeerConnected { peer_id });
+
         let status_message = StatusMessage {
             data: network_id,
             num_shard: shard_config.num_shard,
@@ -280,7 +281,9 @@ impl Libp2pEventHandler {
     fn on_status_response(&self, peer_id: PeerId, status: StatusMessage) {
         let network_id = self.network_globals.network_id();
         let shard_config = self.store.get_store().get_shard_config();
-        self.verify_status_message(peer_id, status, network_id, &shard_config);
+        if self.verify_status_message(peer_id, status, network_id, &shard_config) {
+            self.send_to_sync(SyncMessage::PeerConnected { peer_id });
+        }
     }
 
     pub async fn on_rpc_response(
