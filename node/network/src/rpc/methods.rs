@@ -69,9 +69,13 @@ impl ToString for ErrorType {
 /* Requests */
 
 /// The STATUS request/response handshake message.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, Default)]
 pub struct StatusMessage {
     pub data: NetworkIdentity,
+
+    // shard config
+    pub num_shard: usize,
+    pub shard_id: usize,
 }
 
 /// The PING request/response message.

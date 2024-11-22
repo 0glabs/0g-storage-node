@@ -172,8 +172,11 @@ impl Libp2pEventHandler {
     }
 
     pub fn send_status(&self, peer_id: PeerId) {
+        let shard_config = self.store.get_store().get_shard_config();
         let status_message = StatusMessage {
             data: self.network_globals.network_id(),
+            num_shard: shard_config.num_shard,
+            shard_id: shard_config.shard_id,
         };
         debug!(%peer_id, ?status_message, "Sending Status request");
 
@@ -254,8 +257,11 @@ impl Libp2pEventHandler {
         debug!(%peer_id, ?status, "Received Status request");
 
         let network_id = self.network_globals.network_id();
+        let shard_config = self.store.get_store().get_shard_config();
         let status_message = StatusMessage {
             data: network_id.clone(),
+            num_shard: shard_config.num_shard,
+            shard_id: shard_config.shard_id,
         };
         debug!(%peer_id, ?status_message, "Sending Status response");
 
@@ -1216,6 +1222,8 @@ mod tests {
         let req_id = (ConnectionId::new(4), SubstreamId(12));
         let request = Request::Status(StatusMessage {
             data: Default::default(),
+            num_shard: 1,
+            shard_id: 0,
         });
         handler.on_rpc_request(alice, req_id, request).await;
 

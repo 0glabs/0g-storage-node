@@ -399,9 +399,7 @@ mod tests {
     use std::io::Write;
 
     fn status_message() -> StatusMessage {
-        StatusMessage {
-            data: Default::default(),
-        }
+        Default::default()
     }
 
     fn ping_message() -> Ping {
@@ -570,10 +568,7 @@ mod tests {
         assert_eq!(stream_identifier.len(), 10);
 
         // Status message is 84 bytes uncompressed. `max_compressed_len` is 32 + 84 + 84/6 = 130.
-        let status_message_bytes = StatusMessage {
-            data: Default::default(),
-        }
-        .as_ssz_bytes();
+        let status_message_bytes = StatusMessage::default().as_ssz_bytes();
 
         let mut uvi_codec: Uvi<usize> = Uvi::default();
         let mut dst = BytesMut::with_capacity(1024);
