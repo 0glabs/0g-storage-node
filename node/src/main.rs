@@ -26,7 +26,7 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
         .with_log_sync(log_sync_config)
         .await?
         .with_file_location_cache(config.file_location_cache)
-        .with_network(&network_config)
+        .with_network(network_config)
         .await?
         .with_chunk_pool(chunk_pool_config)
         .await?

@@ -134,11 +134,21 @@ impl ClientBuilder {
     }
 
     /// Starts the networking stack.
-    pub async fn with_network(mut self, config: &NetworkConfig) -> Result<Self, String> {
+    pub async fn with_network(mut self, mut config: NetworkConfig) -> Result<Self, String> {
         let executor = require!("network", self, runtime_context).clone().executor;
+        let store = require!("network", self, store).clone();
+        let file_location_cache = require!("network", self, file_location_cache).clone();
+
+        // only dial to peers that shard config matched
+        config.peer_manager.filters.dial_peer_filter = Some(Arc::new(move |peer_id| {
+            match file_location_cache.get_peer_config(peer_id) {
+                Some(v) => store.get_shard_config().intersect(&v),
+                None => true,
+            }
+        }));
 
         // construct the libp2p service context
-        let service_context = network::Context { config };
+        let service_context = network::Context { config: &config };
 
         // construct communication channel
         let (send, recv) = new_network_channel();

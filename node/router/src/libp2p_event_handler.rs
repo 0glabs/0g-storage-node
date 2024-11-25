@@ -172,8 +172,11 @@ impl Libp2pEventHandler {
     }
 
     pub fn send_status(&self, peer_id: PeerId) {
+        let shard_config = self.store.get_store().get_shard_config();
         let status_message = StatusMessage {
             data: self.network_globals.network_id(),
+            num_shard: shard_config.num_shard,
+            shard_id: shard_config.shard_id,
         };
         debug!(%peer_id, ?status_message, "Sending Status request");
 
@@ -191,7 +194,6 @@ impl Libp2pEventHandler {
 
         if outgoing {
             self.send_status(peer_id);
-            self.send_to_sync(SyncMessage::PeerConnected { peer_id });
             metrics::LIBP2P_HANDLE_PEER_CONNECTED_OUTGOING.mark(1);
         } else {
             metrics::LIBP2P_HANDLE_PEER_CONNECTED_INCOMING.mark(1);
@@ -254,8 +256,11 @@ impl Libp2pEventHandler {
         debug!(%peer_id, ?status, "Received Status request");
 
         let network_id = self.network_globals.network_id();
+        let shard_config = self.store.get_store().get_shard_config();
         let status_message = StatusMessage {
             data: network_id.clone(),
+            num_shard: shard_config.num_shard,
+            shard_id: shard_config.shard_id,
         };
         debug!(%peer_id, ?status_message, "Sending Status response");
 
@@ -264,12 +269,18 @@ impl Libp2pEventHandler {
             id: request_id,
             response: Response::Status(status_message),
         });
-        self.on_status_message(peer_id, status, network_id);
+
+        if self.verify_status_message(peer_id, status, network_id, &shard_config) {
+            self.send_to_sync(SyncMessage::PeerConnected { peer_id });
+        }
     }
 
     fn on_status_response(&self, peer_id: PeerId, status: StatusMessage) {
         let network_id = self.network_globals.network_id();
-        self.on_status_message(peer_id, status, network_id);
+        let shard_config = self.store.get_store().get_shard_config();
+        if self.verify_status_message(peer_id, status, network_id, &shard_config) {
+            self.send_to_sync(SyncMessage::PeerConnected { peer_id });
+        }
     }
 
     pub async fn on_rpc_response(
@@ -950,21 +961,54 @@ impl Libp2pEventHandler {
         MessageAcceptance::Accept
     }
 
-    fn on_status_message(
+    fn verify_status_message(
         &self,
         peer_id: PeerId,
         status: StatusMessage,
         network_id: NetworkIdentity,
-    ) {
+        shard_config: &ShardConfig,
+    ) -> bool {
         if status.data != network_id {
             warn!(%peer_id, ?network_id, ?status.data, "Report peer with incompatible network id");
             self.send_to_network(NetworkMessage::ReportPeer {
                 peer_id,
                 action: PeerAction::Fatal,
-                source: ReportSource::Gossipsub,
+                source: ReportSource::RPC,
                 msg: "Incompatible network id in StatusMessage",
-            })
+            });
+            return false;
         }
+
+        let peer_shard_config = match ShardConfig::new(status.shard_id, status.num_shard) {
+            Ok(v) => v,
+            Err(err) => {
+                warn!(%peer_id, ?status, ?err, "Report peer with invalid shard config");
+                self.send_to_network(NetworkMessage::ReportPeer {
+                    peer_id,
+                    action: PeerAction::Fatal,
+                    source: ReportSource::RPC,
+                    msg: "Invalid shard config in StatusMessage",
+                });
+                return false;
+            }
+        };
+
+        self.file_location_cache
+            .insert_peer_config(peer_id, peer_shard_config);
+
+        if !peer_shard_config.intersect(shard_config) {
+            info!(%peer_id, ?shard_config, ?status, "Report peer with mismatched shard config");
+            self.send_to_network(NetworkMessage::ReportPeer {
+                peer_id,
+                action: PeerAction::LowToleranceError,
+                source: ReportSource::RPC,
+                msg: "Shard config mismatch in StatusMessage",
+            });
+            self.send_to_network(NetworkMessage::DisconnectPeer { peer_id });
+            return false;
+        }
+
+        true
     }
 
     async fn publish_file(&self, tx_id: TxID) -> Option<bool> {
@@ -1184,10 +1228,7 @@ mod tests {
 
         assert_eq!(handler.peers.read().await.size(), 1);
         ctx.assert_status_request(alice);
-        assert!(matches!(
-            ctx.sync_recv.try_recv(),
-            Ok(Notification(SyncMessage::PeerConnected {peer_id})) if peer_id == alice
-        ));
+        assert!(matches!(ctx.sync_recv.try_recv(), Err(TryRecvError::Empty)));
     }
 
     #[tokio::test]
@@ -1216,6 +1257,8 @@ mod tests {
         let req_id = (ConnectionId::new(4), SubstreamId(12));
         let request = Request::Status(StatusMessage {
             data: Default::default(),
+            num_shard: 1,
+            shard_id: 0,
         });
         handler.on_rpc_request(alice, req_id, request).await;
 

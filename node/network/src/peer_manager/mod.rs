@@ -69,6 +69,8 @@ pub struct PeerManager {
     discovery_enabled: bool,
     /// Keeps track if the current instance is reporting metrics or not.
     metrics_enabled: bool,
+
+    filters: config::Filters,
 }
 
 /// The events that the `PeerManager` outputs (requests).
@@ -108,6 +110,7 @@ impl PeerManager {
             status_interval,
             ping_interval_inbound,
             ping_interval_outbound,
+            filters,
         } = cfg;
 
         // Set up the peer manager heartbeat interval
@@ -123,6 +126,7 @@ impl PeerManager {
             heartbeat,
             discovery_enabled,
             metrics_enabled,
+            filters,
         })
     }
 
@@ -275,6 +279,10 @@ impl PeerManager {
                 }
                 to_dial_peers.push(peer_id);
             }
+        }
+
+        if let Some(dial_peer_filter) = self.filters.dial_peer_filter.clone() {
+            to_dial_peers.retain(|peer_id| dial_peer_filter(peer_id));
         }
 
         // Queue another discovery if we need to
@@ -693,7 +701,7 @@ impl PeerManager {
     }
 
     // Gracefully disconnects a peer without banning them.
-    fn disconnect_peer(&mut self, peer_id: PeerId, reason: GoodbyeReason) {
+    pub fn disconnect_peer(&mut self, peer_id: PeerId, reason: GoodbyeReason) {
         self.events
             .push(PeerManagerEvent::DisconnectPeer(peer_id, reason));
         self.network_globals

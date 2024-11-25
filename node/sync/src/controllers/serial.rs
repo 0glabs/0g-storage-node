@@ -232,7 +232,7 @@ impl SerialSyncController {
     /// Dial to peers in `Found` state, so that `Connecting` or `Connected` peers cover
     /// data in all shards.
     fn try_connect(&mut self) {
-        let mut num_peers_dailed = 0;
+        let mut num_peers_dialed = 0;
 
         // select a random peer
         while !self
@@ -256,10 +256,10 @@ impl SerialSyncController {
             self.peers
                 .update_state(&peer_id, PeerState::Found, PeerState::Connecting);
 
-            num_peers_dailed += 1;
+            num_peers_dialed += 1;
         }
 
-        info!(%self.tx_seq, %num_peers_dailed, "Connecting peers");
+        info!(%self.tx_seq, %num_peers_dialed, "Connecting peers");
 
         self.state = SyncState::ConnectingPeers {
             origin: self.since,
@@ -358,14 +358,14 @@ impl SerialSyncController {
             .update_state_force(&peer_id, PeerState::Connected);
     }
 
-    pub fn on_dail_failed(&mut self, peer_id: PeerId, err: &DialError) {
+    pub fn on_dial_failed(&mut self, peer_id: PeerId, err: &DialError) {
         match err {
             DialError::ConnectionLimit(_) => {
                 if let Some(true) =
                     self.peers
                         .update_state(&peer_id, PeerState::Connecting, PeerState::Found)
                 {
-                    info!(%self.tx_seq, %peer_id, "Failed to dail peer due to outgoing connection limitation");
+                    info!(%self.tx_seq, %peer_id, "Failed to dial peer due to outgoing connection limitation");
                     self.state = SyncState::AwaitingOutgoingConnection {
                         since: Instant::now().into(),
                     };
@@ -377,7 +377,7 @@ impl SerialSyncController {
                     PeerState::Connecting,
                     PeerState::Disconnected,
                 ) {
-                    info!(%self.tx_seq, %peer_id, %err, "Failed to dail peer");
+                    info!(%self.tx_seq, %peer_id, %err, "Failed to dial peer");
                     self.state = SyncState::Idle;
                 }
             }

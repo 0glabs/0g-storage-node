@@ -35,7 +35,7 @@ pub struct PeerDBConfig {
     pub allowed_negative_gossipsub_factor: f32,
     /// The time we allow peers to be in the dialing state in our PeerDb before we revert them to a disconnected state.
     #[serde(deserialize_with = "deserialize_duration")]
-    pub dail_timeout: Duration,
+    pub dial_timeout: Duration,
 }
 
 impl Default for PeerDBConfig {
@@ -45,7 +45,7 @@ impl Default for PeerDBConfig {
             max_banned_peers: 1000,
             banned_peers_per_ip_threshold: 5,
             allowed_negative_gossipsub_factor: 0.1,
-            dail_timeout: Duration::from_secs(15),
+            dial_timeout: Duration::from_secs(15),
         }
     }
 }
@@ -339,7 +339,7 @@ impl PeerDB {
             .iter()
             .filter_map(|(peer_id, info)| {
                 if let PeerConnectionStatus::Dialing { since } = info.connection_status() {
-                    if (*since) + self.config.dail_timeout < std::time::Instant::now() {
+                    if (*since) + self.config.dial_timeout < std::time::Instant::now() {
                         return Some(*peer_id);
                     }
                 }

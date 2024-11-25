@@ -33,7 +33,7 @@ pub type SyncReceiver = channel::Receiver<SyncMessage, SyncRequest, SyncResponse
 
 #[derive(Debug)]
 pub enum SyncMessage {
-    DailFailed {
+    DialFailed {
         peer_id: PeerId,
         err: DialError,
     },
@@ -227,8 +227,8 @@ impl SyncService {
         trace!("Sync received message {:?}", msg);
 
         match msg {
-            SyncMessage::DailFailed { peer_id, err } => {
-                self.on_dail_failed(peer_id, err);
+            SyncMessage::DialFailed { peer_id, err } => {
+                self.on_dial_failed(peer_id, err);
             }
             SyncMessage::PeerConnected { peer_id } => {
                 self.on_peer_connected(peer_id);
@@ -369,11 +369,11 @@ impl SyncService {
         }
     }
 
-    fn on_dail_failed(&mut self, peer_id: PeerId, err: DialError) {
-        info!(%peer_id, ?err, "Dail to peer failed");
+    fn on_dial_failed(&mut self, peer_id: PeerId, err: DialError) {
+        info!(%peer_id, ?err, "Dial to peer failed");
 
         for controller in self.controllers.values_mut() {
-            controller.on_dail_failed(peer_id, &err);
+            controller.on_dial_failed(peer_id, &err);
             controller.transition();
         }
     }

@@ -1,6 +1,7 @@
-use std::time::Duration;
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use duration_str::deserialize_duration;
+use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 
 /// The time in seconds between re-status's peers.
@@ -16,7 +17,7 @@ pub const DEFAULT_PING_INTERVAL_INBOUND: u64 = 20;
 pub const DEFAULT_TARGET_PEERS: usize = 50;
 
 /// Configurations for the PeerManager.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /* Peer count related configurations */
@@ -40,6 +41,9 @@ pub struct Config {
     pub ping_interval_inbound: u64,
     /// Interval between PING events for peers dialed by us.
     pub ping_interval_outbound: u64,
+
+    #[serde(skip)]
+    pub filters: Filters,
 }
 
 impl Default for Config {
@@ -52,6 +56,29 @@ impl Default for Config {
             status_interval: DEFAULT_STATUS_INTERVAL,
             ping_interval_inbound: DEFAULT_PING_INTERVAL_INBOUND,
             ping_interval_outbound: DEFAULT_PING_INTERVAL_OUTBOUND,
+            filters: Default::default(),
         }
+    }
+}
+#[derive(Clone)]
+
+pub struct Filters {
+    /// Decide whether to dial to specified peer.
+    pub dial_peer_filter: Option<Arc<dyn Fn(&PeerId) -> bool + Sync + Send + 'static>>,
+}
+
+impl Default for Filters {
+    fn default() -> Self {
+        Filters {
+            dial_peer_filter: None,
+        }
+    }
+}
+
+impl Debug for Filters {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Filters")
+            .field("dial_peer_filter", &self.dial_peer_filter.is_some())
+            .finish()
     }
 }
