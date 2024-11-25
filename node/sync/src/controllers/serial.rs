@@ -256,7 +256,7 @@ impl SerialSyncController {
             self.peers
                 .update_state(&peer_id, PeerState::Found, PeerState::Connecting);
 
-                num_peers_dialed += 1;
+            num_peers_dialed += 1;
         }
 
         info!(%self.tx_seq, %num_peers_dialed, "Connecting peers");
