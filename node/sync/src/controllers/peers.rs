@@ -194,7 +194,7 @@ impl SyncPeers {
                             ctx.report_peer(
                                 *peer_id,
                                 PeerAction::LowToleranceError,
-                                "Dail timeout",
+                                "Dial timeout",
                             );
                         }
 

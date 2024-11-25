@@ -311,23 +311,23 @@ impl RouterService {
                 metrics::SERVICE_ROUTE_NETWORK_MESSAGE_GOODBYE_PEER.mark(1);
             }
             NetworkMessage::DialPeer { address, peer_id } => {
-                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DAIL_PEER.mark(1);
+                metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DIAL_PEER.mark(1);
 
                 if self.libp2p.swarm.is_connected(&peer_id) {
                     self.libp2p_event_handler
                         .send_to_sync(SyncMessage::PeerConnected { peer_id });
-                    metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DAIL_PEER_ALREADY.mark(1);
+                    metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DIAL_PEER_ALREADY.mark(1);
                 } else {
                     match Swarm::dial(&mut self.libp2p.swarm, address.clone()) {
                         Ok(()) => {
                             debug!(%address, "Dialing libp2p peer");
-                            metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DAIL_PEER_NEW_OK.mark(1);
+                            metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DIAL_PEER_NEW_OK.mark(1);
                         }
                         Err(err) => {
                             info!(%address, error = ?err, "Failed to dial peer");
                             self.libp2p_event_handler
-                                .send_to_sync(SyncMessage::DailFailed { peer_id, err });
-                            metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DAIL_PEER_NEW_FAIL.mark(1);
+                                .send_to_sync(SyncMessage::DialFailed { peer_id, err });
+                            metrics::SERVICE_ROUTE_NETWORK_MESSAGE_DIAL_PEER_NEW_FAIL.mark(1);
                         }
                     };
                 }

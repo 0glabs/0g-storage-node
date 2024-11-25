@@ -281,8 +281,8 @@ impl PeerManager {
             }
         }
 
-        if let Some(dail_peer_filter) = self.filters.dail_peer_filter.clone() {
-            to_dial_peers.retain(|peer_id| dail_peer_filter(peer_id));
+        if let Some(dial_peer_filter) = self.filters.dial_peer_filter.clone() {
+            to_dial_peers.retain(|peer_id| dial_peer_filter(peer_id));
         }
 
         // Queue another discovery if we need to

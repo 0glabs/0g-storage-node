@@ -63,14 +63,14 @@ impl Default for Config {
 #[derive(Clone)]
 
 pub struct Filters {
-    /// Decide whether to dail to specified peer.
-    pub dail_peer_filter: Option<Arc<dyn Fn(&PeerId) -> bool + Sync + Send + 'static>>,
+    /// Decide whether to dial to specified peer.
+    pub dial_peer_filter: Option<Arc<dyn Fn(&PeerId) -> bool + Sync + Send + 'static>>,
 }
 
 impl Default for Filters {
     fn default() -> Self {
         Filters {
-            dail_peer_filter: None,
+            dial_peer_filter: None,
         }
     }
 }
@@ -78,7 +78,7 @@ impl Default for Filters {
 impl Debug for Filters {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Filters")
-            .field("dail_peer_filter", &self.dail_peer_filter.is_some())
+            .field("dial_peer_filter", &self.dial_peer_filter.is_some())
             .finish()
     }
 }

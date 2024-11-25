@@ -257,7 +257,7 @@ neighbors_only = true
 # Maximum number of continous failures to terminate a file sync.
 # max_request_failures = 5
 
-# Timeout to dail peers.
+# Timeout to dial peers.
 # peer_connect_timeout = "15s"
 
 # Timeout to disconnect peers.
