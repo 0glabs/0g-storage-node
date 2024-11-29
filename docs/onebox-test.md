@@ -19,7 +19,7 @@ The blockchain node binaries will be compiled or downloaded from github to `test
 
 ## Run Tests
 
-Changes to the `tests` folder and run following command to run all tests:
+Changes to the `tests` folder and run the following command to run all tests:
 
 ```
 python test_all.py
