@@ -17,8 +17,8 @@ case $1 in
 
             source .env
 
-            if [[ "$ZGS_NODE__MINER_KEY" = "" ]]; then echo "ZGS_NODE__MINER_KEY not specified in .env file" fi
-            if [[ "$ZGS_NODE__BLOCKCHAIN_RPC_ENDPOINT" = "" ]]; then echo "ZGS_NODE__BLOCKCHAIN_RPC_ENDPOINT not specified in .env file" fi
+            if [[ "$ZGS_NODE__MINER_KEY" = "" ]]; then echo "ZGS_NODE__MINER_KEY not specified in .env file"; fi
+            if [[ "$ZGS_NODE__BLOCKCHAIN_RPC_ENDPOINT" = "" ]]; then echo "ZGS_NODE__BLOCKCHAIN_RPC_ENDPOINT not specified in .env file"; fi
 
             nohup ../target/release/zgs_node --config config-testnet-turbo.toml \
                 --log-config-file log_config_debug \
