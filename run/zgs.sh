@@ -11,11 +11,19 @@ case $1 in
 
     start)
         if [[ "$pid" = "" ]]; then
-            if [ -f .env ]; then
-                source .env
-            if
+            if [ ! -f .env ]; then
+                echo ".env file not found"
+            fi
 
-            nohup ../target/release/zgs_node --config config-testnet-turbo.toml --log-config-file log_config_debug &
+            source .env
+
+            if [[ "$ZGS_NODE__MINER_KEY" = "" ]]; then echo "ZGS_NODE__MINER_KEY not specified in .env file" fi
+            if [[ "$ZGS_NODE__BLOCKCHAIN_RPC_ENDPOINT" = "" ]]; then echo "ZGS_NODE__BLOCKCHAIN_RPC_ENDPOINT not specified in .env file" fi
+
+            nohup ../target/release/zgs_node --config config-testnet-turbo.toml \
+                --log-config-file log_config_debug \
+                --miner-key $ZGS_NODE__MINER_KEY \
+                --blockchain-rpc-endpoint $ZGS_NODE__BLOCKCHAIN_RPC_ENDPOINT &
 
             echo "Storage node started ..."
         else
