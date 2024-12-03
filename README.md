@@ -8,13 +8,13 @@
 
 0G Storage consists of two main components:
 
-1. **Data Publishing Lane**: Ensures fast Merkle treedata root commitment and verification through 0G Chain.
+1. **Data Publishing Lane**: Ensures fast Merkle tree data root commitment and verification through 0G Chain.
 2. **Data Storage Lane**: Manages large data transfers and storage using an erasure-coding mechanism for redundancy and sharding for parallel processing.
 
 Across the two lanes, 0G Storage supports the following features:
 
 * **General Purpose Design**: Supports atomic transactions, mutable key-value stores, and archive log systems, enabling a wide range of applications with various data types.
-* **Validated Incentivization**: Utilizes the PoRA (Proof of Random Access) mining algorithm to mitigate data outsourcing issue and to ensure rewards are distributed to nodes who contribute to the storage network.
+* **Validated Incentivization**: Utilizes the PoRA (Proof of Random Access) mining algorithm to mitigate the data outsourcing issue and to ensure rewards are distributed to nodes who contribute to the storage network.
 
 For in-depth technical details about 0G Storage, please read our [Intro to 0G Storage](https://docs.0g.ai/og-storage).
 
