@@ -312,7 +312,7 @@ neighbors_only = true
 ###                     RPC Config Options                          ###
 #######################################################################
 
-# [rpc]
+[rpc]
 
 # Whether to provide RPC service.
 # enabled = true
