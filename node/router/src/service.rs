@@ -14,6 +14,7 @@ use network::{
 use pruner::PrunerMessage;
 use shared_types::timestamp_now;
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use storage::log_store::Store as LogStore;
@@ -235,6 +236,25 @@ impl RouterService {
                     message,
                     ..
                 } => {
+                    if matches!(message, PubsubMessage::AnnounceFile(..)) {
+                        let maybe_peer = self
+                            .network_globals
+                            .peers
+                            .read()
+                            .peer_info(&source)
+                            .cloned();
+
+                        if let Some(peer) = maybe_peer {
+                            let ip = peer.seen_ip_addresses().collect::<Vec<IpAddr>>();
+                            let agent = peer.client().agent_string.clone();
+                            let connection = peer.connection_status().clone();
+                            let conn_dir = peer.connection_direction().cloned();
+                            debug!(%source, ?ip, ?agent, ?connection, ?conn_dir, "Received AnnounceFile pubsub message");
+                        } else {
+                            debug!(%source, "Received AnnounceFile pubsub message, but not found in peer db");
+                        }
+                    }
+
                     let result = self
                         .libp2p_event_handler
                         .on_pubsub_message(propagation_source, source, &id, message)
