@@ -237,22 +237,21 @@ impl RouterService {
                     ..
                 } => {
                     if matches!(message, PubsubMessage::AnnounceFile(..)) {
-                        let maybe_peer = self
+                        let source_version = self
                             .network_globals
                             .peers
                             .read()
                             .peer_info(&source)
-                            .cloned();
+                            .map(|i| i.client().version.clone());
 
-                        if let Some(peer) = maybe_peer {
-                            let ip = peer.seen_ip_addresses().collect::<Vec<IpAddr>>();
-                            let agent = peer.client().agent_string.clone();
-                            let connection = peer.connection_status().clone();
-                            let conn_dir = peer.connection_direction().cloned();
-                            debug!(%source, ?ip, ?agent, ?connection, ?conn_dir, "Received AnnounceFile pubsub message");
-                        } else {
-                            debug!(%source, "Received AnnounceFile pubsub message, but not found in peer db");
-                        }
+                        let prop_source_version = self
+                            .network_globals
+                            .peers
+                            .read()
+                            .peer_info(&propagation_source)
+                            .map(|i| i.client().version.clone());
+
+                        debug!(%source, ?source_version, %propagation_source, ?prop_source_version, "Received AnnounceFile pubsub message");
                     }
 
                     let result = self
