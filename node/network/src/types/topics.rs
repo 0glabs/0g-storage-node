@@ -15,12 +15,12 @@ pub const ANNOUNCE_FILE_TOPIC: &str = "announce_file";
 pub const ANNOUNCE_CHUNKS_TOPIC: &str = "announce_chunks";
 pub const ANNOUNCE_SHARD_CONFIG_TOPIC: &str = "announce_shard_config";
 
-pub const CORE_TOPICS: [GossipKind; 5] = [
+pub const CORE_TOPICS: [GossipKind; 1] = [
     GossipKind::NewFile,
-    GossipKind::FindFile,
-    GossipKind::FindChunks,
-    GossipKind::AnnounceFile,
-    GossipKind::AnnounceChunks,
+    // GossipKind::FindFile,
+    // GossipKind::FindChunks,
+    // GossipKind::AnnounceFile,
+    // GossipKind::AnnounceChunks,
 ];
 
 /// A gossipsub topic which encapsulates the type of messages that should be sent and received over
