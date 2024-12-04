@@ -365,13 +365,21 @@ impl Libp2pEventHandler {
                 self.on_find_chunks(msg).await
             }
             PubsubMessage::AnnounceFile(msgs) => {
-                let maybe_peer = self.network_globals.peers.read().peer_info(&source).cloned();
-                let ip = maybe_peer.clone().map(|info| info.seen_ip_addresses().collect::<Vec<IpAddr>>());
-                let agent = maybe_peer.clone().map(|info| info.client().agent_string.clone());
+                let maybe_peer = self
+                    .network_globals
+                    .peers
+                    .read()
+                    .peer_info(&source)
+                    .cloned();
+                let ip = maybe_peer
+                    .clone()
+                    .map(|info| info.seen_ip_addresses().collect::<Vec<IpAddr>>());
+                let agent = maybe_peer
+                    .clone()
+                    .map(|info| info.client().agent_string.clone());
                 let connection = maybe_peer.map(|info| info.connection_status().clone());
 
                 debug!(batch = %msgs.len(), %source, ?ip, ?agent, ?connection, "Received AnnounceFile pubsub message");
-
 
                 metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE.mark(1);
 

@@ -97,7 +97,7 @@ pub struct Discovery {
     ///
     /// This is behind a Reference counter to allow for futures to be spawned and polled with a
     /// static lifetime.
-    discv5: Discv5,
+    pub discv5: Discv5,
 
     /// A collection of network constants that can be read from other threads.
     network_globals: Arc<NetworkGlobals>,

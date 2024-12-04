@@ -13,7 +13,9 @@ use network::{
 };
 use pruner::PrunerMessage;
 use shared_types::timestamp_now;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
 use sync::{SyncMessage, SyncSender};
@@ -102,6 +104,7 @@ impl RouterService {
     async fn main(mut self, mut shutdown_sender: Sender<ShutdownReason>) {
         let mut heartbeat_service = interval(self.config.heartbeat_interval);
         let mut heartbeat_batcher = interval(self.config.batcher_timeout);
+        let mut heartbeat_dump_peers = interval(Duration::from_secs(5));
 
         loop {
             tokio::select! {
@@ -118,8 +121,43 @@ impl RouterService {
 
                 // heartbeat for expire file batcher
                 _ = heartbeat_batcher.tick() => self.libp2p_event_handler.expire_batcher().await,
+
+                _ = heartbeat_dump_peers.tick() => self.on_dump_peers().await,
             }
         }
+    }
+
+    async fn on_dump_peers(&mut self) {
+        let discovered_nodes = self
+            .libp2p
+            .swarm
+            .behaviour_mut()
+            .discovery_mut()
+            .discv5
+            .table_entries();
+        let connected_nodes = discovered_nodes
+            .iter()
+            .filter(|n| n.2.is_connected())
+            .count();
+        let disconnected_nodes = discovered_nodes.len() - connected_nodes;
+        debug!(%connected_nodes, %disconnected_nodes, "qbit - network statistics for discv5");
+
+        let gossip = self.libp2p.swarm.behaviour().gs();
+        let all_peers = gossip.all_peers().count();
+        let mut peers_by_topic = HashMap::new();
+        for topic in gossip.topics() {
+            let topic_str = topic.as_str().to_string();
+            let peers = gossip.mesh_peers(topic).count();
+            peers_by_topic.insert(topic_str, peers);
+        }
+        debug!(%all_peers, ?peers_by_topic, "qbit - network statistics for gossip");
+
+        let peer_db = self.network_globals.peers.read();
+        let total_peers = peer_db.peers().count();
+        let connected_peers = peer_db.connected_peers().count();
+        let disconnected_peers = peer_db.disconnected_peers().count();
+        let banned_peers = peer_db.banned_peers().count();
+        debug!(%total_peers, %connected_peers, %disconnected_peers, %banned_peers, "qbit - network statistics for peerdb");
     }
 
     async fn try_recv<T>(maybe_recv: &mut Option<mpsc::UnboundedReceiver<T>>) -> Option<T> {
