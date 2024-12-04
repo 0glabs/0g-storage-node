@@ -140,7 +140,12 @@ impl RouterService {
             .filter(|n| n.2.is_connected())
             .count();
         let disconnected_nodes = discovered_nodes.len() - connected_nodes;
-        debug!(%connected_nodes, %disconnected_nodes, "qbit - network statistics for discv5");
+        let incoming_nodes = discovered_nodes
+            .iter()
+            .filter(|n| n.2.is_incoming())
+            .count();
+        let outgoing_nodes = discovered_nodes.len() - incoming_nodes;
+        debug!(%connected_nodes, %disconnected_nodes, %incoming_nodes, %outgoing_nodes, "qbit - network statistics for discv5");
 
         let gossip = self.libp2p.swarm.behaviour().gs();
         let all_peers = gossip.all_peers().count();
