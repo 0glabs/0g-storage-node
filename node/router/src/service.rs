@@ -14,7 +14,6 @@ use network::{
 use pruner::PrunerMessage;
 use shared_types::timestamp_now;
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use storage::log_store::Store as LogStore;
