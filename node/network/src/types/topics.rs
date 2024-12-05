@@ -13,7 +13,7 @@ pub const FIND_FILE_TOPIC: &str = "find_file";
 pub const FIND_CHUNKS_TOPIC: &str = "find_chunks";
 pub const ANNOUNCE_FILE_TOPIC: &str = "announce_file";
 pub const ANNOUNCE_CHUNKS_TOPIC: &str = "announce_chunks";
-pub const ANNOUNCE_SHARD_CONFIG_TOPIC: &str = "announce_shard_config";
+pub const ANNOUNCE_SHARD_CONFIG_TOPIC: &str = "announce_shard_config_v2";
 
 /// A gossipsub topic which encapsulates the type of messages that should be sent and received over
 /// the pubsub protocol and the way the messages should be encoded.
