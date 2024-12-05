@@ -6,7 +6,7 @@ use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
 use network::multiaddr::Protocol;
 use network::rpc::methods::FileAnnouncement;
-use network::types::{NewFile, TimedMessage};
+use network::types::{ShardedFile, TimedMessage};
 use network::{
     rpc::StatusMessage,
     types::{
@@ -389,7 +389,7 @@ impl Libp2pEventHandler {
     }
 
     /// Handle NewFile pubsub message `msg` that published by `from` peer.
-    async fn on_new_file(&self, from: PeerId, msg: TimedMessage<NewFile>) -> MessageAcceptance {
+    async fn on_new_file(&self, from: PeerId, msg: TimedMessage<ShardedFile>) -> MessageAcceptance {
         // verify timestamp
         let d = duration_since(
             msg.timestamp,
@@ -432,7 +432,7 @@ impl Libp2pEventHandler {
         // notify sync layer to handle in advance
         self.send_to_sync(SyncMessage::NewFile {
             from,
-            msg: msg.inner,
+            file: msg.inner,
         });
 
         MessageAcceptance::Ignore

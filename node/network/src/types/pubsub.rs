@@ -114,9 +114,8 @@ impl ssz::Decode for WrappedPeerId {
     }
 }
 
-/// Published when file uploaded or completed to sync from other peers.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct NewFile {
+pub struct ShardedFile {
     pub tx_id: TxID,
     pub shard_config: ShardConfig,
 }
@@ -229,7 +228,7 @@ type SignedAnnounceFiles = Vec<SignedAnnounceFile>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PubsubMessage {
     ExampleMessage(u64),
-    NewFile(TimedMessage<NewFile>),
+    NewFile(TimedMessage<ShardedFile>),
     FindFile(FindFile),
     FindChunks(FindChunks),
     AnnounceFile(Vec<SignedAnnounceFile>),
@@ -336,7 +335,7 @@ impl PubsubMessage {
                         u64::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::NewFile => Ok(PubsubMessage::NewFile(
-                        TimedMessage::<NewFile>::from_ssz_bytes(data)
+                        TimedMessage::<ShardedFile>::from_ssz_bytes(data)
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::FindFile => Ok(PubsubMessage::FindFile(

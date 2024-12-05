@@ -9,7 +9,7 @@ use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
 use network::rpc::methods::FileAnnouncement;
-use network::types::{AnnounceChunks, FindFile, NewFile};
+use network::types::{AnnounceChunks, FindFile, ShardedFile};
 use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, NetworkSender,
     PeerId, PeerRequestId, PubsubMessage, SyncId as RequestId,
@@ -71,7 +71,7 @@ pub enum SyncMessage {
     },
     NewFile {
         from: PeerId,
-        msg: NewFile,
+        file: ShardedFile,
     },
     AnnounceFile {
         peer_id: PeerId,
@@ -273,7 +273,7 @@ impl SyncService {
             SyncMessage::AnnounceShardConfig { .. } => {
                 // FIXME: Check if controllers need to be reset?
             }
-            SyncMessage::NewFile { from, msg } => self.on_new_file_gossip(from, msg).await,
+            SyncMessage::NewFile { from, file } => self.on_new_file_gossip(from, file).await,
             SyncMessage::AnnounceFile {
                 peer_id,
                 announcement,
@@ -773,17 +773,17 @@ impl SyncService {
     }
 
     /// Handle on `NewFile` gossip message received.
-    async fn on_new_file_gossip(&mut self, from: PeerId, msg: NewFile) {
-        debug!(%from, ?msg, "Received NewFile gossip");
+    async fn on_new_file_gossip(&mut self, from: PeerId, file: ShardedFile) {
+        debug!(%from, ?file, "Received NewFile gossip");
 
-        if let Some(controller) = self.controllers.get_mut(&msg.tx_id.seq) {
+        if let Some(controller) = self.controllers.get_mut(&file.tx_id.seq) {
             // Notify new peer announced if file already in sync
-            if let Ok(shard_config) = ShardConfig::try_from(msg.shard_config) {
+            if let Ok(shard_config) = ShardConfig::try_from(file.shard_config) {
                 controller.on_peer_announced(from, shard_config);
                 controller.transition();
             }
         } else if let Some(manager) = &self.auto_sync_manager {
-            let _ = manager.new_file_send.send(msg.tx_id.seq);
+            let _ = manager.new_file_send.send(file.tx_id.seq);
         }
     }
 

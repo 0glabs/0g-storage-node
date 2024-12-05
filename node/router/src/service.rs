@@ -6,10 +6,11 @@ use file_location_cache::FileLocationCache;
 use futures::{channel::mpsc::Sender, prelude::*};
 use miner::MinerMessage;
 use network::rpc::GoodbyeReason;
+use network::types::ShardedFile;
 use network::PeerId;
 use network::{
-    types::NewFile, BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage,
-    NetworkReceiver, NetworkSender, PubsubMessage, RequestId, Service as LibP2PService, Swarm,
+    BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage, NetworkReceiver,
+    NetworkSender, PubsubMessage, RequestId, Service as LibP2PService, Swarm,
 };
 use pruner::PrunerMessage;
 use std::sync::Arc;
@@ -335,7 +336,7 @@ impl RouterService {
                 self.disconnect_peer(peer_id);
             }
             NetworkMessage::AnnounceLocalFile { tx_id } => {
-                let new_file = NewFile {
+                let new_file = ShardedFile {
                     tx_id,
                     shard_config: self.store.get_shard_config().into(),
                 };
