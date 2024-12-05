@@ -11,4 +11,4 @@ pub use pubsub::{
     PubsubMessage, SignedAnnounceChunks, SignedAnnounceFile, SignedAnnounceShardConfig,
     SignedMessage, SnappyTransform,
 };
-pub use topics::{GossipEncoding, GossipKind, GossipTopic, CORE_TOPICS};
+pub use topics::{GossipEncoding, GossipKind, GossipTopic};
