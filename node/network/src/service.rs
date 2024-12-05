@@ -243,7 +243,18 @@ impl<AppReqId: ReqId> Service<AppReqId> {
         //     }
         // }
 
-        for topic_kind in &crate::types::CORE_TOPICS {
+        let mut topics = vec![
+            GossipKind::NewFile,
+            GossipKind::FindFile,
+            GossipKind::AnnounceFile,
+            GossipKind::AnnounceShardConfig,
+        ];
+        if config.find_chunks_enabled {
+            topics.push(GossipKind::FindChunks);
+            topics.push(GossipKind::AnnounceChunks);
+        }
+
+        for topic_kind in topics {
             if swarm.behaviour_mut().subscribe_kind(topic_kind.clone()) {
                 subscribed_topics.push(topic_kind.clone());
             } else {

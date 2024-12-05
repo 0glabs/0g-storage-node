@@ -133,6 +133,9 @@ pub struct Config {
     /// Whether to disable network identity in ENR.
     /// This is for test purpose only.
     pub disable_enr_network_id: bool,
+
+    /// Whether to allow find chunks from peers.
+    pub find_chunks_enabled: bool,
 }
 
 impl Default for Config {
@@ -214,6 +217,7 @@ impl Default for Config {
             peer_db: Default::default(),
             peer_manager: Default::default(),
             disable_enr_network_id: false,
+            find_chunks_enabled: false,
         }
     }
 }

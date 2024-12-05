@@ -14,6 +14,12 @@ class SyncTest(TestFramework):
     def setup_params(self):
         self.num_nodes = 2
 
+        # enable find chunks topic
+        for i in range(self.num_nodes):
+            self.zgs_node_configs[i] = {
+                "network_find_chunks_enabled": True
+            }
+
     def run_test(self):
         # By default, auto_sync_enabled and sync_file_on_announcement_enabled are both false,
         # and file or chunks sync should be triggered by rpc.
