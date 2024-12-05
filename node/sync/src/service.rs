@@ -778,7 +778,7 @@ impl SyncService {
 
         if let Some(controller) = self.controllers.get_mut(&msg.tx_id.seq) {
             // Notify new peer announced if file already in sync
-            if let Ok(shard_config) = ShardConfig::new(msg.shard_id, msg.num_shard) {
+            if let Ok(shard_config) = ShardConfig::try_from(msg.shard_config) {
                 controller.on_peer_announced(from, shard_config);
                 controller.transition();
             }

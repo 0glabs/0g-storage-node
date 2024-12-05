@@ -389,14 +389,14 @@ impl Libp2pEventHandler {
     }
 
     /// Handle NewFile pubsub message `msg` that published by `from` peer.
-    async fn on_new_file(&self, from: PeerId, msg: NewFile) -> MessageAcceptance {
+    async fn on_new_file(&self, from: PeerId, msg: TimedMessage<NewFile>) -> MessageAcceptance {
         // verify timestamp
         let d = duration_since(
             msg.timestamp,
             metrics::LIBP2P_HANDLE_PUBSUB_NEW_FILE_LATENCY.clone(),
         );
         if d < TOLERABLE_DRIFT.neg() || d > *NEW_FILE_TIMEOUT {
-            debug!(?d, ?msg, "Invalid timestamp, ignoring NewFile message");
+            debug!(?d, %from, ?msg, "Invalid timestamp, ignoring NewFile message");
             metrics::LIBP2P_HANDLE_PUBSUB_NEW_FILE_TIMEOUT.mark(1);
             self.send_to_network(NetworkMessage::ReportPeer {
                 peer_id: from,
@@ -408,7 +408,7 @@ impl Libp2pEventHandler {
         }
 
         // verify announced shard config
-        let announced_shard_config = match ShardConfig::new(msg.shard_id, msg.num_shard) {
+        let announced_shard_config = match ShardConfig::try_from(msg.shard_config) {
             Ok(v) => v,
             Err(_) => return MessageAcceptance::Reject,
         };
@@ -419,28 +419,21 @@ impl Libp2pEventHandler {
             return MessageAcceptance::Ignore;
         }
 
-        // ignore if already exists
-        match self.store.check_tx_completed(msg.tx_id.seq).await {
-            Ok(true) => return MessageAcceptance::Ignore,
-            Ok(false) => {}
+        // ignore if already pruned or exists
+        match self.store.get_store().get_tx_status(msg.tx_id.seq) {
+            Ok(Some(_)) => return MessageAcceptance::Ignore,
+            Ok(None) => {}
             Err(err) => {
-                warn!(?err, tx_seq = %msg.tx_id.seq, "Failed to check tx completed");
-                return MessageAcceptance::Ignore;
-            }
-        }
-
-        // ignore if already pruned
-        match self.store.check_tx_pruned(msg.tx_id.seq).await {
-            Ok(true) => return MessageAcceptance::Ignore,
-            Ok(false) => {}
-            Err(err) => {
-                warn!(?err, tx_seq = %msg.tx_id.seq, "Failed to check tx pruned");
+                warn!(?err, tx_seq = %msg.tx_id.seq, "Failed to get tx status");
                 return MessageAcceptance::Ignore;
             }
         }
 
         // notify sync layer to handle in advance
-        self.send_to_sync(SyncMessage::NewFile { from, msg });
+        self.send_to_sync(SyncMessage::NewFile {
+            from,
+            msg: msg.inner,
+        });
 
         MessageAcceptance::Ignore
     }

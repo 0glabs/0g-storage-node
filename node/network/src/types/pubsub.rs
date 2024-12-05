@@ -118,9 +118,7 @@ impl ssz::Decode for WrappedPeerId {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct NewFile {
     pub tx_id: TxID,
-    pub num_shard: usize,
-    pub shard_id: usize,
-    pub timestamp: u32,
+    pub shard_config: ShardConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -231,7 +229,7 @@ type SignedAnnounceFiles = Vec<SignedAnnounceFile>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PubsubMessage {
     ExampleMessage(u64),
-    NewFile(NewFile),
+    NewFile(TimedMessage<NewFile>),
     FindFile(FindFile),
     FindChunks(FindChunks),
     AnnounceFile(Vec<SignedAnnounceFile>),
@@ -338,7 +336,8 @@ impl PubsubMessage {
                         u64::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::NewFile => Ok(PubsubMessage::NewFile(
-                        NewFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                        TimedMessage::<NewFile>::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::FindFile => Ok(PubsubMessage::FindFile(
                         FindFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
