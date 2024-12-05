@@ -6,7 +6,7 @@ use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
 use network::multiaddr::Protocol;
 use network::rpc::methods::FileAnnouncement;
-use network::types::{AnnounceShardConfig, NewFile, SignedAnnounceShardConfig};
+use network::types::{AnnounceShardConfig, NewFile};
 use network::{
     rpc::StatusMessage,
     types::{
@@ -383,7 +383,7 @@ impl Libp2pEventHandler {
             }
             PubsubMessage::AnnounceShardConfig(msg) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_SHARD.mark(1);
-                self.on_announce_shard_config(propagation_source, msg)
+                self.on_announce_shard_config(propagation_source, source, msg)
             }
         }
     }
@@ -551,35 +551,6 @@ impl Libp2pEventHandler {
         signed.resend_timestamp = timestamp;
 
         Some(signed)
-    }
-
-    pub async fn construct_announce_shard_config_message(
-        &self,
-        shard_config: ShardConfig,
-    ) -> Option<PubsubMessage> {
-        let peer_id = *self.network_globals.peer_id.read();
-        let addr = self.construct_announced_ip().await?;
-        let timestamp = timestamp_now();
-
-        let msg = AnnounceShardConfig {
-            num_shard: shard_config.num_shard,
-            shard_id: shard_config.shard_id,
-            peer_id: peer_id.into(),
-            at: addr.into(),
-            timestamp,
-        };
-
-        let mut signed = match SignedMessage::sign_message(msg, &self.local_keypair) {
-            Ok(signed) => signed,
-            Err(e) => {
-                error!(%e, "Failed to sign AnnounceShardConfig message");
-                return None;
-            }
-        };
-
-        signed.resend_timestamp = timestamp;
-
-        Some(PubsubMessage::AnnounceShardConfig(signed))
     }
 
     async fn on_find_file(&self, from: PeerId, msg: FindFile) -> MessageAcceptance {
@@ -872,51 +843,33 @@ impl Libp2pEventHandler {
     fn on_announce_shard_config(
         &self,
         propagation_source: PeerId,
-        msg: SignedAnnounceShardConfig,
+        source: PeerId,
+        msg: AnnounceShardConfig,
     ) -> MessageAcceptance {
-        // verify message signature
-        if !verify_signature(&msg, &msg.peer_id, propagation_source) {
-            return MessageAcceptance::Reject;
-        }
-
-        // verify public ip address if required
-        let addr = msg.at.clone().into();
-        if !self.config.private_ip_enabled && !Self::contains_public_ip(&addr) {
-            return MessageAcceptance::Reject;
-        }
-
-        // verify announced ip address if required
-        if !self.config.private_ip_enabled
-            && self.config.check_announced_ip
-            && !self.verify_announced_address(&msg.peer_id, &addr)
-        {
-            return MessageAcceptance::Reject;
-        }
-
-        // propagate gossip to peers
+        // validate timestamp
         let d = duration_since(
-            msg.resend_timestamp,
+            msg.timestamp,
             metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_SHARD_LATENCY.clone(),
         );
         if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_SHARD_CONFIG_TIMEOUT {
-            debug!(%msg.resend_timestamp, ?d, "Invalid resend timestamp, ignoring AnnounceShardConfig message");
+            debug!(?d, %propagation_source, %source, ?msg, "Invalid timestamp, ignoring AnnounceShardConfig message");
             return MessageAcceptance::Ignore;
         }
 
-        let shard_config = ShardConfig {
-            shard_id: msg.shard_id,
-            num_shard: msg.num_shard,
+        let shard_config = match ShardConfig::try_from(msg.inner) {
+            Ok(v) => v,
+            Err(_) => return MessageAcceptance::Reject,
         };
-        // notify sync layer
-        self.send_to_sync(SyncMessage::AnnounceShardConfig {
-            shard_config,
-            peer_id: msg.peer_id.clone().into(),
-            addr,
-        });
 
         // insert message to cache
         self.file_location_cache
-            .insert_peer_config(msg.peer_id.clone().into(), shard_config);
+            .insert_peer_config(source, shard_config);
+
+        // notify sync layer
+        self.send_to_sync(SyncMessage::AnnounceShardConfig {
+            shard_config,
+            peer_id: source,
+        });
 
         MessageAcceptance::Accept
     }

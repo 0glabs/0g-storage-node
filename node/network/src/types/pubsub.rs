@@ -6,7 +6,7 @@ use libp2p::{
     gossipsub::{DataTransform, GossipsubMessage, RawGossipsubMessage},
     Multiaddr, PeerId,
 };
-use shared_types::TxID;
+use shared_types::{timestamp_now, ShardConfig, TxID};
 use snap::raw::{decompress_len, Decoder, Encoder};
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode, Encode};
@@ -162,12 +162,26 @@ pub struct AnnounceChunks {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
-pub struct AnnounceShardConfig {
-    pub num_shard: usize,
-    pub shard_id: usize,
-    pub peer_id: WrappedPeerId,
-    pub at: WrappedMultiaddr,
+pub struct TimedMessage<T: Encode + Decode> {
+    pub inner: T,
     pub timestamp: u32,
+}
+
+impl<T: Encode + Decode> Deref for TimedMessage<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T: Encode + Decode> From<T> for TimedMessage<T> {
+    fn from(value: T) -> Self {
+        Self {
+            inner: value,
+            timestamp: timestamp_now(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
@@ -210,7 +224,7 @@ impl<T: Encode + Decode> HasSignature for SignedMessage<T> {
 }
 
 pub type SignedAnnounceFile = SignedMessage<AnnounceFile>;
-pub type SignedAnnounceShardConfig = SignedMessage<AnnounceShardConfig>;
+pub type AnnounceShardConfig = TimedMessage<ShardConfig>;
 pub type SignedAnnounceChunks = SignedMessage<AnnounceChunks>;
 
 type SignedAnnounceFiles = Vec<SignedAnnounceFile>;
@@ -222,7 +236,7 @@ pub enum PubsubMessage {
     FindFile(FindFile),
     FindChunks(FindChunks),
     AnnounceFile(Vec<SignedAnnounceFile>),
-    AnnounceShardConfig(SignedAnnounceShardConfig),
+    AnnounceShardConfig(AnnounceShardConfig),
     AnnounceChunks(SignedAnnounceChunks),
 }
 
@@ -342,7 +356,7 @@ impl PubsubMessage {
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::AnnounceShardConfig => Ok(PubsubMessage::AnnounceShardConfig(
-                        SignedAnnounceShardConfig::from_ssz_bytes(data)
+                        AnnounceShardConfig::from_ssz_bytes(data)
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                 }

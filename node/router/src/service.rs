@@ -384,13 +384,10 @@ impl RouterService {
             PrunerMessage::ChangeShardConfig(shard_config) => {
                 self.libp2p_event_handler
                     .send_to_chunk_pool(ChunkPoolMessage::ChangeShardConfig(shard_config));
-                if let Some(msg) = self
-                    .libp2p_event_handler
-                    .construct_announce_shard_config_message(shard_config)
-                    .await
-                {
-                    self.libp2p_event_handler.publish(msg)
-                }
+
+                let shard_config = shared_types::ShardConfig::from(shard_config);
+                self.libp2p_event_handler
+                    .publish(PubsubMessage::AnnounceShardConfig(shard_config.into()));
             }
         }
     }

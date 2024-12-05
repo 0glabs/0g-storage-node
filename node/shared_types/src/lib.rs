@@ -403,6 +403,13 @@ pub enum TxSeqOrRoot {
     Root(DataRoot),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveEncode, DeriveDecode)]
+#[serde(rename_all = "camelCase")]
+pub struct ShardConfig {
+    pub num_shard: usize,
+    pub shard_id: usize,
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
