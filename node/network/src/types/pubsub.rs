@@ -224,7 +224,6 @@ impl<T: Encode + Decode> HasSignature for SignedMessage<T> {
 }
 
 pub type SignedAnnounceFile = SignedMessage<AnnounceFile>;
-pub type AnnounceShardConfig = TimedMessage<ShardConfig>;
 pub type SignedAnnounceChunks = SignedMessage<AnnounceChunks>;
 
 type SignedAnnounceFiles = Vec<SignedAnnounceFile>;
@@ -236,7 +235,7 @@ pub enum PubsubMessage {
     FindFile(FindFile),
     FindChunks(FindChunks),
     AnnounceFile(Vec<SignedAnnounceFile>),
-    AnnounceShardConfig(AnnounceShardConfig),
+    AnnounceShardConfig(TimedMessage<ShardConfig>),
     AnnounceChunks(SignedAnnounceChunks),
 }
 
@@ -356,7 +355,7 @@ impl PubsubMessage {
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::AnnounceShardConfig => Ok(PubsubMessage::AnnounceShardConfig(
-                        AnnounceShardConfig::from_ssz_bytes(data)
+                        TimedMessage::<ShardConfig>::from_ssz_bytes(data)
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                 }

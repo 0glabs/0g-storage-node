@@ -6,7 +6,7 @@ use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
 use network::multiaddr::Protocol;
 use network::rpc::methods::FileAnnouncement;
-use network::types::{AnnounceShardConfig, NewFile};
+use network::types::{NewFile, TimedMessage};
 use network::{
     rpc::StatusMessage,
     types::{
@@ -844,7 +844,7 @@ impl Libp2pEventHandler {
         &self,
         propagation_source: PeerId,
         source: PeerId,
-        msg: AnnounceShardConfig,
+        msg: TimedMessage<shared_types::ShardConfig>,
     ) -> MessageAcceptance {
         // validate timestamp
         let d = duration_since(
