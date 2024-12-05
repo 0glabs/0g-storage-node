@@ -60,6 +60,23 @@ impl TryFrom<Option<String>> for ShardConfig {
     }
 }
 
+impl TryFrom<shared_types::ShardConfig> for ShardConfig {
+    type Error = String;
+
+    fn try_from(value: shared_types::ShardConfig) -> Result<Self, Self::Error> {
+        Self::new(value.shard_id, value.num_shard)
+    }
+}
+
+impl From<ShardConfig> for shared_types::ShardConfig {
+    fn from(value: ShardConfig) -> Self {
+        Self {
+            num_shard: value.num_shard,
+            shard_id: value.shard_id,
+        }
+    }
+}
+
 impl ShardConfig {
     pub fn new(id: usize, num: usize) -> Result<Self, String> {
         let config = ShardConfig {

@@ -65,7 +65,6 @@ pub enum SyncMessage {
     AnnounceShardConfig {
         shard_config: ShardConfig,
         peer_id: PeerId,
-        addr: Multiaddr,
     },
     AnnounceChunksGossip {
         msg: AnnounceChunks,
