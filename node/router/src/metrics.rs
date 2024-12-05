@@ -2,6 +2,30 @@ use std::sync::Arc;
 
 use metrics::{register_meter, register_meter_with_group, Histogram, Meter, Sample};
 
+pub struct PubsubMsgHandleMetrics {
+    pub(crate) topic_name: &'static str,
+    pub(crate) qps: Arc<dyn Meter>,
+    pub(crate) latency_ms: Arc<dyn Histogram>,
+    pub(crate) timeout: Arc<dyn Meter>,
+}
+
+impl PubsubMsgHandleMetrics {
+    pub fn new(topic_name: &'static str) -> Self {
+        let group_name = format!("router_libp2p_handle_pubsub_{}", topic_name);
+
+        Self {
+            topic_name,
+            qps: register_meter_with_group(group_name.as_str(), "qps"),
+            latency_ms: Sample::ExpDecay(0.015).register_with_group(
+                group_name.as_str(),
+                "latency_ms",
+                1024,
+            ),
+            timeout: register_meter_with_group(group_name.as_str(), "timeout"),
+        }
+    }
+}
+
 lazy_static::lazy_static! {
     // service
     pub static ref SERVICE_ROUTE_NETWORK_MESSAGE: Arc<dyn Meter> = register_meter("router_service_route_network_message");
@@ -42,10 +66,9 @@ lazy_static::lazy_static! {
     pub static ref LIBP2P_HANDLE_RESPONSE_ERROR: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_response_error", "qps");
     pub static ref LIBP2P_HANDLE_RESPONSE_ERROR_LATENCY: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register_with_group("router_libp2p_handle_response_error", "latency", 1024);
 
-    // libp2p_event_handler: new file
-    pub static ref LIBP2P_HANDLE_PUBSUB_NEW_FILE: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_new_file", "qps");
-    pub static ref LIBP2P_HANDLE_PUBSUB_NEW_FILE_LATENCY: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register_with_group("router_libp2p_handle_pubsub_new_file", "latency", 1024);
-    pub static ref LIBP2P_HANDLE_PUBSUB_NEW_FILE_TIMEOUT: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_new_file", "timeout");
+    // libp2p_event_handler: new file, ask file
+    pub static ref LIBP2P_HANDLE_PUBSUB_NEW_FILE: PubsubMsgHandleMetrics = PubsubMsgHandleMetrics::new("new_file");
+    pub static ref LIBP2P_HANDLE_PUBSUB_ASK_FILE: PubsubMsgHandleMetrics = PubsubMsgHandleMetrics::new("ask_file");
 
     // libp2p_event_handler: find & announce file
     pub static ref LIBP2P_HANDLE_PUBSUB_FIND_FILE: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_find_file", "qps");

@@ -403,13 +403,16 @@ pub enum TxSeqOrRoot {
     Root(DataRoot),
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, DeriveEncode, DeriveDecode,
-)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DeriveEncode, DeriveDecode)]
 pub struct ShardConfig {
     pub num_shard: usize,
     pub shard_id: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DeriveEncode, DeriveDecode)]
+pub struct ShardedFile {
+    pub tx_id: TxID,
+    pub shard_config: ShardConfig,
 }
 
 #[cfg(test)]

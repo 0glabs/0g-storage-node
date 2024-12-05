@@ -6,13 +6,13 @@ use file_location_cache::FileLocationCache;
 use futures::{channel::mpsc::Sender, prelude::*};
 use miner::MinerMessage;
 use network::rpc::GoodbyeReason;
-use network::types::ShardedFile;
 use network::PeerId;
 use network::{
     BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage, NetworkReceiver,
     NetworkSender, PubsubMessage, RequestId, Service as LibP2PService, Swarm,
 };
 use pruner::PrunerMessage;
+use shared_types::ShardedFile;
 use std::sync::Arc;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;

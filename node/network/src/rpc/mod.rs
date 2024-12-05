@@ -118,7 +118,7 @@ impl<Id: ReqId> RPC<Id> {
             .n_every(Protocol::Status, 5, Duration::from_secs(15))
             .one_every(Protocol::Goodbye, Duration::from_secs(10))
             .n_every(Protocol::DataByHash, 128, Duration::from_secs(10))
-            .n_every(Protocol::AnnounceFile, 256, Duration::from_secs(10))
+            .n_every(Protocol::AnswerFile, 256, Duration::from_secs(10))
             .n_every(Protocol::GetChunks, 4096, Duration::from_secs(10))
             .build()
             .expect("Configuration parameters are valid");

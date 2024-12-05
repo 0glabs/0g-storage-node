@@ -5,7 +5,7 @@ use crate::rpc::{
 };
 use crate::rpc::{InboundRequest, OutboundRequest, RPCCodedResponse, RPCResponse};
 use libp2p::bytes::BytesMut;
-use shared_types::ChunkArrayWithProof;
+use shared_types::{ChunkArrayWithProof, ShardedFile};
 use snap::read::FrameDecoder;
 use snap::write::FrameEncoder;
 use ssz::{Decode, Encode};
@@ -159,7 +159,7 @@ impl Encoder<OutboundRequest> for SSZSnappyOutboundCodec {
             OutboundRequest::Goodbye(req) => req.as_ssz_bytes(),
             OutboundRequest::Ping(req) => req.as_ssz_bytes(),
             OutboundRequest::DataByHash(req) => req.hashes.as_ssz_bytes(),
-            OutboundRequest::AnnounceFile(req) => req.as_ssz_bytes(),
+            OutboundRequest::AnswerFile(req) => req.as_ssz_bytes(),
             OutboundRequest::GetChunks(req) => req.as_ssz_bytes(),
         };
         // SSZ encoded bytes should be within `max_packet_size`
@@ -347,8 +347,8 @@ fn handle_v1_request(
         Protocol::DataByHash => Ok(Some(InboundRequest::DataByHash(DataByHashRequest {
             hashes: VariableList::from_ssz_bytes(decoded_buffer)?,
         }))),
-        Protocol::AnnounceFile => Ok(Some(InboundRequest::AnnounceFile(
-            FileAnnouncement::from_ssz_bytes(decoded_buffer)?,
+        Protocol::AnswerFile => Ok(Some(InboundRequest::AnswerFile(
+            ShardedFile::from_ssz_bytes(decoded_buffer)?,
         ))),
         Protocol::GetChunks => Ok(Some(InboundRequest::GetChunks(
             GetChunksRequest::from_ssz_bytes(decoded_buffer)?,
@@ -377,9 +377,9 @@ fn handle_v1_response(
         Protocol::DataByHash => Ok(Some(RPCResponse::DataByHash(Box::new(
             ZgsData::from_ssz_bytes(decoded_buffer)?,
         )))),
-        // This case should be unreachable as `AnnounceFile` has no response.
-        Protocol::AnnounceFile => Err(RPCError::InvalidData(
-            "AnnounceFile RPC message has no valid response".to_string(),
+        // This case should be unreachable as `AnswerFile` has no response.
+        Protocol::AnswerFile => Err(RPCError::InvalidData(
+            "AnswerFile RPC message has no valid response".to_string(),
         )),
         Protocol::GetChunks => Ok(Some(RPCResponse::Chunks(
             ChunkArrayWithProof::from_ssz_bytes(decoded_buffer)?,

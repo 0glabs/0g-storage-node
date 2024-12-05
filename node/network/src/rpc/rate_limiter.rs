@@ -68,8 +68,8 @@ pub struct RPCRateLimiter {
     status_rl: Limiter<PeerId>,
     /// DataByHash rate limiter.
     data_by_hash_rl: Limiter<PeerId>,
-    /// AnnounceFile rate limiter.
-    announce_file_rl: Limiter<PeerId>,
+    /// AnswerFile rate limiter.
+    answer_file_rl: Limiter<PeerId>,
     /// GetChunks rate limiter.
     get_chunks_rl: Limiter<PeerId>,
 }
@@ -93,8 +93,8 @@ pub struct RPCRateLimiterBuilder {
     status_quota: Option<Quota>,
     /// Quota for the DataByHash protocol.
     data_by_hash_quota: Option<Quota>,
-    /// Quota for the AnnounceFile protocol.
-    announce_file_quota: Option<Quota>,
+    /// Quota for the AnswerFile protocol.
+    answer_file_quota: Option<Quota>,
     /// Quota for the GetChunks protocol.
     get_chunks_quota: Option<Quota>,
 }
@@ -113,7 +113,7 @@ impl RPCRateLimiterBuilder {
             Protocol::Status => self.status_quota = q,
             Protocol::Goodbye => self.goodbye_quota = q,
             Protocol::DataByHash => self.data_by_hash_quota = q,
-            Protocol::AnnounceFile => self.announce_file_quota = q,
+            Protocol::AnswerFile => self.answer_file_quota = q,
             Protocol::GetChunks => self.get_chunks_quota = q,
         }
         self
@@ -150,9 +150,9 @@ impl RPCRateLimiterBuilder {
         let data_by_hash_quota = self
             .data_by_hash_quota
             .ok_or("DataByHash quota not specified")?;
-        let announce_file_quota = self
-            .announce_file_quota
-            .ok_or("AnnounceFile quota not specified")?;
+        let answer_file_quota = self
+            .answer_file_quota
+            .ok_or("AnswerFile quota not specified")?;
         let get_chunks_quota = self
             .get_chunks_quota
             .ok_or("GetChunks quota not specified")?;
@@ -162,7 +162,7 @@ impl RPCRateLimiterBuilder {
         let status_rl = Limiter::from_quota(status_quota)?;
         let goodbye_rl = Limiter::from_quota(goodbye_quota)?;
         let data_by_hash_rl = Limiter::from_quota(data_by_hash_quota)?;
-        let announce_file_rl = Limiter::from_quota(announce_file_quota)?;
+        let answer_file_rl = Limiter::from_quota(answer_file_quota)?;
         let get_chunks_rl = Limiter::from_quota(get_chunks_quota)?;
 
         // check for peers to prune every 30 seconds, starting in 30 seconds
@@ -175,7 +175,7 @@ impl RPCRateLimiterBuilder {
             status_rl,
             goodbye_rl,
             data_by_hash_rl,
-            announce_file_rl,
+            answer_file_rl,
             get_chunks_rl,
             init_time: Instant::now(),
         })
@@ -220,7 +220,7 @@ impl RPCRateLimiter {
             Protocol::Status => &mut self.status_rl,
             Protocol::Goodbye => &mut self.goodbye_rl,
             Protocol::DataByHash => &mut self.data_by_hash_rl,
-            Protocol::AnnounceFile => &mut self.announce_file_rl,
+            Protocol::AnswerFile => &mut self.answer_file_rl,
             Protocol::GetChunks => &mut self.get_chunks_rl,
         };
         check(limiter)

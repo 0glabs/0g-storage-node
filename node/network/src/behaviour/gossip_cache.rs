@@ -13,141 +13,34 @@ use tokio_util::time::delay_queue::{DelayQueue, Key};
 /// messages are ignored. This behaviour can be changed using `GossipCacheBuilder::default_timeout`
 /// to apply the same delay to every kind. Individual timeouts for specific kinds can be set and
 /// will overwrite the default_timeout if present.
+#[derive(Default)]
 pub struct GossipCache {
     /// Expire timeouts for each topic-msg pair.
     expirations: DelayQueue<(GossipTopic, Vec<u8>)>,
     /// Messages cached for each topic.
     topic_msgs: HashMap<GossipTopic, HashMap<Vec<u8>, Key>>,
-    /// Timeout for Example messages.
-    example: Option<Duration>,
-    /// Timeout for NewFile messages.
-    new_file: Option<Duration>,
-    /// Timeout for FindFile messages.
-    find_file: Option<Duration>,
-    /// Timeout for FindChunks messages.
-    find_chunks: Option<Duration>,
-    /// Timeout for AnnounceFile.
-    announce_file: Option<Duration>,
-    /// Timeout for AnnounceChunks.
-    announce_chunks: Option<Duration>,
-    /// Timeout for AnnounceShardConfig.
-    announce_shard_config: Option<Duration>,
-}
 
-#[derive(Default)]
-pub struct GossipCacheBuilder {
     default_timeout: Option<Duration>,
-    /// Timeout for Example messages.
-    example: Option<Duration>,
-    /// Timeout for NewFile messages.
-    new_file: Option<Duration>,
-    /// Timeout for blocks FindFile messages.
-    find_file: Option<Duration>,
-    /// Timeout for blocks FindChunks messages.
-    find_chunks: Option<Duration>,
-    /// Timeout for AnnounceFile messages.
-    announce_file: Option<Duration>,
-    /// Timeout for AnnounceChunks messages.
-    announce_chunks: Option<Duration>,
-    /// Timeout for AnnounceShardConfig messages.
-    announce_shard_config: Option<Duration>,
-}
-
-#[allow(dead_code)]
-impl GossipCacheBuilder {
-    /// By default, all timeouts all disabled. Setting a default timeout will enable all timeout
-    /// that are not already set.
-    pub fn default_timeout(mut self, timeout: Duration) -> Self {
-        self.default_timeout = Some(timeout);
-        self
-    }
-
-    /// Timeout for Example messages.
-    pub fn example_timeout(mut self, timeout: Duration) -> Self {
-        self.example = Some(timeout);
-        self
-    }
-
-    /// Timeout for NewFile messages.
-    pub fn new_file_timeout(mut self, timeout: Duration) -> Self {
-        self.new_file = Some(timeout);
-        self
-    }
-
-    /// Timeout for FindFile messages.
-    pub fn find_file_timeout(mut self, timeout: Duration) -> Self {
-        self.find_file = Some(timeout);
-        self
-    }
-
-    /// Timeout for FindChunks messages.
-    pub fn find_chunks_timeout(mut self, timeout: Duration) -> Self {
-        self.find_chunks = Some(timeout);
-        self
-    }
-
-    /// Timeout for AnnounceFile messages.
-    pub fn announce_file_timeout(mut self, timeout: Duration) -> Self {
-        self.announce_file = Some(timeout);
-        self
-    }
-
-    /// Timeout for AnnounceChunks messages.
-    pub fn announce_chunks_timeout(mut self, timeout: Duration) -> Self {
-        self.announce_chunks = Some(timeout);
-        self
-    }
-
-    /// Timeout for AnnounceShardConfig messages.
-    pub fn announce_shard_config_timeout(mut self, timeout: Duration) -> Self {
-        self.announce_shard_config = Some(timeout);
-        self
-    }
-
-    pub fn build(self) -> GossipCache {
-        let GossipCacheBuilder {
-            default_timeout,
-            example,
-            new_file,
-            find_file,
-            find_chunks,
-            announce_file,
-            announce_chunks,
-            announce_shard_config,
-        } = self;
-
-        GossipCache {
-            expirations: DelayQueue::default(),
-            topic_msgs: HashMap::default(),
-            example: example.or(default_timeout),
-            new_file: new_file.or(default_timeout),
-            find_file: find_file.or(default_timeout),
-            find_chunks: find_chunks.or(default_timeout),
-            announce_file: announce_file.or(default_timeout),
-            announce_chunks: announce_chunks.or(default_timeout),
-            announce_shard_config: announce_shard_config.or(default_timeout),
-        }
-    }
+    /// Timeout for pubsub messages.
+    timeouts: HashMap<GossipKind, Duration>,
 }
 
 impl GossipCache {
-    /// Get a builder of a `GossipCache`. Topic kinds for which no timeout is defined will be
-    /// ignored if added in `insert`.
-    pub fn builder() -> GossipCacheBuilder {
-        GossipCacheBuilder::default()
+    #[cfg(test)]
+    pub fn new_with_default_timeout(timeout: Duration) -> Self {
+        Self {
+            default_timeout: Some(timeout),
+            ..Default::default()
+        }
     }
 
     // Insert a message to be sent later.
     pub fn insert(&mut self, topic: GossipTopic, data: Vec<u8>) {
-        let expire_timeout = match topic.kind() {
-            GossipKind::Example => self.example,
-            GossipKind::NewFile => self.new_file,
-            GossipKind::FindFile => self.find_file,
-            GossipKind::FindChunks => self.find_chunks,
-            GossipKind::AnnounceFile => self.announce_file,
-            GossipKind::AnnounceChunks => self.announce_chunks,
-            GossipKind::AnnounceShardConfig => self.announce_shard_config,
-        };
+        let expire_timeout = self
+            .timeouts
+            .get(topic.kind())
+            .cloned()
+            .or(self.default_timeout);
 
         let expire_timeout = match expire_timeout {
             Some(expire_timeout) => expire_timeout,
@@ -221,9 +114,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream() {
-        let mut cache = GossipCache::builder()
-            .default_timeout(Duration::from_millis(300))
-            .build();
+        let mut cache = GossipCache::new_with_default_timeout(Duration::from_millis(300));
         let test_topic =
             GossipTopic::new(GossipKind::Example, crate::types::GossipEncoding::SSZSnappy);
         cache.insert(test_topic, vec![]);

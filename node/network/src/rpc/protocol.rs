@@ -8,7 +8,7 @@ use futures::future::BoxFuture;
 use futures::prelude::{AsyncRead, AsyncWrite};
 use futures::{FutureExt, StreamExt};
 use libp2p::core::{InboundUpgrade, ProtocolName, UpgradeInfo};
-use shared_types::{ChunkArray, ChunkArrayWithProof, FlowRangeProof};
+use shared_types::{ChunkArray, ChunkArrayWithProof, FlowRangeProof, ShardedFile};
 use ssz::Encode;
 use ssz_types::VariableList;
 use std::io;
@@ -91,8 +91,8 @@ pub enum Protocol {
     /// TODO
     DataByHash,
 
-    /// The file announce protocol.
-    AnnounceFile,
+    /// The file answer protocol.
+    AnswerFile,
     /// The Chunk sync protocol.
     GetChunks,
 }
@@ -117,7 +117,7 @@ impl std::fmt::Display for Protocol {
             Protocol::Goodbye => "goodbye",
             Protocol::Ping => "ping",
             Protocol::DataByHash => "data_by_hash",
-            Protocol::AnnounceFile => "announce_file",
+            Protocol::AnswerFile => "answer_file",
             Protocol::GetChunks => "get_chunks",
         };
         f.write_str(repr)
@@ -158,7 +158,7 @@ impl UpgradeInfo for RPCProtocol {
             ProtocolId::new(Protocol::Goodbye, Version::V1, Encoding::SSZSnappy),
             ProtocolId::new(Protocol::Ping, Version::V1, Encoding::SSZSnappy),
             ProtocolId::new(Protocol::DataByHash, Version::V1, Encoding::SSZSnappy),
-            ProtocolId::new(Protocol::AnnounceFile, Version::V1, Encoding::SSZSnappy),
+            ProtocolId::new(Protocol::AnswerFile, Version::V1, Encoding::SSZSnappy),
             ProtocolId::new(Protocol::GetChunks, Version::V1, Encoding::SSZSnappy),
         ]
     }
@@ -220,9 +220,9 @@ impl ProtocolId {
                 // TODO
                 RpcLimits::new(1, *DATA_BY_HASH_REQUEST_MAX)
             }
-            Protocol::AnnounceFile => RpcLimits::new(
-                <FileAnnouncement as Encode>::ssz_fixed_len(),
-                <FileAnnouncement as Encode>::ssz_fixed_len(),
+            Protocol::AnswerFile => RpcLimits::new(
+                <ShardedFile as Encode>::ssz_fixed_len(),
+                <ShardedFile as Encode>::ssz_fixed_len(),
             ),
             Protocol::GetChunks => RpcLimits::new(
                 <GetChunksRequest as Encode>::ssz_fixed_len(),
@@ -251,7 +251,7 @@ impl ProtocolId {
                 <ZgsData as Encode>::ssz_fixed_len(),
             ),
 
-            Protocol::AnnounceFile => RpcLimits::new(0, 0), // AnnounceFile request has no response
+            Protocol::AnswerFile => RpcLimits::new(0, 0), // AnswerFile request has no response
             Protocol::GetChunks => RpcLimits::new(*CHUNKS_RESPONSE_MIN, *CHUNKS_RESPONSE_MAX),
         }
     }
@@ -334,7 +334,7 @@ pub enum InboundRequest {
     Goodbye(GoodbyeReason),
     Ping(Ping),
     DataByHash(DataByHashRequest),
-    AnnounceFile(FileAnnouncement),
+    AnswerFile(ShardedFile),
     GetChunks(GetChunksRequest),
 }
 
@@ -373,8 +373,8 @@ impl InboundRequest {
                 Version::V1,
                 Encoding::SSZSnappy,
             )],
-            InboundRequest::AnnounceFile(_) => vec![ProtocolId::new(
-                Protocol::AnnounceFile,
+            InboundRequest::AnswerFile(_) => vec![ProtocolId::new(
+                Protocol::AnswerFile,
                 Version::V1,
                 Encoding::SSZSnappy,
             )],
@@ -395,7 +395,7 @@ impl InboundRequest {
             InboundRequest::Goodbye(_) => 0,
             InboundRequest::DataByHash(req) => req.hashes.len() as u64,
             InboundRequest::Ping(_) => 1,
-            InboundRequest::AnnounceFile(_) => 0,
+            InboundRequest::AnswerFile(_) => 0,
             InboundRequest::GetChunks(_) => 1,
         }
     }
@@ -407,7 +407,7 @@ impl InboundRequest {
             InboundRequest::Goodbye(_) => Protocol::Goodbye,
             InboundRequest::Ping(_) => Protocol::Ping,
             InboundRequest::DataByHash(_) => Protocol::DataByHash,
-            InboundRequest::AnnounceFile(_) => Protocol::AnnounceFile,
+            InboundRequest::AnswerFile(_) => Protocol::AnswerFile,
             InboundRequest::GetChunks(_) => Protocol::GetChunks,
         }
     }
@@ -422,7 +422,7 @@ impl InboundRequest {
             InboundRequest::Status(_) => unreachable!(),
             InboundRequest::Goodbye(_) => unreachable!(),
             InboundRequest::Ping(_) => unreachable!(),
-            InboundRequest::AnnounceFile(_) => unreachable!(),
+            InboundRequest::AnswerFile(_) => unreachable!(),
             InboundRequest::GetChunks(_) => unreachable!(),
         }
     }
@@ -541,8 +541,8 @@ impl std::fmt::Display for InboundRequest {
             InboundRequest::DataByHash(req) => {
                 write!(f, "Data by hash: {:?}", req)
             }
-            InboundRequest::AnnounceFile(req) => {
-                write!(f, "Announce File: {:?}", req)
+            InboundRequest::AnswerFile(req) => {
+                write!(f, "Answer File: {:?}", req)
             }
             InboundRequest::GetChunks(req) => {
                 write!(f, "Get Chunks: {:?}", req)

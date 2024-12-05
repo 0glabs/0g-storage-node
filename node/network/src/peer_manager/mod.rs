@@ -465,7 +465,7 @@ impl PeerManager {
                     Protocol::Goodbye => PeerAction::LowToleranceError,
                     Protocol::Status => PeerAction::LowToleranceError,
                     Protocol::DataByHash => PeerAction::MidToleranceError,
-                    Protocol::AnnounceFile => PeerAction::MidToleranceError,
+                    Protocol::AnswerFile => PeerAction::MidToleranceError,
                     Protocol::GetChunks => PeerAction::MidToleranceError,
                 },
             },
@@ -480,7 +480,7 @@ impl PeerManager {
                     Protocol::Goodbye => return,
                     Protocol::Status => PeerAction::LowToleranceError,
                     Protocol::DataByHash => return,
-                    Protocol::AnnounceFile => return,
+                    Protocol::AnswerFile => return,
                     Protocol::GetChunks => return,
                 }
             }
@@ -495,7 +495,7 @@ impl PeerManager {
                     Protocol::Goodbye => return,
                     Protocol::Status => return,
                     Protocol::DataByHash => PeerAction::MidToleranceError,
-                    Protocol::AnnounceFile => PeerAction::MidToleranceError,
+                    Protocol::AnswerFile => PeerAction::MidToleranceError,
                     Protocol::GetChunks => PeerAction::MidToleranceError,
                 },
             },

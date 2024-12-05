@@ -10,7 +10,7 @@ use network::{
     PeerAction, PeerId, PubsubMessage, SyncId as RequestId,
 };
 use rand::Rng;
-use shared_types::{timestamp_now, ChunkArrayWithProof, TxID, CHUNK_SIZE};
+use shared_types::{timestamp_now, ChunkArrayWithProof, ShardedFile, TxID, CHUNK_SIZE};
 use ssz::Encode;
 use std::{sync::Arc, time::Instant};
 use storage::log_store::log_manager::{sector_to_segment, segment_to_sector, PORA_CHUNK_SIZE};
@@ -211,13 +211,25 @@ impl SerialSyncController {
     fn do_publish_find_file(&self) {
         let shard_config = self.store.get_store().get_shard_config();
 
-        self.ctx.publish(PubsubMessage::FindFile(FindFile {
-            tx_id: self.tx_id,
-            num_shard: shard_config.num_shard,
-            shard_id: shard_config.shard_id,
-            neighbors_only: self.config.neighbors_only,
-            timestamp: timestamp_now(),
-        }));
+        let msg = if self.config.neighbors_only {
+            PubsubMessage::AskFile(
+                ShardedFile {
+                    tx_id: self.tx_id,
+                    shard_config: shard_config.into(),
+                }
+                .into(),
+            )
+        } else {
+            PubsubMessage::FindFile(FindFile {
+                tx_id: self.tx_id,
+                num_shard: shard_config.num_shard,
+                shard_id: shard_config.shard_id,
+                neighbors_only: self.config.neighbors_only,
+                timestamp: timestamp_now(),
+            })
+        };
+
+        self.ctx.publish(msg);
     }
 
     fn publish_find_chunks(&self) {
