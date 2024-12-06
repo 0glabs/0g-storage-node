@@ -624,11 +624,9 @@ impl Libp2pEventHandler {
             if let Ok(Some(tx)) = self.store.get_tx_by_seq_number(tx_id.seq).await {
                 if tx.id() == tx_id {
                     trace!(?tx_id, "Found file locally, responding to FindFile query");
-
-                    if self.publish_file(tx_id).await.is_some() {
-                        metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_STORE.mark(1);
-                        return MessageAcceptance::Ignore;
-                    }
+                    self.publish_file(tx_id).await;
+                    metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_STORE.mark(1);
+                    return MessageAcceptance::Ignore;
                 }
             }
         }
@@ -973,23 +971,17 @@ impl Libp2pEventHandler {
         true
     }
 
-    async fn publish_file(&self, tx_id: TxID) -> Option<bool> {
-        match self.file_batcher.write().await.add(tx_id) {
-            Some(batch) => {
-                let announcement = self.construct_announce_file_message(batch).await?;
-                Some(self.publish_announcement(announcement).await)
+    async fn publish_file(&self, tx_id: TxID) {
+        if let Some(batch) = self.file_batcher.write().await.add(tx_id) {
+            if let Some(announcement) = self.construct_announce_file_message(batch).await {
+                self.publish_announcement(announcement).await;
             }
-            None => Some(false),
         }
     }
 
-    async fn publish_announcement(&self, announcement: SignedAnnounceFile) -> bool {
-        match self.announcement_batcher.write().await.add(announcement) {
-            Some(batch) => {
-                self.publish(PubsubMessage::AnnounceFile(batch));
-                true
-            }
-            None => false,
+    async fn publish_announcement(&self, announcement: SignedAnnounceFile) {
+        if let Some(batch) = self.announcement_batcher.write().await.add(announcement) {
+            self.publish(PubsubMessage::AnnounceFile(batch));
         }
     }
 
