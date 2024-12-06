@@ -2,6 +2,30 @@ use std::sync::Arc;
 
 use metrics::{register_meter, register_meter_with_group, Histogram, Meter, Sample};
 
+pub struct PubsubMsgHandleMetrics {
+    pub(crate) topic_name: &'static str,
+    pub(crate) qps: Arc<dyn Meter>,
+    pub(crate) latency_ms: Arc<dyn Histogram>,
+    pub(crate) timeout: Arc<dyn Meter>,
+}
+
+impl PubsubMsgHandleMetrics {
+    pub fn new(topic_name: &'static str) -> Self {
+        let group_name = format!("router_libp2p_handle_pubsub_{}", topic_name);
+
+        Self {
+            topic_name,
+            qps: register_meter_with_group(group_name.as_str(), "qps"),
+            latency_ms: Sample::ExpDecay(0.015).register_with_group(
+                group_name.as_str(),
+                "latency_ms",
+                1024,
+            ),
+            timeout: register_meter_with_group(group_name.as_str(), "timeout"),
+        }
+    }
+}
+
 lazy_static::lazy_static! {
     // service
     pub static ref SERVICE_ROUTE_NETWORK_MESSAGE: Arc<dyn Meter> = register_meter("router_service_route_network_message");
@@ -42,10 +66,12 @@ lazy_static::lazy_static! {
     pub static ref LIBP2P_HANDLE_RESPONSE_ERROR: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_response_error", "qps");
     pub static ref LIBP2P_HANDLE_RESPONSE_ERROR_LATENCY: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register_with_group("router_libp2p_handle_response_error", "latency", 1024);
 
-    // libp2p_event_handler: new file
-    pub static ref LIBP2P_HANDLE_PUBSUB_NEW_FILE: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_new_file", "qps");
-    pub static ref LIBP2P_HANDLE_PUBSUB_NEW_FILE_LATENCY: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register_with_group("router_libp2p_handle_pubsub_new_file", "latency", 1024);
-    pub static ref LIBP2P_HANDLE_PUBSUB_NEW_FILE_TIMEOUT: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_new_file", "timeout");
+    // libp2p_event_handler: pubsub messages
+    pub static ref LIBP2P_HANDLE_PUBSUB_NEW_FILE: PubsubMsgHandleMetrics = PubsubMsgHandleMetrics::new("new_file");
+    pub static ref LIBP2P_HANDLE_PUBSUB_ASK_FILE: PubsubMsgHandleMetrics = PubsubMsgHandleMetrics::new("ask_file");
+    pub static ref LIBP2P_HANDLE_PUBSUB_FIND_CHUNKS: PubsubMsgHandleMetrics = PubsubMsgHandleMetrics::new("find_chunks");
+    pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_CHUNKS: PubsubMsgHandleMetrics = PubsubMsgHandleMetrics::new("announce_chunks");
+    pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_SHARD: PubsubMsgHandleMetrics = PubsubMsgHandleMetrics::new("announce_shard");
 
     // libp2p_event_handler: find & announce file
     pub static ref LIBP2P_HANDLE_PUBSUB_FIND_FILE: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_find_file", "qps");
@@ -59,16 +85,6 @@ lazy_static::lazy_static! {
     pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_TIMEOUT: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_announce_file", "timeout");
     pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_ANNOUNCEMENTS: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_announce_file", "announcements");
     pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_FILES: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_announce_file", "files");
-
-    // libp2p_event_handler: find & announce chunks
-    pub static ref LIBP2P_HANDLE_PUBSUB_FIND_CHUNKS: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_find_chunks", "qps");
-    pub static ref LIBP2P_HANDLE_PUBSUB_FIND_CHUNKS_LATENCY: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register_with_group("router_libp2p_handle_pubsub_find_chunks", "latency", 1024);
-    pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_CHUNKS: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_announce_chunks", "qps");
-    pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_CHUNKS_LATENCY: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register_with_group("router_libp2p_handle_pubsub_announce_chunks", "latency", 1024);
-
-    // libp2p_event_handler: announce shard config
-    pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_SHARD: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_announce_shard", "qps");
-    pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_SHARD_LATENCY: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register_with_group("router_libp2p_handle_pubsub_announce_shard", "latency", 1024);
 
     // libp2p_event_handler: verify IP address
     pub static ref LIBP2P_VERIFY_ANNOUNCED_IP: Arc<dyn Meter> = register_meter("router_libp2p_verify_announced_ip");

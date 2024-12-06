@@ -12,6 +12,7 @@ use futures::future::BoxFuture;
 use futures::prelude::{AsyncRead, AsyncWrite};
 use futures::{FutureExt, SinkExt};
 use libp2p::core::{OutboundUpgrade, UpgradeInfo};
+use shared_types::ShardedFile;
 use tokio_util::{
     codec::Framed,
     compat::{Compat, FuturesAsyncReadCompatExt},
@@ -34,7 +35,7 @@ pub enum OutboundRequest {
     Goodbye(GoodbyeReason),
     Ping(Ping),
     DataByHash(DataByHashRequest),
-    AnnounceFile(FileAnnouncement),
+    AnswerFile(ShardedFile),
     GetChunks(GetChunksRequest),
 }
 
@@ -73,8 +74,8 @@ impl OutboundRequest {
                 Version::V1,
                 Encoding::SSZSnappy,
             )],
-            OutboundRequest::AnnounceFile(_) => vec![ProtocolId::new(
-                Protocol::AnnounceFile,
+            OutboundRequest::AnswerFile(_) => vec![ProtocolId::new(
+                Protocol::AnswerFile,
                 Version::V1,
                 Encoding::SSZSnappy,
             )],
@@ -95,7 +96,7 @@ impl OutboundRequest {
             OutboundRequest::Goodbye(_) => 0,
             OutboundRequest::Ping(_) => 1,
             OutboundRequest::DataByHash(req) => req.hashes.len() as u64,
-            OutboundRequest::AnnounceFile(_) => 0,
+            OutboundRequest::AnswerFile(_) => 0,
             OutboundRequest::GetChunks(_) => 1,
         }
     }
@@ -107,7 +108,7 @@ impl OutboundRequest {
             OutboundRequest::Goodbye(_) => Protocol::Goodbye,
             OutboundRequest::Ping(_) => Protocol::Ping,
             OutboundRequest::DataByHash(_) => Protocol::DataByHash,
-            OutboundRequest::AnnounceFile(_) => Protocol::AnnounceFile,
+            OutboundRequest::AnswerFile(_) => Protocol::AnswerFile,
             OutboundRequest::GetChunks(_) => Protocol::GetChunks,
         }
     }
@@ -122,7 +123,7 @@ impl OutboundRequest {
             OutboundRequest::Status(_) => unreachable!(),
             OutboundRequest::Goodbye(_) => unreachable!(),
             OutboundRequest::Ping(_) => unreachable!(),
-            OutboundRequest::AnnounceFile(_) => unreachable!(),
+            OutboundRequest::AnswerFile(_) => unreachable!(),
             OutboundRequest::GetChunks(_) => unreachable!(),
         }
     }
@@ -179,8 +180,8 @@ impl std::fmt::Display for OutboundRequest {
             OutboundRequest::DataByHash(req) => {
                 write!(f, "Data by hash: {:?}", req)
             }
-            OutboundRequest::AnnounceFile(req) => {
-                write!(f, "AnnounceFile: {:?}", req)
+            OutboundRequest::AnswerFile(req) => {
+                write!(f, "AnswerFile: {:?}", req)
             }
             OutboundRequest::GetChunks(req) => {
                 write!(f, "GetChunks: {:?}", req)

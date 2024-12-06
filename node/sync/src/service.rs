@@ -8,13 +8,14 @@ use anyhow::{anyhow, bail, Result};
 use file_location_cache::FileLocationCache;
 use libp2p::swarm::DialError;
 use log_entry_sync::LogSyncEvent;
-use network::rpc::methods::FileAnnouncement;
-use network::types::{AnnounceChunks, FindFile, NewFile};
+use network::types::{AnnounceChunks, FindFile};
 use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, NetworkSender,
     PeerId, PeerRequestId, PubsubMessage, SyncId as RequestId,
 };
-use shared_types::{bytes_to_chunks, timestamp_now, ChunkArrayWithProof, Transaction, TxID};
+use shared_types::{
+    bytes_to_chunks, timestamp_now, ChunkArrayWithProof, ShardedFile, Transaction, TxID,
+};
 use std::sync::atomic::Ordering;
 use std::{
     cmp,
@@ -71,12 +72,11 @@ pub enum SyncMessage {
     },
     NewFile {
         from: PeerId,
-        msg: NewFile,
+        file: ShardedFile,
     },
-    AnnounceFile {
+    AnswerFile {
         peer_id: PeerId,
-        request_id: PeerRequestId,
-        announcement: FileAnnouncement,
+        file: ShardedFile,
     },
 }
 
@@ -273,12 +273,8 @@ impl SyncService {
             SyncMessage::AnnounceShardConfig { .. } => {
                 // FIXME: Check if controllers need to be reset?
             }
-            SyncMessage::NewFile { from, msg } => self.on_new_file_gossip(from, msg).await,
-            SyncMessage::AnnounceFile {
-                peer_id,
-                announcement,
-                ..
-            } => self.on_announce_file(peer_id, announcement).await,
+            SyncMessage::NewFile { from, file } => self.on_new_file_gossip(from, file).await,
+            SyncMessage::AnswerFile { peer_id, file } => self.on_answer_file(peer_id, file).await,
         }
     }
 
@@ -773,27 +769,25 @@ impl SyncService {
     }
 
     /// Handle on `NewFile` gossip message received.
-    async fn on_new_file_gossip(&mut self, from: PeerId, msg: NewFile) {
-        debug!(%from, ?msg, "Received NewFile gossip");
+    async fn on_new_file_gossip(&mut self, from: PeerId, file: ShardedFile) {
+        debug!(%from, ?file, "Received NewFile gossip");
 
-        if let Some(controller) = self.controllers.get_mut(&msg.tx_id.seq) {
+        if let Some(controller) = self.controllers.get_mut(&file.tx_id.seq) {
             // Notify new peer announced if file already in sync
-            if let Ok(shard_config) = ShardConfig::new(msg.shard_id, msg.num_shard) {
+            if let Ok(shard_config) = ShardConfig::try_from(file.shard_config) {
                 controller.on_peer_announced(from, shard_config);
                 controller.transition();
             }
         } else if let Some(manager) = &self.auto_sync_manager {
-            let _ = manager.new_file_send.send(msg.tx_id.seq);
+            let _ = manager.new_file_send.send(file.tx_id.seq);
         }
     }
 
-    /// Handle on `AnnounceFile` RPC message received.
-    async fn on_announce_file(&mut self, from: PeerId, announcement: FileAnnouncement) {
+    /// Handle on `AnswerFile` RPC message received.
+    async fn on_answer_file(&mut self, from: PeerId, file: ShardedFile) {
         // Notify new peer announced if file already in sync
-        if let Some(controller) = self.controllers.get_mut(&announcement.tx_id.seq) {
-            if let Ok(shard_config) =
-                ShardConfig::new(announcement.shard_id, announcement.num_shard)
-            {
+        if let Some(controller) = self.controllers.get_mut(&file.tx_id.seq) {
+            if let Ok(shard_config) = ShardConfig::try_from(file.shard_config) {
                 controller.on_peer_announced(from, shard_config);
                 controller.transition();
             }

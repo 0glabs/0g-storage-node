@@ -5,8 +5,7 @@ use std::{ops::Neg, sync::Arc};
 use chunk_pool::ChunkPoolMessage;
 use file_location_cache::FileLocationCache;
 use network::multiaddr::Protocol;
-use network::rpc::methods::FileAnnouncement;
-use network::types::{NewFile, TimedMessage};
+use network::types::TimedMessage;
 use network::{
     rpc::StatusMessage,
     types::{
@@ -17,7 +16,7 @@ use network::{
     PublicKey, PubsubMessage, Request, RequestId, Response,
 };
 use network::{Multiaddr, NetworkSender, PeerAction, ReportSource};
-use shared_types::{bytes_to_chunks, timestamp_now, NetworkIdentity, TxID};
+use shared_types::{bytes_to_chunks, timestamp_now, NetworkIdentity, ShardedFile, TxID};
 use storage::config::ShardConfig;
 use storage_async::Store;
 use sync::{SyncMessage, SyncSender};
@@ -25,34 +24,62 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, RwLock};
 
 use crate::batcher::Batcher;
-use crate::metrics;
+use crate::metrics::{self, PubsubMsgHandleMetrics};
 use crate::peer_manager::PeerManager;
 use crate::Config;
 
 lazy_static::lazy_static! {
-    /// Timeout to publish NewFile message to neighbor nodes.
-    pub static ref NEW_FILE_TIMEOUT: chrono::Duration = chrono::Duration::seconds(30);
-    /// Timeout to publish FindFile message to neighbor nodes.
-    pub static ref FIND_FILE_NEIGHBORS_TIMEOUT: chrono::Duration = chrono::Duration::seconds(30);
-    /// Timeout to publish FindFile message in the whole network.
-    pub static ref FIND_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(5);
-    pub static ref ANNOUNCE_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(5);
-    pub static ref ANNOUNCE_SHARD_CONFIG_TIMEOUT: chrono::Duration = chrono::Duration::minutes(5);
+    /// Timeout to publish message to neighbor nodes.
+    pub static ref PUBSUB_TIMEOUT_NEIGHBORS: chrono::Duration = chrono::Duration::seconds(30);
+    /// Timeout to publish message to network.
+    pub static ref PUBSUB_TIMEOUT_NETWORK: chrono::Duration = chrono::Duration::minutes(5);
     pub static ref TOLERABLE_DRIFT: chrono::Duration = chrono::Duration::seconds(10);
 }
 
-fn duration_since(timestamp: u32, metric: Arc<dyn ::metrics::Histogram>) -> chrono::Duration {
+fn duration_since(timestamp: u32, latency_ms: Arc<dyn ::metrics::Histogram>) -> chrono::Duration {
     let timestamp = i64::from(timestamp);
     let timestamp = chrono::DateTime::from_timestamp(timestamp, 0).expect("should fit");
     let now = chrono::Utc::now();
     let duration = now.signed_duration_since(timestamp);
 
-    let num_secs = duration.num_seconds();
-    if num_secs > 0 {
-        metric.update(num_secs as u64);
+    let num_millis = duration.num_milliseconds();
+    if num_millis > 0 {
+        latency_ms.update(num_millis as u64);
     }
 
     duration
+}
+
+impl PubsubMsgHandleMetrics {
+    pub fn verify_timestamp(
+        &self,
+        from: PeerId,
+        timestamp: u32,
+        timeout: chrono::Duration,
+        sender: Option<&NetworkSender>,
+    ) -> bool {
+        self.qps.mark(1);
+
+        let d = duration_since(timestamp, self.latency_ms.clone());
+        if d >= TOLERABLE_DRIFT.neg() && d <= timeout {
+            return true;
+        }
+
+        debug!(%from, ?timestamp, ?d, topic=%self.topic_name, "Ignore out of date pubsub message");
+
+        self.timeout.mark(1);
+
+        if let Some(sender) = sender {
+            let _ = sender.send(NetworkMessage::ReportPeer {
+                peer_id: from,
+                action: PeerAction::LowToleranceError,
+                source: ReportSource::Gossipsub,
+                msg: "Received out of date pubsub message",
+            });
+        }
+
+        false
+    }
 }
 
 fn peer_id_to_public_key(peer_id: &PeerId) -> Result<PublicKey, String> {
@@ -227,25 +254,19 @@ impl Libp2pEventHandler {
                 });
                 metrics::LIBP2P_HANDLE_GET_CHUNKS_REQUEST.mark(1);
             }
-            Request::AnnounceFile(announcement) => {
-                match ShardConfig::new(announcement.shard_id, announcement.num_shard) {
-                    Ok(v) => {
-                        self.file_location_cache.insert_peer_config(peer_id, v);
+            Request::AnswerFile(file) => match ShardConfig::try_from(file.shard_config) {
+                Ok(v) => {
+                    self.file_location_cache.insert_peer_config(peer_id, v);
 
-                        self.send_to_sync(SyncMessage::AnnounceFile {
-                            peer_id,
-                            request_id,
-                            announcement,
-                        });
-                    }
-                    Err(_) => self.send_to_network(NetworkMessage::ReportPeer {
-                        peer_id,
-                        action: PeerAction::Fatal,
-                        source: ReportSource::RPC,
-                        msg: "Invalid shard config in AnnounceFile RPC message",
-                    }),
+                    self.send_to_sync(SyncMessage::AnswerFile { peer_id, file });
                 }
-            }
+                Err(_) => self.send_to_network(NetworkMessage::ReportPeer {
+                    peer_id,
+                    action: PeerAction::Fatal,
+                    source: ReportSource::RPC,
+                    msg: "Invalid shard config in AnswerFile RPC message",
+                }),
+            },
             Request::DataByHash(_) => {
                 // ignore
             }
@@ -352,18 +373,13 @@ impl Libp2pEventHandler {
 
         match message {
             PubsubMessage::ExampleMessage(_) => MessageAcceptance::Ignore,
-            PubsubMessage::NewFile(msg) => {
-                metrics::LIBP2P_HANDLE_PUBSUB_NEW_FILE.mark(1);
-                self.on_new_file(propagation_source, msg).await
-            }
+            PubsubMessage::NewFile(msg) => self.on_new_file(propagation_source, msg).await,
+            PubsubMessage::AskFile(msg) => self.on_ask_file(propagation_source, msg).await,
             PubsubMessage::FindFile(msg) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE.mark(1);
                 self.on_find_file(propagation_source, msg).await
             }
-            PubsubMessage::FindChunks(msg) => {
-                metrics::LIBP2P_HANDLE_PUBSUB_FIND_CHUNKS.mark(1);
-                self.on_find_chunks(msg).await
-            }
+            PubsubMessage::FindChunks(msg) => self.on_find_chunks(propagation_source, msg).await,
             PubsubMessage::AnnounceFile(msgs) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE.mark(1);
 
@@ -377,38 +393,27 @@ impl Libp2pEventHandler {
 
                 MessageAcceptance::Accept
             }
-            PubsubMessage::AnnounceChunks(msg) => {
-                metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_CHUNKS.mark(1);
-                self.on_announce_chunks(propagation_source, msg)
-            }
+            PubsubMessage::AnnounceChunks(msg) => self.on_announce_chunks(propagation_source, msg),
             PubsubMessage::AnnounceShardConfig(msg) => {
-                metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_SHARD.mark(1);
                 self.on_announce_shard_config(propagation_source, source, msg)
             }
         }
     }
 
     /// Handle NewFile pubsub message `msg` that published by `from` peer.
-    async fn on_new_file(&self, from: PeerId, msg: NewFile) -> MessageAcceptance {
+    async fn on_new_file(&self, from: PeerId, msg: TimedMessage<ShardedFile>) -> MessageAcceptance {
         // verify timestamp
-        let d = duration_since(
+        if !metrics::LIBP2P_HANDLE_PUBSUB_NEW_FILE.verify_timestamp(
+            from,
             msg.timestamp,
-            metrics::LIBP2P_HANDLE_PUBSUB_NEW_FILE_LATENCY.clone(),
-        );
-        if d < TOLERABLE_DRIFT.neg() || d > *NEW_FILE_TIMEOUT {
-            debug!(?d, ?msg, "Invalid timestamp, ignoring NewFile message");
-            metrics::LIBP2P_HANDLE_PUBSUB_NEW_FILE_TIMEOUT.mark(1);
-            self.send_to_network(NetworkMessage::ReportPeer {
-                peer_id: from,
-                action: PeerAction::LowToleranceError,
-                source: ReportSource::Gossipsub,
-                msg: "Received out of date NewFile message",
-            });
+            *PUBSUB_TIMEOUT_NEIGHBORS,
+            Some(&self.network_send),
+        ) {
             return MessageAcceptance::Ignore;
         }
 
         // verify announced shard config
-        let announced_shard_config = match ShardConfig::new(msg.shard_id, msg.num_shard) {
+        let announced_shard_config = match ShardConfig::try_from(msg.shard_config) {
             Ok(v) => v,
             Err(_) => return MessageAcceptance::Reject,
         };
@@ -419,28 +424,65 @@ impl Libp2pEventHandler {
             return MessageAcceptance::Ignore;
         }
 
-        // ignore if already exists
-        match self.store.check_tx_completed(msg.tx_id.seq).await {
-            Ok(true) => return MessageAcceptance::Ignore,
-            Ok(false) => {}
+        // ignore if already pruned or exists
+        match self.store.get_store().get_tx_status(msg.tx_id.seq) {
+            Ok(Some(_)) => return MessageAcceptance::Ignore,
+            Ok(None) => {}
             Err(err) => {
-                warn!(?err, tx_seq = %msg.tx_id.seq, "Failed to check tx completed");
-                return MessageAcceptance::Ignore;
-            }
-        }
-
-        // ignore if already pruned
-        match self.store.check_tx_pruned(msg.tx_id.seq).await {
-            Ok(true) => return MessageAcceptance::Ignore,
-            Ok(false) => {}
-            Err(err) => {
-                warn!(?err, tx_seq = %msg.tx_id.seq, "Failed to check tx pruned");
+                warn!(?err, tx_seq = %msg.tx_id.seq, "Failed to get tx status");
                 return MessageAcceptance::Ignore;
             }
         }
 
         // notify sync layer to handle in advance
-        self.send_to_sync(SyncMessage::NewFile { from, msg });
+        self.send_to_sync(SyncMessage::NewFile {
+            from,
+            file: msg.inner,
+        });
+
+        MessageAcceptance::Ignore
+    }
+
+    async fn on_ask_file(&self, from: PeerId, msg: TimedMessage<ShardedFile>) -> MessageAcceptance {
+        // verify timestamp
+        if !metrics::LIBP2P_HANDLE_PUBSUB_ASK_FILE.verify_timestamp(
+            from,
+            msg.timestamp,
+            *PUBSUB_TIMEOUT_NEIGHBORS,
+            Some(&self.network_send),
+        ) {
+            return MessageAcceptance::Ignore;
+        }
+
+        // verify announced shard config
+        let announced_shard_config = match ShardConfig::try_from(msg.shard_config) {
+            Ok(v) => v,
+            Err(_) => return MessageAcceptance::Reject,
+        };
+
+        // handle on shard config mismatch
+        let my_shard_config = self.store.get_store().get_shard_config();
+        if !my_shard_config.intersect(&announced_shard_config) {
+            return MessageAcceptance::Ignore;
+        }
+
+        // check if we have it
+        if matches!(self.store.check_tx_completed(msg.tx_id.seq).await, Ok(true)) {
+            if let Ok(Some(tx)) = self.store.get_tx_by_seq_number(msg.tx_id.seq).await {
+                if tx.id() == msg.tx_id {
+                    trace!(?msg.tx_id, "Found file locally, responding to FindFile query");
+
+                    self.send_to_network(NetworkMessage::SendRequest {
+                        peer_id: from,
+                        request: Request::AnswerFile(ShardedFile {
+                            tx_id: msg.tx_id,
+                            shard_config: my_shard_config.into(),
+                        }),
+                        request_id: RequestId::Router(Instant::now()),
+                    });
+                }
+            }
+        }
 
         MessageAcceptance::Ignore
     }
@@ -564,9 +606,9 @@ impl Libp2pEventHandler {
             metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_LATENCY.clone(),
         );
         let timeout = if msg.neighbors_only {
-            *FIND_FILE_NEIGHBORS_TIMEOUT
+            *PUBSUB_TIMEOUT_NEIGHBORS
         } else {
-            *FIND_FILE_TIMEOUT
+            *PUBSUB_TIMEOUT_NETWORK
         };
         if d < TOLERABLE_DRIFT.neg() || d > timeout {
             debug!(%timestamp, ?d, "Invalid timestamp, ignoring FindFile message");
@@ -608,10 +650,9 @@ impl Libp2pEventHandler {
                         // announce file via RPC to avoid flooding pubsub message
                         self.send_to_network(NetworkMessage::SendRequest {
                             peer_id: from,
-                            request: Request::AnnounceFile(FileAnnouncement {
+                            request: Request::AnswerFile(ShardedFile {
                                 tx_id,
-                                num_shard: my_shard_config.num_shard,
-                                shard_id: my_shard_config.shard_id,
+                                shard_config: my_shard_config.into(),
                             }),
                             request_id: RequestId::Router(Instant::now()),
                         });
@@ -677,21 +718,25 @@ impl Libp2pEventHandler {
         Some(PubsubMessage::AnnounceChunks(signed))
     }
 
-    async fn on_find_chunks(&self, msg: FindChunks) -> MessageAcceptance {
+    async fn on_find_chunks(
+        &self,
+        propagation_source: PeerId,
+        msg: FindChunks,
+    ) -> MessageAcceptance {
+        // verify timestamp
+        if !metrics::LIBP2P_HANDLE_PUBSUB_FIND_CHUNKS.verify_timestamp(
+            propagation_source,
+            msg.timestamp,
+            *PUBSUB_TIMEOUT_NETWORK,
+            None,
+        ) {
+            return MessageAcceptance::Ignore;
+        }
+
         // validate message
         if msg.index_start >= msg.index_end {
             debug!(?msg, "Invalid chunk index range");
             return MessageAcceptance::Reject;
-        }
-
-        // verify timestamp
-        let d = duration_since(
-            msg.timestamp,
-            metrics::LIBP2P_HANDLE_PUBSUB_FIND_CHUNKS_LATENCY.clone(),
-        );
-        if d < TOLERABLE_DRIFT.neg() || d > *FIND_FILE_TIMEOUT {
-            debug!(%msg.timestamp, ?d, "Invalid timestamp, ignoring FindChunks message");
-            return MessageAcceptance::Ignore;
         }
 
         // check if we have specified chunks even file not finalized yet
@@ -816,7 +861,7 @@ impl Libp2pEventHandler {
             msg.resend_timestamp,
             metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_LATENCY.clone(),
         );
-        if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_FILE_TIMEOUT {
+        if d < TOLERABLE_DRIFT.neg() || d > *PUBSUB_TIMEOUT_NETWORK {
             debug!(%msg.resend_timestamp, ?d, "Invalid resend timestamp, ignoring AnnounceFile message");
             metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_TIMEOUT.mark(1);
             return MessageAcceptance::Ignore;
@@ -847,12 +892,12 @@ impl Libp2pEventHandler {
         msg: TimedMessage<shared_types::ShardConfig>,
     ) -> MessageAcceptance {
         // validate timestamp
-        let d = duration_since(
+        if !metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_SHARD.verify_timestamp(
+            propagation_source,
             msg.timestamp,
-            metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_SHARD_LATENCY.clone(),
-        );
-        if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_SHARD_CONFIG_TIMEOUT {
-            debug!(?d, %propagation_source, %source, ?msg, "Invalid timestamp, ignoring AnnounceShardConfig message");
+            *PUBSUB_TIMEOUT_NETWORK,
+            None,
+        ) {
             return MessageAcceptance::Ignore;
         }
 
@@ -879,6 +924,16 @@ impl Libp2pEventHandler {
         propagation_source: PeerId,
         msg: SignedAnnounceChunks,
     ) -> MessageAcceptance {
+        // verify timestamp
+        if !metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_CHUNKS.verify_timestamp(
+            propagation_source,
+            msg.timestamp,
+            *PUBSUB_TIMEOUT_NETWORK,
+            None,
+        ) {
+            return MessageAcceptance::Ignore;
+        }
+
         // verify message signature
         if !verify_signature(&msg, &msg.peer_id, propagation_source) {
             return MessageAcceptance::Reject;
@@ -896,16 +951,6 @@ impl Libp2pEventHandler {
             && !self.verify_announced_address(&msg.peer_id, &addr)
         {
             return MessageAcceptance::Reject;
-        }
-
-        // propagate gossip to peers
-        let d = duration_since(
-            msg.resend_timestamp,
-            metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_CHUNKS_LATENCY.clone(),
-        );
-        if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_FILE_TIMEOUT {
-            debug!(%msg.resend_timestamp, ?d, "Invalid resend timestamp, ignoring AnnounceChunks message");
-            return MessageAcceptance::Ignore;
         }
 
         // notify sync layer
@@ -1361,7 +1406,7 @@ mod tests {
         let result = handle_find_file_msg(
             &handler,
             TxID::random_hash(412),
-            timestamp_now() - 10 - FIND_FILE_TIMEOUT.num_seconds() as u32,
+            timestamp_now() - 10 - PUBSUB_TIMEOUT_NETWORK.num_seconds() as u32,
         )
         .await;
         assert!(matches!(result, MessageAcceptance::Ignore));

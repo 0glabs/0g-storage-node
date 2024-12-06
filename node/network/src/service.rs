@@ -245,6 +245,7 @@ impl<AppReqId: ReqId> Service<AppReqId> {
 
         let mut topics = vec![
             GossipKind::NewFile,
+            GossipKind::AskFile,
             GossipKind::FindFile,
             GossipKind::AnnounceFile,
             GossipKind::AnnounceShardConfig,

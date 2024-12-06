@@ -8,11 +8,11 @@ use miner::MinerMessage;
 use network::rpc::GoodbyeReason;
 use network::PeerId;
 use network::{
-    types::NewFile, BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage,
-    NetworkReceiver, NetworkSender, PubsubMessage, RequestId, Service as LibP2PService, Swarm,
+    BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage, NetworkReceiver,
+    NetworkSender, PubsubMessage, RequestId, Service as LibP2PService, Swarm,
 };
 use pruner::PrunerMessage;
-use shared_types::timestamp_now;
+use shared_types::ShardedFile;
 use std::sync::Arc;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
@@ -336,13 +336,11 @@ impl RouterService {
                 self.disconnect_peer(peer_id);
             }
             NetworkMessage::AnnounceLocalFile { tx_id } => {
-                let shard_config = self.store.get_shard_config();
-                let msg = PubsubMessage::NewFile(NewFile {
+                let new_file = ShardedFile {
                     tx_id,
-                    num_shard: shard_config.num_shard,
-                    shard_id: shard_config.shard_id,
-                    timestamp: timestamp_now(),
-                });
+                    shard_config: self.store.get_shard_config().into(),
+                };
+                let msg = PubsubMessage::NewFile(new_file.into());
                 self.libp2p.swarm.behaviour_mut().publish(vec![msg]);
                 metrics::SERVICE_ROUTE_NETWORK_MESSAGE_ANNOUNCE_LOCAL_FILE.mark(1);
             }

@@ -182,14 +182,6 @@ pub struct DataByHashRequest {
     pub hashes: VariableList<Hash256, MaxRequestBlocks>,
 }
 
-// The message of `AnnounceFile` RPC message.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-pub struct FileAnnouncement {
-    pub tx_id: TxID,
-    pub num_shard: usize,
-    pub shard_id: usize,
-}
-
 /// Request a chunk array from a peer.
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
 pub struct GetChunksRequest {

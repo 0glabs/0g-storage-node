@@ -6,7 +6,7 @@ use libp2p::{
     gossipsub::{DataTransform, GossipsubMessage, RawGossipsubMessage},
     Multiaddr, PeerId,
 };
-use shared_types::{timestamp_now, ShardConfig, TxID};
+use shared_types::{timestamp_now, ShardConfig, ShardedFile, TxID};
 use snap::raw::{decompress_len, Decoder, Encoder};
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode, Encode};
@@ -112,15 +112,6 @@ impl ssz::Decode for WrappedPeerId {
             )),
         }
     }
-}
-
-/// Published when file uploaded or completed to sync from other peers.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct NewFile {
-    pub tx_id: TxID,
-    pub num_shard: usize,
-    pub shard_id: usize,
-    pub timestamp: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -231,7 +222,10 @@ type SignedAnnounceFiles = Vec<SignedAnnounceFile>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PubsubMessage {
     ExampleMessage(u64),
-    NewFile(NewFile),
+    /// Published to neighbors when new file uploaded or completed to sync file.
+    NewFile(TimedMessage<ShardedFile>),
+    /// Published to neighbors for file sync, and answered by `AnswerFile` RPC.
+    AskFile(TimedMessage<ShardedFile>),
     FindFile(FindFile),
     FindChunks(FindChunks),
     AnnounceFile(Vec<SignedAnnounceFile>),
@@ -311,6 +305,7 @@ impl PubsubMessage {
         match self {
             PubsubMessage::ExampleMessage(_) => GossipKind::Example,
             PubsubMessage::NewFile(_) => GossipKind::NewFile,
+            PubsubMessage::AskFile(_) => GossipKind::AskFile,
             PubsubMessage::FindFile(_) => GossipKind::FindFile,
             PubsubMessage::FindChunks(_) => GossipKind::FindChunks,
             PubsubMessage::AnnounceFile(_) => GossipKind::AnnounceFile,
@@ -338,7 +333,12 @@ impl PubsubMessage {
                         u64::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::NewFile => Ok(PubsubMessage::NewFile(
-                        NewFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                        TimedMessage::<ShardedFile>::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
+                    )),
+                    GossipKind::AskFile => Ok(PubsubMessage::AskFile(
+                        TimedMessage::<ShardedFile>::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::FindFile => Ok(PubsubMessage::FindFile(
                         FindFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
@@ -373,6 +373,7 @@ impl PubsubMessage {
         match &self {
             PubsubMessage::ExampleMessage(data) => data.as_ssz_bytes(),
             PubsubMessage::NewFile(data) => data.as_ssz_bytes(),
+            PubsubMessage::AskFile(data) => data.as_ssz_bytes(),
             PubsubMessage::FindFile(data) => data.as_ssz_bytes(),
             PubsubMessage::FindChunks(data) => data.as_ssz_bytes(),
             PubsubMessage::AnnounceFile(data) => data.as_ssz_bytes(),
@@ -390,6 +391,9 @@ impl std::fmt::Display for PubsubMessage {
             }
             PubsubMessage::NewFile(msg) => {
                 write!(f, "NewFile message: {:?}", msg)
+            }
+            PubsubMessage::AskFile(msg) => {
+                write!(f, "AskFile message: {:?}", msg)
             }
             PubsubMessage::FindFile(msg) => {
                 write!(f, "FindFile message: {:?}", msg)

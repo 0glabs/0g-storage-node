@@ -6,7 +6,6 @@ use crate::peer_manager::{
     ConnectionDirection, PeerManager, PeerManagerEvent,
 };
 use crate::rpc::methods::DataByHashRequest;
-use crate::rpc::methods::FileAnnouncement;
 use crate::rpc::methods::GetChunksRequest;
 use crate::rpc::*;
 use crate::service::Context as ServiceContext;
@@ -32,7 +31,7 @@ use libp2p::{
     },
     NetworkBehaviour, PeerId,
 };
-use shared_types::ChunkArrayWithProof;
+use shared_types::{ChunkArrayWithProof, ShardedFile};
 use std::{
     collections::VecDeque,
     sync::Arc,
@@ -238,6 +237,9 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
             .insert(get_hash(GossipKind::NewFile), TopicScoreParams::default());
         params
             .topics
+            .insert(get_hash(GossipKind::AskFile), TopicScoreParams::default());
+        params
+            .topics
             .insert(get_hash(GossipKind::FindFile), TopicScoreParams::default());
         params.topics.insert(
             get_hash(GossipKind::FindChunks),
@@ -270,12 +272,10 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
             ..config.peer_manager
         };
 
-        let slot_duration = std::time::Duration::from_secs(12);
+        // let slot_duration = std::time::Duration::from_secs(12);
         // let slot_duration = std::time::Duration::from_secs(ctx.chain_spec.seconds_per_slot);
 
-        let gossip_cache = GossipCache::builder()
-            .example_timeout(slot_duration) // TODO
-            .build();
+        let gossip_cache = GossipCache::default();
 
         Ok(Behaviour {
             // Sub-behaviours
@@ -547,8 +547,8 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
             Request::DataByHash { .. } => {
                 metrics::inc_counter_vec(&metrics::TOTAL_RPC_REQUESTS, &["data_by_hash"])
             }
-            Request::AnnounceFile { .. } => {
-                metrics::inc_counter_vec(&metrics::TOTAL_RPC_REQUESTS, &["announce_file"])
+            Request::AnswerFile { .. } => {
+                metrics::inc_counter_vec(&metrics::TOTAL_RPC_REQUESTS, &["answer_file"])
             }
             Request::GetChunks { .. } => {
                 metrics::inc_counter_vec(&metrics::TOTAL_RPC_REQUESTS, &["get_chunks"])
@@ -780,8 +780,8 @@ where
                     InboundRequest::DataByHash(req) => {
                         self.propagate_request(peer_request_id, peer_id, Request::DataByHash(req))
                     }
-                    InboundRequest::AnnounceFile(req) => {
-                        self.propagate_request(peer_request_id, peer_id, Request::AnnounceFile(req))
+                    InboundRequest::AnswerFile(req) => {
+                        self.propagate_request(peer_request_id, peer_id, Request::AnswerFile(req))
                     }
                     InboundRequest::GetChunks(req) => {
                         self.propagate_request(peer_request_id, peer_id, Request::GetChunks(req))
@@ -997,8 +997,8 @@ pub enum Request {
     Status(StatusMessage),
     /// A data by hash request.
     DataByHash(DataByHashRequest),
-    /// An AnnounceFile message.
-    AnnounceFile(FileAnnouncement),
+    /// An AnswerFile message.
+    AnswerFile(ShardedFile),
     /// A GetChunks request.
     GetChunks(GetChunksRequest),
 }
@@ -1008,7 +1008,7 @@ impl std::convert::From<Request> for OutboundRequest {
         match req {
             Request::Status(s) => OutboundRequest::Status(s),
             Request::DataByHash(r) => OutboundRequest::DataByHash(r),
-            Request::AnnounceFile(r) => OutboundRequest::AnnounceFile(r),
+            Request::AnswerFile(r) => OutboundRequest::AnswerFile(r),
             Request::GetChunks(r) => OutboundRequest::GetChunks(r),
         }
     }
