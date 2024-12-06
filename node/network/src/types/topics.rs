@@ -13,7 +13,7 @@ pub const ASK_FILE_TOPIC: &str = "ask_file";
 pub const FIND_FILE_TOPIC: &str = "find_file_v2";
 pub const FIND_CHUNKS_TOPIC: &str = "find_chunks_v2";
 pub const ANNOUNCE_FILE_TOPIC: &str = "announce_file_v2";
-pub const ANNOUNCE_CHUNKS_TOPIC: &str = "announce_chunks";
+pub const ANNOUNCE_CHUNKS_TOPIC: &str = "announce_chunks_v2";
 pub const ANNOUNCE_SHARD_CONFIG_TOPIC: &str = "announce_shard_config_v2";
 
 /// A gossipsub topic which encapsulates the type of messages that should be sent and received over

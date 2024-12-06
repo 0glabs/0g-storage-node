@@ -142,7 +142,6 @@ pub struct AnnounceChunks {
     pub index_end: u64,   // exclusive
     pub peer_id: WrappedPeerId,
     pub at: WrappedMultiaddr,
-    pub timestamp: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
@@ -208,8 +207,6 @@ impl<T: Encode + Decode> HasSignature for SignedMessage<T> {
 }
 
 pub type SignedAnnounceFile = SignedMessage<TimedMessage<AnnounceFile>>;
-pub type SignedAnnounceChunks = SignedMessage<AnnounceChunks>;
-
 type SignedAnnounceFiles = Vec<SignedAnnounceFile>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -228,7 +225,7 @@ pub enum PubsubMessage {
     /// Published to network to announce shard config.
     AnnounceShardConfig(TimedMessage<ShardConfig>),
     /// Published to network to announce chunks.
-    AnnounceChunks(SignedAnnounceChunks),
+    AnnounceChunks(TimedMessage<AnnounceChunks>),
 }
 
 // Implements the `DataTransform` trait of gossipsub to employ snappy compression
@@ -351,7 +348,7 @@ impl PubsubMessage {
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::AnnounceChunks => Ok(PubsubMessage::AnnounceChunks(
-                        SignedAnnounceChunks::from_ssz_bytes(data)
+                        TimedMessage::<AnnounceChunks>::from_ssz_bytes(data)
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::AnnounceShardConfig => Ok(PubsubMessage::AnnounceShardConfig(

@@ -9,8 +9,8 @@ use network::types::TimedMessage;
 use network::{
     rpc::StatusMessage,
     types::{
-        AnnounceChunks, AnnounceFile, FindChunks, FindFile, HasSignature, SignedAnnounceChunks,
-        SignedAnnounceFile, SignedMessage,
+        AnnounceChunks, AnnounceFile, FindChunks, FindFile, HasSignature, SignedAnnounceFile,
+        SignedMessage,
     },
     Keypair, MessageAcceptance, MessageId, NetworkGlobals, NetworkMessage, PeerId, PeerRequestId,
     PublicKey, PubsubMessage, Request, RequestId, Response,
@@ -656,7 +656,6 @@ impl Libp2pEventHandler {
     ) -> Option<PubsubMessage> {
         let peer_id = *self.network_globals.peer_id.read();
         let addr = self.construct_announced_ip().await?;
-        let timestamp = timestamp_now();
 
         let msg = AnnounceChunks {
             tx_id,
@@ -664,20 +663,9 @@ impl Libp2pEventHandler {
             index_end,
             peer_id: peer_id.into(),
             at: addr.into(),
-            timestamp,
         };
 
-        let mut signed = match SignedMessage::sign_message(msg, &self.local_keypair) {
-            Ok(signed) => signed,
-            Err(e) => {
-                error!(%tx_id.seq, %e, "Failed to sign AnnounceChunks message");
-                return None;
-            }
-        };
-
-        signed.resend_timestamp = timestamp;
-
-        Some(PubsubMessage::AnnounceChunks(signed))
+        Some(PubsubMessage::AnnounceChunks(msg.into()))
     }
 
     async fn on_find_chunks(
@@ -884,7 +872,7 @@ impl Libp2pEventHandler {
     fn on_announce_chunks(
         &self,
         propagation_source: PeerId,
-        msg: SignedAnnounceChunks,
+        msg: TimedMessage<AnnounceChunks>,
     ) -> MessageAcceptance {
         // verify timestamp
         if !metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_CHUNKS.verify_timestamp(
@@ -894,11 +882,6 @@ impl Libp2pEventHandler {
             None,
         ) {
             return MessageAcceptance::Ignore;
-        }
-
-        // verify message signature
-        if !verify_signature(&msg, &msg.peer_id, propagation_source) {
-            return MessageAcceptance::Reject;
         }
 
         // verify public ip address if required
