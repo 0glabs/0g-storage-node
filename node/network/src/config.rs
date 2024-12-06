@@ -294,32 +294,6 @@ impl From<u8> for NetworkLoad {
 
 /// Return a Lighthouse specific `GossipsubConfig` where the `message_id_fn` depends on the current fork.
 pub fn gossipsub_config(network_load: u8) -> GossipsubConfig {
-    // The function used to generate a gossipsub message id
-    // We use the first 8 bytes of SHA256(data) for content addressing
-    let fast_gossip_message_id =
-        |message: &RawGossipsubMessage| FastMessageId::from(&Sha256::digest(&message.data)[..8]);
-    fn prefix(prefix: [u8; 4], message: &GossipsubMessage) -> Vec<u8> {
-        let topic_bytes = message.topic.as_str().as_bytes();
-
-        // according to: https://github.com/ethereum/consensus-specs/blob/dev/specs/merge/p2p-interface.md#the-gossip-domain-gossipsub
-        // the derivation of the message-id remains the same in the merge
-        let topic_len_bytes = topic_bytes.len().to_le_bytes();
-        let mut vec = Vec::with_capacity(
-            prefix.len() + topic_len_bytes.len() + topic_bytes.len() + message.data.len(),
-        );
-        vec.extend_from_slice(&prefix);
-        vec.extend_from_slice(&topic_len_bytes);
-        vec.extend_from_slice(topic_bytes);
-        vec.extend_from_slice(&message.data);
-        vec
-    }
-
-    let gossip_message_id = move |message: &GossipsubMessage| {
-        MessageId::from(
-            &Sha256::digest(prefix(MESSAGE_DOMAIN_VALID_SNAPPY, message).as_slice())[..20],
-        )
-    };
-
     let load = NetworkLoad::from(network_load);
 
     GossipsubConfigBuilder::default()
@@ -367,4 +341,42 @@ fn is_global(addr: &std::net::Ipv4Addr) -> bool {
             && !(addr.octets()[0] == 192 && addr.octets()[1] == 0 && addr.octets()[2] == 0)
             // Make sure the address is not in 0.0.0.0/8
             && addr.octets()[0] != 0
+}
+
+fn fast_gossip_message_id(message: &RawGossipsubMessage) -> FastMessageId {
+    // source | topic | data | nonce
+    let topic_bytes = message.topic.as_str().as_bytes();
+    let mut buf = Vec::with_capacity(64 + topic_bytes.len() + message.data.len() + 8);
+
+    if let Some(peer_id) = message.source {
+        buf.extend_from_slice(&peer_id.to_bytes());
+    }
+
+    buf.extend_from_slice(&topic_bytes);
+    buf.extend_from_slice(&message.data);
+
+    if let Some(nonce) = message.sequence_number {
+        buf.extend_from_slice(&nonce.to_le_bytes());
+    }
+
+    FastMessageId::from(&Sha256::digest(&buf)[..8])
+}
+
+fn gossip_message_id(message: &GossipsubMessage) -> MessageId {
+    // prefix | source | topic | data | nonce
+    let topic_bytes = message.topic.as_str().as_bytes();
+    let mut vec = Vec::with_capacity(
+        MESSAGE_DOMAIN_VALID_SNAPPY.len() + 64 + topic_bytes.len() + message.data.len() + 8,
+    );
+    vec.extend_from_slice(&MESSAGE_DOMAIN_VALID_SNAPPY);
+    if let Some(peer_id) = message.source {
+        vec.extend_from_slice(&peer_id.to_bytes());
+    }
+    vec.extend_from_slice(topic_bytes);
+    vec.extend_from_slice(&message.data);
+    if let Some(nonce) = message.sequence_number {
+        vec.extend_from_slice(&nonce.to_le_bytes());
+    }
+
+    MessageId::from(&Sha256::digest(&vec)[..20])
 }
