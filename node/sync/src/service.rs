@@ -941,8 +941,14 @@ mod tests {
         }
 
         async fn spawn_sync_service(&mut self, with_peer_store: bool) -> SyncSender {
-            self.spawn_sync_service_with_config(with_peer_store, Config::default())
-                .await
+            self.spawn_sync_service_with_config(
+                with_peer_store,
+                Config {
+                    neighbors_only: false,
+                    ..Default::default()
+                },
+            )
+            .await
         }
 
         async fn spawn_sync_service_with_config(

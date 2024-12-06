@@ -1694,7 +1694,10 @@ mod tests {
         let file_location_cache = create_file_location_cache(peer_id, vec![tx_id]);
 
         let controller = SerialSyncController::new(
-            Config::default(),
+            Config {
+                neighbors_only: false,
+                ..Default::default()
+            },
             tx_id,
             0,
             FileSyncGoal::new_file(num_chunks as u64),
