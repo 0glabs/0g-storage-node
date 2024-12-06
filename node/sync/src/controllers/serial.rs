@@ -220,13 +220,13 @@ impl SerialSyncController {
                 .into(),
             )
         } else {
-            PubsubMessage::FindFile(FindFile {
-                tx_id: self.tx_id,
-                num_shard: shard_config.num_shard,
-                shard_id: shard_config.shard_id,
-                neighbors_only: self.config.neighbors_only,
-                timestamp: timestamp_now(),
-            })
+            PubsubMessage::FindFile(
+                FindFile {
+                    tx_id: self.tx_id,
+                    maybe_shard_config: Some(shard_config.into()),
+                }
+                .into(),
+            )
         };
 
         self.ctx.publish(msg);

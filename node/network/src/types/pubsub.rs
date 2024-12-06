@@ -117,11 +117,7 @@ impl ssz::Decode for WrappedPeerId {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct FindFile {
     pub tx_id: TxID,
-    pub num_shard: usize,
-    pub shard_id: usize,
-    /// Indicates whether publish to neighboar nodes only.
-    pub neighbors_only: bool,
-    pub timestamp: u32,
+    pub maybe_shard_config: Option<ShardConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -226,10 +222,15 @@ pub enum PubsubMessage {
     NewFile(TimedMessage<ShardedFile>),
     /// Published to neighbors for file sync, and answered by `AnswerFile` RPC.
     AskFile(TimedMessage<ShardedFile>),
-    FindFile(FindFile),
+    /// Published to network to find specified file.
+    FindFile(TimedMessage<FindFile>),
+    /// Published to network to find specified chunks.
     FindChunks(FindChunks),
+    /// Published to network to announce file.
     AnnounceFile(Vec<SignedAnnounceFile>),
+    /// Published to network to announce shard config.
     AnnounceShardConfig(TimedMessage<ShardConfig>),
+    /// Published to network to announce chunks.
     AnnounceChunks(SignedAnnounceChunks),
 }
 
@@ -341,7 +342,8 @@ impl PubsubMessage {
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::FindFile => Ok(PubsubMessage::FindFile(
-                        FindFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                        TimedMessage::<FindFile>::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::FindChunks => Ok(PubsubMessage::FindChunks(
                         FindChunks::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,

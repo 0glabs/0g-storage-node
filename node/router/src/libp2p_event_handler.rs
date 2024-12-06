@@ -375,10 +375,7 @@ impl Libp2pEventHandler {
             PubsubMessage::ExampleMessage(_) => MessageAcceptance::Ignore,
             PubsubMessage::NewFile(msg) => self.on_new_file(propagation_source, msg).await,
             PubsubMessage::AskFile(msg) => self.on_ask_file(propagation_source, msg).await,
-            PubsubMessage::FindFile(msg) => {
-                metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE.mark(1);
-                self.on_find_file(propagation_source, msg).await
-            }
+            PubsubMessage::FindFile(msg) => self.on_find_file(propagation_source, msg).await,
             PubsubMessage::FindChunks(msg) => self.on_find_chunks(propagation_source, msg).await,
             PubsubMessage::AnnounceFile(msgs) => {
                 metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE.mark(1);
@@ -595,78 +592,44 @@ impl Libp2pEventHandler {
         Some(signed)
     }
 
-    async fn on_find_file(&self, from: PeerId, msg: FindFile) -> MessageAcceptance {
-        let FindFile {
-            tx_id, timestamp, ..
-        } = msg;
-
+    async fn on_find_file(&self, from: PeerId, msg: TimedMessage<FindFile>) -> MessageAcceptance {
         // verify timestamp
-        let d = duration_since(
-            timestamp,
-            metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_LATENCY.clone(),
-        );
-        let timeout = if msg.neighbors_only {
-            *PUBSUB_TIMEOUT_NEIGHBORS
-        } else {
-            *PUBSUB_TIMEOUT_NETWORK
-        };
-        if d < TOLERABLE_DRIFT.neg() || d > timeout {
-            debug!(%timestamp, ?d, "Invalid timestamp, ignoring FindFile message");
-            metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_TIMEOUT.mark(1);
-            if msg.neighbors_only {
-                self.send_to_network(NetworkMessage::ReportPeer {
-                    peer_id: from,
-                    action: PeerAction::LowToleranceError,
-                    source: ReportSource::Gossipsub,
-                    msg: "Received out of date FindFile message",
-                });
-            }
+        if !metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE.verify_timestamp(
+            from,
+            msg.timestamp,
+            *PUBSUB_TIMEOUT_NETWORK,
+            None,
+        ) {
             return MessageAcceptance::Ignore;
         }
 
-        // verify announced shard config
-        let announced_shard_config = match ShardConfig::new(msg.shard_id, msg.num_shard) {
-            Ok(v) => v,
-            Err(_) => return MessageAcceptance::Reject,
-        };
-
-        // handle on shard config mismatch
-        let my_shard_config = self.store.get_store().get_shard_config();
-        if !my_shard_config.intersect(&announced_shard_config) {
-            return if msg.neighbors_only {
-                MessageAcceptance::Ignore
-            } else {
-                MessageAcceptance::Accept
+        // verify announced shard config if specified
+        if let Some(shard_config) = msg.maybe_shard_config {
+            let announced_shard_config = match ShardConfig::try_from(shard_config) {
+                Ok(v) => v,
+                Err(_) => return MessageAcceptance::Reject,
             };
+
+            // forward FIND_FILE to the network if shard config mismatch
+            let my_shard_config = self.store.get_store().get_shard_config();
+            if !my_shard_config.intersect(&announced_shard_config) {
+                return MessageAcceptance::Accept;
+            }
         }
 
         // check if we have it
+        let tx_id = msg.tx_id;
         if matches!(self.store.check_tx_completed(tx_id.seq).await, Ok(true)) {
             if let Ok(Some(tx)) = self.store.get_tx_by_seq_number(tx_id.seq).await {
                 if tx.id() == tx_id {
                     trace!(?tx_id, "Found file locally, responding to FindFile query");
 
-                    if msg.neighbors_only {
-                        // announce file via RPC to avoid flooding pubsub message
-                        self.send_to_network(NetworkMessage::SendRequest {
-                            peer_id: from,
-                            request: Request::AnswerFile(ShardedFile {
-                                tx_id,
-                                shard_config: my_shard_config.into(),
-                            }),
-                            request_id: RequestId::Router(Instant::now()),
-                        });
-                    } else if self.publish_file(tx_id).await.is_some() {
+                    if self.publish_file(tx_id).await.is_some() {
                         metrics::LIBP2P_HANDLE_PUBSUB_FIND_FILE_STORE.mark(1);
                         return MessageAcceptance::Ignore;
                     }
                 }
             }
-        }
-
-        // do not forward to whole network if only find file from neighbor nodes
-        if msg.neighbors_only {
-            return MessageAcceptance::Ignore;
         }
 
         // try from cache
@@ -1378,11 +1341,11 @@ mod tests {
     ) -> MessageAcceptance {
         let (alice, bob) = (PeerId::random(), PeerId::random());
         let id = MessageId::new(b"dummy message");
-        let message = PubsubMessage::FindFile(FindFile {
-            tx_id,
-            num_shard: 1,
-            shard_id: 0,
-            neighbors_only: false,
+        let message = PubsubMessage::FindFile(TimedMessage {
+            inner: FindFile {
+                tx_id,
+                maybe_shard_config: None,
+            },
             timestamp,
         });
         handler.on_pubsub_message(alice, bob, &id, message).await
