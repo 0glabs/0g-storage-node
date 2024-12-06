@@ -684,7 +684,7 @@ impl Libp2pEventHandler {
     async fn on_find_chunks(
         &self,
         propagation_source: PeerId,
-        msg: FindChunks,
+        msg: TimedMessage<FindChunks>,
     ) -> MessageAcceptance {
         // verify timestamp
         if !metrics::LIBP2P_HANDLE_PUBSUB_FIND_CHUNKS.verify_timestamp(

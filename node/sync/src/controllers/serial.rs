@@ -10,7 +10,7 @@ use network::{
     PeerAction, PeerId, PubsubMessage, SyncId as RequestId,
 };
 use rand::Rng;
-use shared_types::{timestamp_now, ChunkArrayWithProof, ShardedFile, TxID, CHUNK_SIZE};
+use shared_types::{ChunkArrayWithProof, ShardedFile, TxID, CHUNK_SIZE};
 use ssz::Encode;
 use std::{sync::Arc, time::Instant};
 use storage::log_store::log_manager::{sector_to_segment, segment_to_sector, PORA_CHUNK_SIZE};
@@ -233,12 +233,14 @@ impl SerialSyncController {
     }
 
     fn publish_find_chunks(&self) {
-        self.ctx.publish(PubsubMessage::FindChunks(FindChunks {
-            tx_id: self.tx_id,
-            index_start: self.goal.index_start,
-            index_end: self.goal.index_end,
-            timestamp: timestamp_now(),
-        }));
+        self.ctx.publish(PubsubMessage::FindChunks(
+            FindChunks {
+                tx_id: self.tx_id,
+                index_start: self.goal.index_start,
+                index_end: self.goal.index_end,
+            }
+            .into(),
+        ));
     }
 
     /// Dial to peers in `Found` state, so that `Connecting` or `Connected` peers cover

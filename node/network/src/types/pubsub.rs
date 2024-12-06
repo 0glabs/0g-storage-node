@@ -125,7 +125,6 @@ pub struct FindChunks {
     pub tx_id: TxID,
     pub index_start: u64, // inclusive
     pub index_end: u64,   // exclusive
-    pub timestamp: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
@@ -225,7 +224,7 @@ pub enum PubsubMessage {
     /// Published to network to find specified file.
     FindFile(TimedMessage<FindFile>),
     /// Published to network to find specified chunks.
-    FindChunks(FindChunks),
+    FindChunks(TimedMessage<FindChunks>),
     /// Published to network to announce file.
     AnnounceFile(Vec<SignedAnnounceFile>),
     /// Published to network to announce shard config.
@@ -346,7 +345,8 @@ impl PubsubMessage {
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::FindChunks => Ok(PubsubMessage::FindChunks(
-                        FindChunks::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                        TimedMessage::<FindChunks>::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::AnnounceFile => Ok(PubsubMessage::AnnounceFile(
                         SignedAnnounceFiles::from_ssz_bytes(data)
