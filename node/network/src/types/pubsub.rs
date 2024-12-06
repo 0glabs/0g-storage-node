@@ -130,11 +130,9 @@ pub struct FindChunks {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub struct AnnounceFile {
     pub tx_ids: Vec<TxID>,
-    pub num_shard: usize,
-    pub shard_id: usize,
+    pub shard_config: ShardConfig,
     pub peer_id: WrappedPeerId,
     pub at: WrappedMultiaddr,
-    pub timestamp: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
@@ -209,7 +207,7 @@ impl<T: Encode + Decode> HasSignature for SignedMessage<T> {
     }
 }
 
-pub type SignedAnnounceFile = SignedMessage<AnnounceFile>;
+pub type SignedAnnounceFile = SignedMessage<TimedMessage<AnnounceFile>>;
 pub type SignedAnnounceChunks = SignedMessage<AnnounceChunks>;
 
 type SignedAnnounceFiles = Vec<SignedAnnounceFile>;

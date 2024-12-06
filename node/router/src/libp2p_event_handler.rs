@@ -570,12 +570,13 @@ impl Libp2pEventHandler {
         let timestamp = timestamp_now();
         let shard_config = self.store.get_store().get_shard_config();
 
-        let msg = AnnounceFile {
-            tx_ids,
-            num_shard: shard_config.num_shard,
-            shard_id: shard_config.shard_id,
-            peer_id: peer_id.into(),
-            at: addr.into(),
+        let msg = TimedMessage {
+            inner: AnnounceFile {
+                tx_ids,
+                shard_config: shard_config.into(),
+                peer_id: peer_id.into(),
+                at: addr.into(),
+            },
             timestamp,
         };
 
@@ -814,7 +815,7 @@ impl Libp2pEventHandler {
         }
 
         // verify announced shard config
-        let announced_shard_config = match ShardConfig::new(msg.shard_id, msg.num_shard) {
+        let announced_shard_config = match ShardConfig::try_from(msg.shard_config) {
             Ok(v) => v,
             Err(_) => return MessageAcceptance::Reject,
         };
@@ -825,7 +826,7 @@ impl Libp2pEventHandler {
             metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_LATENCY.clone(),
         );
         if d < TOLERABLE_DRIFT.neg() || d > *PUBSUB_TIMEOUT_NETWORK {
-            debug!(%msg.resend_timestamp, ?d, "Invalid resend timestamp, ignoring AnnounceFile message");
+            debug!(?d, %propagation_source, "Invalid resend timestamp, ignoring AnnounceFile message");
             metrics::LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_TIMEOUT.mark(1);
             return MessageAcceptance::Ignore;
         }
@@ -1434,7 +1435,7 @@ mod tests {
             .await
             .unwrap();
         let malicious_addr: Multiaddr = "/ip4/127.0.0.38/tcp/30000".parse().unwrap();
-        file.inner.at = malicious_addr.into();
+        file.inner.inner.at = malicious_addr.into();
         let message = PubsubMessage::AnnounceFile(vec![file]);
 
         // failed to verify signature
