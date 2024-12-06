@@ -117,11 +117,7 @@ impl ssz::Decode for WrappedPeerId {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct FindFile {
     pub tx_id: TxID,
-    pub num_shard: usize,
-    pub shard_id: usize,
-    /// Indicates whether publish to neighboar nodes only.
-    pub neighbors_only: bool,
-    pub timestamp: u32,
+    pub maybe_shard_config: Option<ShardConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -129,17 +125,14 @@ pub struct FindChunks {
     pub tx_id: TxID,
     pub index_start: u64, // inclusive
     pub index_end: u64,   // exclusive
-    pub timestamp: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub struct AnnounceFile {
     pub tx_ids: Vec<TxID>,
-    pub num_shard: usize,
-    pub shard_id: usize,
+    pub shard_config: ShardConfig,
     pub peer_id: WrappedPeerId,
     pub at: WrappedMultiaddr,
-    pub timestamp: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
@@ -149,7 +142,6 @@ pub struct AnnounceChunks {
     pub index_end: u64,   // exclusive
     pub peer_id: WrappedPeerId,
     pub at: WrappedMultiaddr,
-    pub timestamp: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
@@ -214,9 +206,7 @@ impl<T: Encode + Decode> HasSignature for SignedMessage<T> {
     }
 }
 
-pub type SignedAnnounceFile = SignedMessage<AnnounceFile>;
-pub type SignedAnnounceChunks = SignedMessage<AnnounceChunks>;
-
+pub type SignedAnnounceFile = SignedMessage<TimedMessage<AnnounceFile>>;
 type SignedAnnounceFiles = Vec<SignedAnnounceFile>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -226,11 +216,16 @@ pub enum PubsubMessage {
     NewFile(TimedMessage<ShardedFile>),
     /// Published to neighbors for file sync, and answered by `AnswerFile` RPC.
     AskFile(TimedMessage<ShardedFile>),
-    FindFile(FindFile),
-    FindChunks(FindChunks),
+    /// Published to network to find specified file.
+    FindFile(TimedMessage<FindFile>),
+    /// Published to network to find specified chunks.
+    FindChunks(TimedMessage<FindChunks>),
+    /// Published to network to announce file.
     AnnounceFile(Vec<SignedAnnounceFile>),
+    /// Published to network to announce shard config.
     AnnounceShardConfig(TimedMessage<ShardConfig>),
-    AnnounceChunks(SignedAnnounceChunks),
+    /// Published to network to announce chunks.
+    AnnounceChunks(TimedMessage<AnnounceChunks>),
 }
 
 // Implements the `DataTransform` trait of gossipsub to employ snappy compression
@@ -341,17 +336,19 @@ impl PubsubMessage {
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::FindFile => Ok(PubsubMessage::FindFile(
-                        FindFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                        TimedMessage::<FindFile>::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::FindChunks => Ok(PubsubMessage::FindChunks(
-                        FindChunks::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                        TimedMessage::<FindChunks>::from_ssz_bytes(data)
+                            .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::AnnounceFile => Ok(PubsubMessage::AnnounceFile(
                         SignedAnnounceFiles::from_ssz_bytes(data)
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::AnnounceChunks => Ok(PubsubMessage::AnnounceChunks(
-                        SignedAnnounceChunks::from_ssz_bytes(data)
+                        TimedMessage::<AnnounceChunks>::from_ssz_bytes(data)
                             .map_err(|e| format!("{:?}", e))?,
                     )),
                     GossipKind::AnnounceShardConfig => Ok(PubsubMessage::AnnounceShardConfig(

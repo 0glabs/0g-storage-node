@@ -297,10 +297,9 @@ impl FileLocationCache {
         INSERT_BATCH.update(announcement.tx_ids.len() as u64);
 
         let peer_id = *announcement.peer_id;
-        // FIXME: Check validity.
-        let shard_config = ShardConfig {
-            shard_id: announcement.shard_id,
-            num_shard: announcement.num_shard,
+        let shard_config = match ShardConfig::try_from(announcement.shard_config) {
+            Ok(v) => v,
+            Err(_) => return,
         };
         self.insert_peer_config(peer_id, shard_config);
 

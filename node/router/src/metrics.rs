@@ -74,12 +74,11 @@ lazy_static::lazy_static! {
     pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_SHARD: PubsubMsgHandleMetrics = PubsubMsgHandleMetrics::new("announce_shard");
 
     // libp2p_event_handler: find & announce file
-    pub static ref LIBP2P_HANDLE_PUBSUB_FIND_FILE: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_find_file", "qps");
-    pub static ref LIBP2P_HANDLE_PUBSUB_FIND_FILE_LATENCY: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register_with_group("router_libp2p_handle_pubsub_find_file", "latency", 1024);
-    pub static ref LIBP2P_HANDLE_PUBSUB_FIND_FILE_TIMEOUT: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_find_file", "timeout");
+    pub static ref LIBP2P_HANDLE_PUBSUB_FIND_FILE: PubsubMsgHandleMetrics = PubsubMsgHandleMetrics::new("find_file");
     pub static ref LIBP2P_HANDLE_PUBSUB_FIND_FILE_STORE: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_find_file", "store");
     pub static ref LIBP2P_HANDLE_PUBSUB_FIND_FILE_CACHE: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_find_file", "cache");
     pub static ref LIBP2P_HANDLE_PUBSUB_FIND_FILE_FORWARD: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_find_file", "forward");
+
     pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_announce_file", "qps");
     pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_LATENCY: Arc<dyn Histogram> = Sample::ExpDecay(0.015).register_with_group("router_libp2p_handle_pubsub_announce_file", "latency", 1024);
     pub static ref LIBP2P_HANDLE_PUBSUB_ANNOUNCE_FILE_TIMEOUT: Arc<dyn Meter> = register_meter_with_group("router_libp2p_handle_pubsub_announce_file", "timeout");

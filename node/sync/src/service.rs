@@ -13,9 +13,7 @@ use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkMessage, NetworkSender,
     PeerId, PeerRequestId, PubsubMessage, SyncId as RequestId,
 };
-use shared_types::{
-    bytes_to_chunks, timestamp_now, ChunkArrayWithProof, ShardedFile, Transaction, TxID,
-};
+use shared_types::{bytes_to_chunks, ChunkArrayWithProof, ShardedFile, Transaction, TxID};
 use std::sync::atomic::Ordering;
 use std::{
     cmp,
@@ -580,9 +578,7 @@ impl SyncService {
 
     async fn on_find_file(&mut self, tx_seq: u64) -> Result<()> {
         // file already exists
-        if self.store.check_tx_completed(tx_seq).await?
-            || self.store.check_tx_pruned(tx_seq).await?
-        {
+        if self.store.get_store().get_tx_status(tx_seq)?.is_some() {
             return Ok(());
         }
         // broadcast find file
@@ -590,14 +586,13 @@ impl SyncService {
             Some(tx) => tx,
             None => bail!("Transaction not found"),
         };
-        let shard_config = self.store.get_store().get_shard_config();
-        self.ctx.publish(PubsubMessage::FindFile(FindFile {
-            tx_id: tx.id(),
-            num_shard: shard_config.num_shard,
-            shard_id: shard_config.shard_id,
-            neighbors_only: false,
-            timestamp: timestamp_now(),
-        }));
+        self.ctx.publish(PubsubMessage::FindFile(
+            FindFile {
+                tx_id: tx.id(),
+                maybe_shard_config: None,
+            }
+            .into(),
+        ));
         Ok(())
     }
 
@@ -646,10 +641,8 @@ impl SyncService {
                 };
 
                 // file already exists
-                if self.store.check_tx_completed(tx_seq).await?
-                    || self.store.check_tx_pruned(tx_seq).await?
-                {
-                    bail!("File already exists");
+                if let Some(status) = self.store.get_store().get_tx_status(tx_seq)? {
+                    bail!("File already exists [{:?}]", status);
                 }
 
                 let (index_start, index_end, all_chunks) = match maybe_range {
@@ -724,21 +717,12 @@ impl SyncService {
             return;
         }
 
-        // File already exists and ignore the AnnounceFile message
-        match self.store.check_tx_completed(tx_seq).await {
-            Ok(true) => return,
-            Ok(false) => {}
+        // File already exists or pruned, just ignore the AnnounceFile message
+        match self.store.get_store().get_tx_status(tx_seq) {
+            Ok(Some(_)) => return,
+            Ok(None) => {}
             Err(err) => {
-                error!(%tx_seq, %err, "Failed to check if file finalized");
-                return;
-            }
-        }
-
-        match self.store.check_tx_pruned(tx_seq).await {
-            Ok(true) => return,
-            Ok(false) => {}
-            Err(err) => {
-                error!(%tx_seq, %err, "Failed to check if file pruned");
+                error!(%tx_seq, %err, "Failed to get tx status");
                 return;
             }
         }

@@ -409,6 +409,15 @@ pub struct ShardConfig {
     pub shard_id: usize,
 }
 
+impl Default for ShardConfig {
+    fn default() -> Self {
+        ShardConfig {
+            num_shard: 1,
+            shard_id: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DeriveEncode, DeriveDecode)]
 pub struct ShardedFile {
     pub tx_id: TxID,

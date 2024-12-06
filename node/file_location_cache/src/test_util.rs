@@ -1,6 +1,6 @@
 use network::{
     libp2p::identity,
-    types::{AnnounceFile, SignedAnnounceFile, SignedMessage},
+    types::{AnnounceFile, SignedAnnounceFile, SignedMessage, TimedMessage},
     Multiaddr, PeerId,
 };
 use shared_types::{timestamp_now, TxID};
@@ -34,12 +34,13 @@ impl AnnounceFileBuilder {
         let at: Multiaddr = "/ip4/127.0.0.1/tcp/10000".parse().unwrap();
         let timestamp = self.timestamp.unwrap_or_else(timestamp_now);
 
-        let msg = AnnounceFile {
-            tx_ids: vec![tx_id],
-            num_shard: 1,
-            shard_id: 0,
-            peer_id: peer_id.into(),
-            at: at.into(),
+        let msg = TimedMessage {
+            inner: AnnounceFile {
+                tx_ids: vec![tx_id],
+                shard_config: Default::default(),
+                peer_id: peer_id.into(),
+                at: at.into(),
+            },
             timestamp,
         };
 
