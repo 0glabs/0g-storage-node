@@ -677,7 +677,7 @@ impl SerialSyncController {
                     } else {
                         // FindFile timeout
                         if since.elapsed() >= self.config.peer_find_timeout {
-                            if self.config.neighbors_only {
+                            if self.goal.is_all_chunks() && self.config.neighbors_only {
                                 self.state = SyncState::Failed {
                                     reason: FailureReason::TimeoutFindFile,
                                 };

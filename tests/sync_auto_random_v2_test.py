@@ -14,7 +14,6 @@ class AutoRandomSyncV2Test(TestFramework):
                     "auto_sync_enabled": True,
                     "max_sequential_workers": 0,
                     "max_random_workers": 3,
-                    "neighbors_only": True,
                 }
             }
 
