@@ -39,6 +39,9 @@ config = "0.14"
 public-ip = "0.2"
 ethers = "2.0.14"
 metrics = { workspace = true }
+rust-log = { package = "log", version = "0.4.22" }
+tracing-core = "0.1.32"
+tracing-log = "0.2.0"
 
 [dependencies.libp2p]
 version = "0.45.1"

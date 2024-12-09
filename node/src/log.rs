@@ -1,5 +1,6 @@
 use task_executor::TaskExecutor;
 use tracing::Level;
+use tracing_log::AsLog;
 use tracing_subscriber::EnvFilter;
 
 const LOG_RELOAD_PERIOD_SEC: u64 = 30;
@@ -57,7 +58,10 @@ pub fn configure(log_level_file: &str, log_directory: &str, executor: TaskExecut
                 println!("Updating log config to {:?}", new_config);
 
                 match handle.reload(&new_config) {
-                    Ok(()) => config = new_config,
+                    Ok(()) => {
+                        rust_log::set_max_level(tracing_core::LevelFilter::current().as_log());
+                        config = new_config
+                    }
                     Err(e) => {
                         println!("Failed to load new config: {:?}", e);
                     }
