@@ -1,5 +1,6 @@
 use task_executor::TaskExecutor;
 use tracing::Level;
+use tracing_log::AsLog;
 use tracing_subscriber::EnvFilter;
 
 const LOG_RELOAD_PERIOD_SEC: u64 = 30;
@@ -7,9 +8,17 @@ const LOG_RELOAD_PERIOD_SEC: u64 = 30;
 pub fn configure(log_level_file: &str, log_directory: &str, executor: TaskExecutor) {
     let file_appender = tracing_appender::rolling::daily(log_directory, "zgs.log");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    let level_file = log_level_file.trim_end().to_string();
+    // load config synchronously
+    let mut config = std::fs::read_to_string(&level_file)
+        .unwrap_or_default()
+        .trim_end()
+        .to_string();
+
     let builder = tracing_subscriber::fmt()
         .with_max_level(Level::TRACE)
-        .with_env_filter(EnvFilter::default())
+        .with_env_filter(EnvFilter::try_new(config.clone()).expect("invalid log level"))
         .with_writer(non_blocking)
         .with_ansi(false)
         // .with_file(true)
@@ -19,15 +28,6 @@ pub fn configure(log_level_file: &str, log_directory: &str, executor: TaskExecut
 
     let handle = builder.reload_handle();
     builder.init();
-
-    let level_file = log_level_file.trim_end().to_string();
-
-    // load config synchronously
-    let mut config = std::fs::read_to_string(&level_file)
-        .unwrap_or_default()
-        .trim_end()
-        .to_string();
-    let _ = handle.reload(&config);
 
     // periodically check for config changes
     executor.spawn(
@@ -58,7 +58,10 @@ pub fn configure(log_level_file: &str, log_directory: &str, executor: TaskExecut
                 println!("Updating log config to {:?}", new_config);
 
                 match handle.reload(&new_config) {
-                    Ok(()) => config = new_config,
+                    Ok(()) => {
+                        rust_log::set_max_level(tracing_core::LevelFilter::current().as_log());
+                        config = new_config
+                    }
                     Err(e) => {
                         println!("Failed to load new config: {:?}", e);
                     }
