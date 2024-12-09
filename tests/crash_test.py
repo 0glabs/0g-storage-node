@@ -20,8 +20,9 @@ class CrashTest(TestFramework):
 
         segment = submit_data(self.nodes[0], chunk_data)
         self.log.info("segment: %s", segment)
+        wait_until(lambda: self.nodes[0].zgs_get_file_info(data_root)["finalized"] is True)
 
-        for i in range(self.num_nodes):
+        for i in range(1, self.num_nodes):
             wait_until(
                 lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
             )

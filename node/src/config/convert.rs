@@ -43,13 +43,9 @@ impl ZgsConfig {
             chain_id,
             flow_address,
             p2p_protocol_version: ProtocolVersion {
-                major: network::PROTOCOL_VERSION_V3[0],
-                minor: network::PROTOCOL_VERSION_V3[1],
-                build: if self.sync.neighbors_only {
-                    network::PROTOCOL_VERSION_V3[2] + 1
-                } else {
-                    network::PROTOCOL_VERSION_V3[2]
-                },
+                major: network::PROTOCOL_VERSION_V4[0],
+                minor: network::PROTOCOL_VERSION_V4[1],
+                build: network::PROTOCOL_VERSION_V4[2],
             },
         };
         network_config.network_id = local_network_id.clone();

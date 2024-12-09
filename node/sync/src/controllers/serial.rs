@@ -677,7 +677,7 @@ impl SerialSyncController {
                     } else {
                         // FindFile timeout
                         if since.elapsed() >= self.config.peer_find_timeout {
-                            if self.config.neighbors_only {
+                            if self.goal.is_all_chunks() && self.config.neighbors_only {
                                 self.state = SyncState::Failed {
                                     reason: FailureReason::TimeoutFindFile,
                                 };
@@ -1694,7 +1694,10 @@ mod tests {
         let file_location_cache = create_file_location_cache(peer_id, vec![tx_id]);
 
         let controller = SerialSyncController::new(
-            Config::default(),
+            Config {
+                neighbors_only: false,
+                ..Default::default()
+            },
             tx_id,
             0,
             FileSyncGoal::new_file(num_chunks as u64),

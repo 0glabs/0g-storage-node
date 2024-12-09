@@ -97,9 +97,11 @@ pub use service::{load_private_key, Context, Libp2pEvent, Service, NETWORK_KEY_F
 /// - v1: Broadcast FindFile & AnnounceFile messages in the whole network, which caused network too heavey.
 /// - v2: Publish NewFile to neighbors only and announce file via RPC message.
 /// - v3: Add shard config in Status message.
+/// - v4: Refactor pubsub messages.
 pub const PROTOCOL_VERSION_V1: [u8; 3] = [0, 1, 1];
 pub const PROTOCOL_VERSION_V2: [u8; 3] = [0, 2, 1];
 pub const PROTOCOL_VERSION_V3: [u8; 3] = [0, 3, 0];
+pub const PROTOCOL_VERSION_V4: [u8; 3] = [0, 4, 0];
 
 /// Application level requests sent to the network.
 #[derive(Debug, Clone, Copy)]

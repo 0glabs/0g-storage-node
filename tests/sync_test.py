@@ -45,13 +45,15 @@ class SyncTest(TestFramework):
         wait_until(lambda: client2.zgs_get_file_info(data_root) is not None)
         time.sleep(3)
         assert_equal(client2.zgs_get_file_info(data_root)["finalized"], False)
-        assert(client2.admin_get_file_location(0) is None)
+        # file sync use ASK_FILE & ANSWER FILE protocol, and do not cache file announcement anymore.
+        # assert(client2.admin_get_file_location(0) is None)
 
         # Trigger file sync by rpc
         assert(client2.admin_start_sync_file(0) is None)
         wait_until(lambda: client2.sync_status_is_completed_or_unknown(0))
         wait_until(lambda: client2.zgs_get_file_info(data_root)["finalized"])
-        assert(client2.admin_get_file_location(0) is not None)
+        # file sync use ASK_FILE & ANSWER FILE protocol, and do not cache file announcement anymore.
+        # assert(client2.admin_get_file_location(0) is not None)
 
         # Validate data
         assert_equal(

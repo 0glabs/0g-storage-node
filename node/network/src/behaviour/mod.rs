@@ -390,7 +390,7 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
                     .gossipsub
                     .publish(topic.clone().into(), message_data.clone())
                 {
-                    warn!(error = ?e, "Could not publish message");
+                    warn!(error = ?e, topic = ?topic.kind(), "Failed to publish message");
 
                     // add to metrics
                     if let Some(v) = metrics::get_int_gauge(

@@ -343,6 +343,7 @@ impl RouterService {
                 let msg = PubsubMessage::NewFile(new_file.into());
                 self.libp2p.swarm.behaviour_mut().publish(vec![msg]);
                 metrics::SERVICE_ROUTE_NETWORK_MESSAGE_ANNOUNCE_LOCAL_FILE.mark(1);
+                debug!(?new_file, "Publish NewFile message");
             }
             NetworkMessage::UPnPMappingEstablished {
                 tcp_socket,
