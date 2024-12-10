@@ -6594,6 +6594,7 @@ dependencies = [
  "metrics",
  "miner",
  "network",
+ "parking_lot 0.12.3",
  "serde",
  "serde_json",
  "shared_types",
