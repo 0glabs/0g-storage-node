@@ -27,3 +27,4 @@ merkle_light = { path = "../../common/merkle_light" }
 merkle_tree = { path = "../../common/merkle_tree"}
 futures-channel = "^0.3"
 metrics = { workspace = true }
+parking_lot = "0.12.3"

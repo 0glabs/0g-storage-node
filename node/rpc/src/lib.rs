@@ -6,6 +6,7 @@ extern crate miner as zgs_miner;
 mod admin;
 mod config;
 mod error;
+mod middleware;
 mod miner;
 pub mod types;
 mod zgs;
@@ -77,8 +78,10 @@ pub async fn run_server(
     Ok(handles)
 }
 
-fn server_builder(ctx: Context) -> HttpServerBuilder {
-    HttpServerBuilder::default().max_request_body_size(ctx.config.max_request_body_size)
+fn server_builder(ctx: Context) -> HttpServerBuilder<middleware::Metrics> {
+    HttpServerBuilder::default()
+        .max_request_body_size(ctx.config.max_request_body_size)
+        .set_middleware(middleware::Metrics::default())
 }
 
 /// Run a single RPC server for all namespace RPCs.
