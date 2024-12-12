@@ -54,6 +54,22 @@ pub struct Quota {
     max_tokens: u64,
 }
 
+impl Quota {
+    pub fn one_every(period: Duration) -> Self {
+        Self {
+            replenish_all_every: period,
+            max_tokens: 1,
+        }
+    }
+
+    pub fn n_every(n: u64, period: Duration) -> Self {
+        Self {
+            replenish_all_every: period,
+            max_tokens: n,
+        }
+    }
+}
+
 /// Manages rate limiting of requests per peer, with differentiated rates per protocol.
 pub struct RPCRateLimiter {
     /// Interval to prune peers for which their timer ran out.
@@ -122,24 +138,12 @@ impl RPCRateLimiterBuilder {
     /// Allow one token every `time_period` to be used for this `protocol`.
     /// This produces a hard limit.
     pub fn one_every(self, protocol: Protocol, time_period: Duration) -> Self {
-        self.set_quota(
-            protocol,
-            Quota {
-                replenish_all_every: time_period,
-                max_tokens: 1,
-            },
-        )
+        self.set_quota(protocol, Quota::one_every(time_period))
     }
 
     /// Allow `n` tokens to be use used every `time_period` for this `protocol`.
     pub fn n_every(self, protocol: Protocol, n: u64, time_period: Duration) -> Self {
-        self.set_quota(
-            protocol,
-            Quota {
-                max_tokens: n,
-                replenish_all_every: time_period,
-            },
-        )
+        self.set_quota(protocol, Quota::n_every(n, time_period))
     }
 
     pub fn build(self) -> Result<RPCRateLimiter, &'static str> {

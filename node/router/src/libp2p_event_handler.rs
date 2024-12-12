@@ -174,7 +174,7 @@ impl Libp2pEventHandler {
         }
     }
 
-    fn send_to_network(&self, message: NetworkMessage) {
+    pub fn send_to_network(&self, message: NetworkMessage) {
         self.network_send.send(message).unwrap_or_else(|err| {
             warn!(%err, "Could not send message to the network service");
         });
