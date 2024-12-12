@@ -5,6 +5,7 @@ mod batcher;
 mod libp2p_event_handler;
 mod metrics;
 mod peer_manager;
+mod rate_limit;
 mod service;
 
 use duration_str::deserialize_duration;

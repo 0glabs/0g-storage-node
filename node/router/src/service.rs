@@ -1,4 +1,5 @@
 use crate::metrics;
+use crate::rate_limit::PubsubRateLimiter;
 use crate::Config;
 use crate::{libp2p_event_handler::Libp2pEventHandler, peer_manager::PeerManager};
 use chunk_pool::ChunkPoolMessage;
@@ -6,14 +7,16 @@ use file_location_cache::FileLocationCache;
 use futures::{channel::mpsc::Sender, prelude::*};
 use miner::MinerMessage;
 use network::rpc::GoodbyeReason;
-use network::PeerId;
+use network::types::GossipKind;
 use network::{
     BehaviourEvent, Keypair, Libp2pEvent, NetworkGlobals, NetworkMessage, NetworkReceiver,
     NetworkSender, PubsubMessage, RequestId, Service as LibP2PService, Swarm,
 };
+use network::{MessageAcceptance, PeerAction, PeerId, ReportSource};
 use pruner::PrunerMessage;
 use shared_types::ShardedFile;
 use std::sync::Arc;
+use std::time::Duration;
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
 use sync::{SyncMessage, SyncSender};
@@ -49,6 +52,8 @@ pub struct RouterService {
     upnp_mappings: (Option<u16>, Option<u16>),
 
     store: Arc<dyn LogStore>,
+
+    pubsub_rate_limiter: PubsubRateLimiter,
 }
 
 impl RouterService {
@@ -67,8 +72,18 @@ impl RouterService {
         file_location_cache: Arc<FileLocationCache>,
         local_keypair: Keypair,
         config: Config,
-    ) {
+    ) -> Result<(), String> {
         let peers = Arc::new(RwLock::new(PeerManager::new(config.clone())));
+
+        let pubsub_rate_limiter = PubsubRateLimiter::new(100, Duration::from_secs(10))?
+            .limit_by_topic(GossipKind::Example, 10, Duration::from_secs(10))?
+            .limit_by_topic(GossipKind::NewFile, 50, Duration::from_secs(10))?
+            .limit_by_topic(GossipKind::AskFile, 50, Duration::from_secs(10))?
+            .limit_by_topic(GossipKind::FindFile, 10, Duration::from_secs(10))?
+            .limit_by_topic(GossipKind::AnnounceFile, 10, Duration::from_secs(10))?
+            .limit_by_topic(GossipKind::FindChunks, 10, Duration::from_secs(10))?
+            .limit_by_topic(GossipKind::AnnounceChunks, 10, Duration::from_secs(10))?
+            .limit_by_topic(GossipKind::AnnounceShardConfig, 50, Duration::from_secs(10))?;
 
         // create the network service and spawn the task
         let router = RouterService {
@@ -91,17 +106,21 @@ impl RouterService {
             ),
             upnp_mappings: (None, None),
             store,
+            pubsub_rate_limiter,
         };
 
         // spawn service
         let shutdown_sender = executor.shutdown_sender();
 
         executor.spawn(router.main(shutdown_sender), "router");
+
+        Ok(())
     }
 
     async fn main(mut self, mut shutdown_sender: Sender<ShutdownReason>) {
         let mut heartbeat_service = interval(self.config.heartbeat_interval);
         let mut heartbeat_batcher = interval(self.config.batcher_timeout);
+        let mut heartbeat_rate_limiter = interval(Duration::from_secs(30));
 
         loop {
             tokio::select! {
@@ -118,6 +137,8 @@ impl RouterService {
 
                 // heartbeat for expire file batcher
                 _ = heartbeat_batcher.tick() => self.libp2p_event_handler.expire_batcher().await,
+
+                _ = heartbeat_rate_limiter.tick() => self.pubsub_rate_limiter.prune(),
             }
         }
     }
@@ -192,10 +213,24 @@ impl RouterService {
                     message,
                     ..
                 } => {
-                    let result = self
-                        .libp2p_event_handler
-                        .on_pubsub_message(propagation_source, source, &id, message)
-                        .await;
+                    let result = if let Err((rate_limit_kind, _)) = self
+                        .pubsub_rate_limiter
+                        .allows(&propagation_source, &message)
+                    {
+                        warn!(%propagation_source, kind=?message.kind(), ?rate_limit_kind, "Pubsub message rate limited");
+                        self.libp2p_event_handler
+                            .send_to_network(NetworkMessage::ReportPeer {
+                                peer_id: propagation_source,
+                                action: PeerAction::LowToleranceError,
+                                source: ReportSource::Gossipsub,
+                                msg: "Pubsub message rate limited",
+                            });
+                        MessageAcceptance::Reject
+                    } else {
+                        self.libp2p_event_handler
+                            .on_pubsub_message(propagation_source, source, &id, message)
+                            .await
+                    };
 
                     self.libp2p
                         .swarm

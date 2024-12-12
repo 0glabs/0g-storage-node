@@ -265,7 +265,7 @@ impl ClientBuilder {
             file_location_cache,
             network.keypair.clone(),
             router_config,
-        );
+        )?;
 
         Ok(self)
     }

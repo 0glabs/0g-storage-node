@@ -33,7 +33,7 @@ mod handler;
 pub mod methods;
 mod outbound;
 mod protocol;
-mod rate_limiter;
+pub mod rate_limiter;
 
 /// Composite trait for a request id.
 pub trait ReqId: Send + 'static + std::fmt::Debug + Copy + Clone {}
