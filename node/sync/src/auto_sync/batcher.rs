@@ -1,4 +1,7 @@
-use crate::{controllers::SyncState, SyncRequest, SyncResponse, SyncSender};
+use crate::{
+    controllers::{FailureReason, SyncState},
+    SyncRequest, SyncResponse, SyncSender,
+};
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt::Debug, sync::Arc, time::Duration};
@@ -126,7 +129,10 @@ impl Batcher {
                     "Failed to sync file and terminate the failed file sync"
                 );
                 self.terminate_file_sync(tx_seq, false).await;
-                Ok(Some(SyncResult::Failed))
+                match reason {
+                    FailureReason::TimeoutFindFile => Ok(Some(SyncResult::Timeout)),
+                    _ => Ok(Some(SyncResult::Failed)),
+                }
             }
 
             // finding peers timeout
