@@ -1,4 +1,4 @@
-use super::tx_store::TxStore;
+use super::tx_store::{CachedTxStore, TxStore};
 use anyhow::Result;
 use std::sync::Arc;
 use storage::log_store::{
@@ -33,23 +33,24 @@ pub struct SyncStore {
 
     /// Ready transactions to sync with high priority since announcement
     /// already received from other peers.
-    ready_txs: TxStore,
+    ready_txs: CachedTxStore,
 }
 
 impl SyncStore {
-    pub fn new(store: Store) -> Self {
-        Self {
-            store: Arc::new(RwLock::new(store)),
-            pending_txs: TxStore::new("pending"),
-            ready_txs: TxStore::new("ready"),
-        }
+    pub fn new(store: Store, ready_txs_cache_cap: usize) -> Self {
+        Self::new_with_name(store, ready_txs_cache_cap, "pending", "ready")
     }
 
-    pub fn new_with_name(store: Store, pending: &'static str, ready: &'static str) -> Self {
+    pub fn new_with_name(
+        store: Store,
+        ready_txs_cache_cap: usize,
+        pending: &'static str,
+        ready: &'static str,
+    ) -> Self {
         Self {
             store: Arc::new(RwLock::new(store)),
             pending_txs: TxStore::new(pending),
-            ready_txs: TxStore::new(ready),
+            ready_txs: CachedTxStore::new(ready, ready_txs_cache_cap),
         }
     }
 
@@ -112,7 +113,7 @@ impl SyncStore {
 
         match queue {
             Queue::Ready => {
-                if !self.ready_txs.add(store, Some(&mut tx), tx_seq)? {
+                if !self.ready_txs.add(store, Some(&mut tx), tx_seq).await? {
                     return Ok(InsertResult::AlreadyExists);
                 }
 
@@ -130,7 +131,7 @@ impl SyncStore {
                     return Ok(InsertResult::AlreadyExists);
                 }
 
-                let removed = self.ready_txs.remove(store, Some(&mut tx), tx_seq)?;
+                let removed = self.ready_txs.remove(store, Some(&mut tx), tx_seq).await?;
                 store.exec_configs(tx, DATA_DB_KEY)?;
 
                 if removed {
@@ -152,7 +153,7 @@ impl SyncStore {
             return Ok(false);
         }
 
-        let added = self.ready_txs.add(store, Some(&mut tx), tx_seq)?;
+        let added = self.ready_txs.add(store, Some(&mut tx), tx_seq).await?;
 
         store.exec_configs(tx, DATA_DB_KEY)?;
 
@@ -164,7 +165,7 @@ impl SyncStore {
         let store = async_store.get_store();
 
         // try to find a tx in ready queue with high priority
-        if let Some(val) = self.ready_txs.random(store)? {
+        if let Some(val) = self.ready_txs.random(store).await? {
             return Ok(Some(val));
         }
 
@@ -177,7 +178,7 @@ impl SyncStore {
         let store = async_store.get_store();
 
         // removed in ready queue
-        if self.ready_txs.remove(store, None, tx_seq)? {
+        if self.ready_txs.remove(store, None, tx_seq).await? {
             return Ok(Some(Queue::Ready));
         }
 
@@ -199,7 +200,7 @@ mod tests {
     #[tokio::test]
     async fn test_tx_seq_range() {
         let runtime = TestStoreRuntime::default();
-        let store = SyncStore::new(runtime.store.clone());
+        let store = SyncStore::new(runtime.store.clone(), 0);
 
         // check values by default
         assert_eq!(store.get_tx_seq_range().await.unwrap(), (None, None));
@@ -215,7 +216,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert() {
         let runtime = TestStoreRuntime::default();
-        let store = SyncStore::new(runtime.store.clone());
+        let store = SyncStore::new(runtime.store.clone(), 0);
 
         assert_eq!(store.contains(1).await.unwrap(), None);
         assert_eq!(store.insert(1, Pending).await.unwrap(), NewAdded);
@@ -234,7 +235,7 @@ mod tests {
     #[tokio::test]
     async fn test_upgrade() {
         let runtime = TestStoreRuntime::default();
-        let store = SyncStore::new(runtime.store.clone());
+        let store = SyncStore::new(runtime.store.clone(), 0);
 
         // cannot upgrade by default
         assert!(!store.upgrade(3).await.unwrap());
@@ -253,7 +254,7 @@ mod tests {
     #[tokio::test]
     async fn test_random() {
         let runtime = TestStoreRuntime::default();
-        let store = SyncStore::new(runtime.store.clone());
+        let store = SyncStore::new(runtime.store.clone(), 0);
 
         // no tx by default
         assert_eq!(store.random().await.unwrap(), None);
@@ -273,7 +274,7 @@ mod tests {
     #[tokio::test]
     async fn test_remove() {
         let runtime = TestStoreRuntime::default();
-        let store = SyncStore::new(runtime.store.clone());
+        let store = SyncStore::new(runtime.store.clone(), 0);
 
         // cannot remove by default
         assert_eq!(store.remove(1).await.unwrap(), None);

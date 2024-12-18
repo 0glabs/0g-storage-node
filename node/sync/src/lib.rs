@@ -62,6 +62,7 @@ pub struct Config {
     pub sequential_find_peer_timeout: Duration,
     #[serde(deserialize_with = "deserialize_duration")]
     pub random_find_peer_timeout: Duration,
+    pub ready_txs_cache_cap: usize,
 }
 
 impl Default for Config {
@@ -94,6 +95,7 @@ impl Default for Config {
             max_random_workers: 8,
             sequential_find_peer_timeout: Duration::from_secs(5),
             random_find_peer_timeout: Duration::from_secs(5),
+            ready_txs_cache_cap: 1_000_000,
         }
     }
 }

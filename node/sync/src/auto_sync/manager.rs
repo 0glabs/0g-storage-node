@@ -46,11 +46,12 @@ impl AutoSyncManager {
             // use v2 db to avoid reading v1 files that announced from the whole network instead of neighbors
             Arc::new(SyncStore::new_with_name(
                 store.clone(),
+                config.ready_txs_cache_cap,
                 "pendingv2",
                 "readyv2",
             ))
         } else {
-            Arc::new(SyncStore::new(store.clone()))
+            Arc::new(SyncStore::new(store.clone(), 0))
         };
         let catched_up = Arc::new(AtomicBool::new(false));
 
@@ -98,6 +99,7 @@ impl AutoSyncManager {
         if config.neighbors_only {
             let historical_sync_store = Arc::new(SyncStore::new_with_name(
                 store.clone(),
+                0,
                 "pendingv2_historical",
                 "readyv2_historical",
             ));
