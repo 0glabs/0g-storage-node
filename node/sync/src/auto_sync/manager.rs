@@ -19,6 +19,7 @@ use super::{
     batcher_random::RandomBatcher,
     batcher_serial::SerialBatcher,
     historical_tx_writer::HistoricalTxWriter,
+    metrics,
     sync_store::{Queue, SyncStore},
 };
 
@@ -83,6 +84,7 @@ impl AutoSyncManager {
             store.clone(),
             sync_send.clone(),
             sync_store,
+            metrics::RANDOM_ANNOUNCED.clone(),
         );
         executor.spawn(random.clone().start(catched_up.clone()), "auto_sync_random");
 
@@ -111,6 +113,7 @@ impl AutoSyncManager {
                 store,
                 sync_send,
                 historical_sync_store,
+                metrics::RANDOM_HISTORICAL.clone(),
             );
             executor.spawn(
                 random_historical.start(catched_up.clone()),
