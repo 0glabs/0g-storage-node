@@ -17,7 +17,6 @@ pub struct RpcServerImpl {
 
 #[async_trait]
 impl RpcServer for RpcServerImpl {
-    #[tracing::instrument(skip(self), err)]
     async fn get_status(&self) -> RpcResult<Status> {
         info!("zgs_getStatus()");
         let sync_progress = self

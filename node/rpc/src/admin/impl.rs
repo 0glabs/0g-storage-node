@@ -18,7 +18,6 @@ pub struct RpcServerImpl {
 
 #[async_trait]
 impl RpcServer for RpcServerImpl {
-    #[tracing::instrument(skip(self), err)]
     async fn find_file(&self, tx_seq: u64) -> RpcResult<()> {
         info!("admin_findFile({tx_seq})");
 
@@ -39,7 +38,6 @@ impl RpcServer for RpcServerImpl {
         }
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn shutdown(&self) -> RpcResult<()> {
         info!("admin_shutdown()");
 
@@ -51,7 +49,6 @@ impl RpcServer for RpcServerImpl {
             .map_err(|e| error::internal_error(format!("Failed to send shutdown command: {:?}", e)))
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn start_sync_file(&self, tx_seq: u64) -> RpcResult<()> {
         info!("admin_startSyncFile({tx_seq})");
 
@@ -72,7 +69,6 @@ impl RpcServer for RpcServerImpl {
         }
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn start_sync_chunks(
         &self,
         tx_seq: u64,
@@ -102,7 +98,6 @@ impl RpcServer for RpcServerImpl {
         }
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn terminate_sync(&self, tx_seq: u64) -> RpcResult<bool> {
         info!("admin_terminateSync({tx_seq})");
 
@@ -131,7 +126,6 @@ impl RpcServer for RpcServerImpl {
         }
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn get_sync_status(&self, tx_seq: u64) -> RpcResult<String> {
         info!("admin_getSyncStatus({tx_seq})");
 
@@ -148,7 +142,6 @@ impl RpcServer for RpcServerImpl {
         }
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn get_sync_info(&self, tx_seq: Option<u64>) -> RpcResult<HashMap<u64, FileSyncInfo>> {
         info!(?tx_seq, "admin_getSyncInfo()");
 
@@ -163,7 +156,6 @@ impl RpcServer for RpcServerImpl {
         }
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn get_network_info(&self) -> RpcResult<NetworkInfo> {
         info!("admin_getNetworkInfo()");
 
