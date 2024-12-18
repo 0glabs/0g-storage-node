@@ -162,8 +162,14 @@ impl CachedTxStore {
         self.tx_store.has(store, tx_seq)
     }
 
-    pub fn count(&self, store: &dyn Store) -> Result<usize> {
-        self.tx_store.count(store)
+    pub async  fn count(&self, store: &dyn Store) -> Result<(usize, usize)> {
+        if self.cache_cap == 0 {
+            return Ok((self.tx_store.count(store)?, 0));
+        }
+
+        let cache = self.cache.read().await;
+
+        Ok((self.tx_store.count(store)?, cache.len()))
     }
 
     pub async fn add(

@@ -55,14 +55,14 @@ impl SyncStore {
     }
 
     /// Returns the number of pending txs and ready txs.
-    pub async fn stat(&self) -> Result<(usize, usize)> {
+    pub async fn stat(&self) -> Result<(usize, usize, usize)> {
         let async_store = self.store.read().await;
         let store = async_store.get_store();
 
         let num_pending_txs = self.pending_txs.count(store)?;
-        let num_ready_txs = self.ready_txs.count(store)?;
+        let (num_ready_txs, num_cached_ready_txs) = self.ready_txs.count(store).await?;
 
-        Ok((num_pending_txs, num_ready_txs))
+        Ok((num_pending_txs, num_ready_txs, num_cached_ready_txs))
     }
 
     pub async fn get_tx_seq_range(&self) -> Result<(Option<u64>, Option<u64>)> {

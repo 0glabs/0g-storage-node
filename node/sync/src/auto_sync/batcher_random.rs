@@ -19,6 +19,7 @@ pub struct RandomBatcherState {
     pub tasks: Vec<u64>,
     pub pending_txs: usize,
     pub ready_txs: usize,
+    pub cached_ready_txs: usize,
 }
 
 #[derive(Clone)]
@@ -54,13 +55,14 @@ impl RandomBatcher {
     }
 
     pub async fn get_state(&self) -> Result<RandomBatcherState> {
-        let (pending_txs, ready_txs) = self.sync_store.stat().await?;
+        let (pending_txs, ready_txs, cached_ready_txs) = self.sync_store.stat().await?;
 
         Ok(RandomBatcherState {
             name: self.name.clone(),
             tasks: self.batcher.tasks().await,
             pending_txs,
             ready_txs,
+            cached_ready_txs,
         })
     }
 
