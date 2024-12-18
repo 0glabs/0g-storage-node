@@ -62,6 +62,7 @@ pub struct Config {
     pub sequential_find_peer_timeout: Duration,
     #[serde(deserialize_with = "deserialize_duration")]
     pub random_find_peer_timeout: Duration,
+    pub ready_txs_cache_cap: usize,
 }
 
 impl Default for Config {
@@ -69,18 +70,18 @@ impl Default for Config {
         Self {
             // sync service config
             neighbors_only: true,
-            heartbeat_interval: Duration::from_secs(5),
+            heartbeat_interval: Duration::from_secs(3),
             auto_sync_enabled: false,
-            max_sync_files: 8,
+            max_sync_files: 16,
             sync_file_by_rpc_enabled: true,
             sync_file_on_announcement_enabled: false,
 
             // serial sync config
             max_chunks_to_request: 2 * 1024,
-            max_request_failures: 5,
+            max_request_failures: 3,
             peer_connect_timeout: Duration::from_secs(15),
             peer_disconnect_timeout: Duration::from_secs(15),
-            peer_find_timeout: Duration::from_secs(120),
+            peer_find_timeout: Duration::from_secs(5),
             peer_chunks_download_timeout: Duration::from_secs(15),
             peer_wait_outgoing_connection_timeout: Duration::from_secs(10),
             peer_next_chunks_request_wait_timeout: Duration::from_secs(3),
@@ -91,9 +92,10 @@ impl Default for Config {
             auto_sync_idle_interval: Duration::from_secs(3),
             auto_sync_error_interval: Duration::from_secs(10),
             max_sequential_workers: 0,
-            max_random_workers: 2,
-            sequential_find_peer_timeout: Duration::from_secs(60),
-            random_find_peer_timeout: Duration::from_secs(500),
+            max_random_workers: 8,
+            sequential_find_peer_timeout: Duration::from_secs(5),
+            random_find_peer_timeout: Duration::from_secs(5),
+            ready_txs_cache_cap: 1_000_000,
         }
     }
 }

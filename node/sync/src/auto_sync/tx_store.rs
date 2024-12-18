@@ -1,8 +1,12 @@
+use std::collections::HashSet;
+
 use anyhow::Result;
+use rand::seq::IteratorRandom;
 use rand::Rng;
 use storage::log_store::config::{ConfigTx, ConfigurableExt};
 use storage::log_store::log_manager::DATA_DB_KEY;
 use storage::log_store::Store;
+use tokio::sync::RwLock;
 
 /// TxStore is used to store pending transactions that to be synchronized in advance.
 ///
@@ -135,6 +139,99 @@ impl TxStore {
         }
 
         Ok(true)
+    }
+}
+
+/// Cache the recent inserted tx in memory for random pick with priority.
+pub struct CachedTxStore {
+    tx_store: TxStore,
+    cache_cap: usize,
+    cache: RwLock<HashSet<u64>>,
+}
+
+impl CachedTxStore {
+    pub fn new(name: &'static str, cache_cap: usize) -> Self {
+        Self {
+            tx_store: TxStore::new(name),
+            cache_cap,
+            cache: Default::default(),
+        }
+    }
+
+    pub fn has(&self, store: &dyn Store, tx_seq: u64) -> Result<bool> {
+        self.tx_store.has(store, tx_seq)
+    }
+
+    pub async fn count(&self, store: &dyn Store) -> Result<(usize, usize)> {
+        if self.cache_cap == 0 {
+            return Ok((self.tx_store.count(store)?, 0));
+        }
+
+        let cache = self.cache.read().await;
+
+        Ok((self.tx_store.count(store)?, cache.len()))
+    }
+
+    pub async fn add(
+        &self,
+        store: &dyn Store,
+        db_tx: Option<&mut ConfigTx>,
+        tx_seq: u64,
+    ) -> Result<bool> {
+        if self.cache_cap == 0 {
+            return self.tx_store.add(store, db_tx, tx_seq);
+        }
+
+        let mut cache = self.cache.write().await;
+
+        let added = self.tx_store.add(store, db_tx, tx_seq)?;
+
+        if added {
+            cache.insert(tx_seq);
+
+            if cache.len() > self.cache_cap {
+                if let Some(popped) = cache.iter().choose(&mut rand::thread_rng()).cloned() {
+                    cache.remove(&popped);
+                }
+            }
+        }
+
+        Ok(added)
+    }
+
+    pub async fn random(&self, store: &dyn Store) -> Result<Option<u64>> {
+        if self.cache_cap == 0 {
+            return self.tx_store.random(store);
+        }
+
+        let cache = self.cache.read().await;
+
+        if let Some(v) = cache.iter().choose(&mut rand::thread_rng()).cloned() {
+            return Ok(Some(v));
+        }
+
+        self.tx_store.random(store)
+    }
+
+    pub async fn remove(
+        &self,
+        store: &dyn Store,
+        db_tx: Option<&mut ConfigTx>,
+        tx_seq: u64,
+    ) -> Result<bool> {
+        if self.cache_cap == 0 {
+            return self.tx_store.remove(store, db_tx, tx_seq);
+        }
+
+        let mut cache: tokio::sync::RwLockWriteGuard<'_, HashSet<u64>> = self.cache.write().await;
+
+        let removed = self.tx_store.remove(store, db_tx, tx_seq)?;
+
+        if removed {
+            cache.remove(&tx_seq);
+        }
+
+        Ok(removed)
     }
 }
 

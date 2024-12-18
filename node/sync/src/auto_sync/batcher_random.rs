@@ -1,6 +1,6 @@
-use super::{batcher::Batcher, sync_store::SyncStore};
+use super::{batcher::Batcher, metrics::RandomBatcherMetrics, sync_store::SyncStore};
 use crate::{
-    auto_sync::{batcher::SyncResult, metrics, sync_store::Queue},
+    auto_sync::{batcher::SyncResult, sync_store::Queue},
     Config, SyncSender,
 };
 use anyhow::Result;
@@ -19,6 +19,7 @@ pub struct RandomBatcherState {
     pub tasks: Vec<u64>,
     pub pending_txs: usize,
     pub ready_txs: usize,
+    pub cached_ready_txs: usize,
 }
 
 #[derive(Clone)]
@@ -27,6 +28,7 @@ pub struct RandomBatcher {
     config: Config,
     batcher: Batcher,
     sync_store: Arc<SyncStore>,
+    metrics: Arc<RandomBatcherMetrics>,
 }
 
 impl RandomBatcher {
@@ -36,6 +38,7 @@ impl RandomBatcher {
         store: Store,
         sync_send: SyncSender,
         sync_store: Arc<SyncStore>,
+        metrics: Arc<RandomBatcherMetrics>,
     ) -> Self {
         Self {
             name,
@@ -47,17 +50,19 @@ impl RandomBatcher {
                 sync_send,
             ),
             sync_store,
+            metrics,
         }
     }
 
     pub async fn get_state(&self) -> Result<RandomBatcherState> {
-        let (pending_txs, ready_txs) = self.sync_store.stat().await?;
+        let (pending_txs, ready_txs, cached_ready_txs) = self.sync_store.stat().await?;
 
         Ok(RandomBatcherState {
             name: self.name.clone(),
             tasks: self.batcher.tasks().await,
             pending_txs,
             ready_txs,
+            cached_ready_txs,
         })
     }
 
@@ -71,11 +76,10 @@ impl RandomBatcher {
         }
 
         loop {
-            // if let Ok(state) = self.get_state().await {
-            //     metrics::RANDOM_STATE_TXS_SYNCING.update(state.tasks.len() as u64);
-            //     metrics::RANDOM_STATE_TXS_READY.update(state.ready_txs as u64);
-            //     metrics::RANDOM_STATE_TXS_PENDING.update(state.pending_txs as u64);
-            // }
+            if let Ok(state) = self.get_state().await {
+                self.metrics
+                    .update_state(state.ready_txs, state.pending_txs);
+            }
 
             match self.sync_once().await {
                 Ok(true) => {}
@@ -106,11 +110,7 @@ impl RandomBatcher {
         };
 
         debug!(%tx_seq, ?sync_result, "Completed to sync file, state = {:?}", self.get_state().await);
-        match sync_result {
-            SyncResult::Completed => metrics::RANDOM_SYNC_RESULT_COMPLETED.mark(1),
-            SyncResult::Failed => metrics::RANDOM_SYNC_RESULT_FAILED.inc(1),
-            SyncResult::Timeout => metrics::RANDOM_SYNC_RESULT_TIMEOUT.inc(1),
-        }
+        self.metrics.update_result(sync_result);
 
         if matches!(sync_result, SyncResult::Completed) {
             self.sync_store.remove(tx_seq).await?;

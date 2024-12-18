@@ -45,7 +45,7 @@ impl HistoricalTxWriter {
     }
 
     pub async fn get_state(&self) -> Result<HistoricalTxWriterState> {
-        let (pending_txs, ready_txs) = self.sync_store.stat().await?;
+        let (pending_txs, ready_txs, _) = self.sync_store.stat().await?;
 
         Ok(HistoricalTxWriterState {
             next_tx_seq: self.next_tx_seq.load(Ordering::Relaxed),

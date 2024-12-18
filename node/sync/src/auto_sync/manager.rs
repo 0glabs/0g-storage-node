@@ -19,6 +19,7 @@ use super::{
     batcher_random::RandomBatcher,
     batcher_serial::SerialBatcher,
     historical_tx_writer::HistoricalTxWriter,
+    metrics,
     sync_store::{Queue, SyncStore},
 };
 
@@ -45,11 +46,12 @@ impl AutoSyncManager {
             // use v2 db to avoid reading v1 files that announced from the whole network instead of neighbors
             Arc::new(SyncStore::new_with_name(
                 store.clone(),
+                config.ready_txs_cache_cap,
                 "pendingv2",
                 "readyv2",
             ))
         } else {
-            Arc::new(SyncStore::new(store.clone()))
+            Arc::new(SyncStore::new(store.clone(), 0))
         };
         let catched_up = Arc::new(AtomicBool::new(false));
 
@@ -83,6 +85,7 @@ impl AutoSyncManager {
             store.clone(),
             sync_send.clone(),
             sync_store,
+            metrics::RANDOM_ANNOUNCED.clone(),
         );
         executor.spawn(random.clone().start(catched_up.clone()), "auto_sync_random");
 
@@ -96,6 +99,7 @@ impl AutoSyncManager {
         if config.neighbors_only {
             let historical_sync_store = Arc::new(SyncStore::new_with_name(
                 store.clone(),
+                0,
                 "pendingv2_historical",
                 "readyv2_historical",
             ));
@@ -111,6 +115,7 @@ impl AutoSyncManager {
                 store,
                 sync_send,
                 historical_sync_store,
+                metrics::RANDOM_HISTORICAL.clone(),
             );
             executor.spawn(
                 random_historical.start(catched_up.clone()),
