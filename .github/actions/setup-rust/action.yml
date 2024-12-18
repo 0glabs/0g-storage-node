@@ -2,11 +2,11 @@ name: Setup Rust (cache & toolchain)
 runs:
   using: composite
   steps:
-    - name: Install toolchain 1.75.0
+    - name: Install toolchain 1.78.0
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: 1.75.0
+        toolchain: 1.78.0
         components: rustfmt, clippy
 
     - uses: Swatinem/rust-cache@v2
