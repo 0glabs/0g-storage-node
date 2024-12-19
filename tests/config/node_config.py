@@ -3,6 +3,7 @@ import os
 from web3 import Web3
 
 ZGS_CONFIG = {
+    "network_enr_address": "127.0.0.1",
     "log_config_file": "log_config",
     "confirmation_block_count": 1,
     "discv5_disable_ip_limit": True,

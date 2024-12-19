@@ -3,17 +3,15 @@
 from test_framework.test_framework import TestFramework
 from utility.utils import wait_until
 
-class AutoRandomSyncV2Test(TestFramework):
+class AutoSyncHistoricalTest(TestFramework):
     def setup_params(self):
         self.num_nodes = 4
 
-        # Enable random auto sync v2
+        # Enable auto sync
         for i in range(self.num_nodes):
             self.zgs_node_configs[i] = {
                 "sync": {
-                    "auto_sync_enabled": True,
-                    "max_sequential_workers": 0,
-                    "max_random_workers": 3,
+                    "auto_sync_enabled": True
                 }
             }
 
@@ -41,4 +39,4 @@ class AutoRandomSyncV2Test(TestFramework):
         wait_until(lambda: self.nodes[self.num_nodes - 1].zgs_get_file_info(data_root_2)["finalized"])
 
 if __name__ == "__main__":
-    AutoRandomSyncV2Test().main()
+    AutoSyncHistoricalTest().main()
