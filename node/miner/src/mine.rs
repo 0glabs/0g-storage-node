@@ -1,4 +1,4 @@
-use contract_interface::zgs_flow::MineContext;
+use contract_interface::pora_mine::MineContext;
 use ethereum_types::{H256, U256};
 use rand::{self, Rng};
 use std::time;
@@ -35,16 +35,23 @@ pub struct PoraService {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PoraPuzzle {
     context: MineContext,
-    target_quality: U256,
+    pora_target: U256,
     max_shards: u64,
+    subtask_digest: H256,
 }
 
 impl PoraPuzzle {
-    pub fn new(context: MineContext, target_quality: U256, max_shards: u64) -> Self {
+    pub fn new(
+        context: MineContext,
+        pora_target: U256,
+        max_shards: u64,
+        subtask_digest: H256,
+    ) -> Self {
         Self {
             context,
-            target_quality,
+            pora_target,
             max_shards,
+            subtask_digest,
         }
     }
 
@@ -255,7 +262,8 @@ impl PoraService {
             miner_id: &self.miner_id,
             mine_range_config: &self.mine_range,
             context: &puzzle.context,
-            target_quality: &puzzle.target_quality,
+            subtask_digest: &puzzle.subtask_digest,
+            pora_target: &puzzle.pora_target,
             loader: &*self.loader,
         })
     }
