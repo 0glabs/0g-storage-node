@@ -4,6 +4,7 @@ use crate::{MineRangeConfig, PoraLoader};
 use blake2::{Blake2b512, Digest};
 use contract_interface::zgs_flow::MineContext;
 use ethereum_types::{H256, U256};
+use ethers::utils::keccak256;
 use lighthouse_metrics::inc_counter;
 use storage::log_store::MineLoadChunk;
 use tiny_keccak::{Hasher, Keccak};
@@ -148,7 +149,11 @@ impl<'a> Miner<'a> {
         let mut scratch_pad =
             [[0u8; BLAKE2B_OUTPUT_BYTES]; BYTES_PER_SCRATCHPAD / BLAKE2B_OUTPUT_BYTES];
         for scratch_pad_cell in scratch_pad.iter_mut() {
-            digest = Blake2b512::new().chain_update(digest).finalize().into();
+            let output0 = keccak256(digest);
+            digest[..32].copy_from_slice(&output0);
+            let output1 = keccak256(digest);
+            digest[32..].copy_from_slice(&output1);
+            
             *scratch_pad_cell = digest;
         }
 

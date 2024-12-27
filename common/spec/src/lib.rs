@@ -5,7 +5,7 @@ pub const TB: usize = 1024 * GB;
 
 pub const BYTES_PER_SECTOR: usize = 256;
 pub const BYTES_PER_SEAL: usize = 4 * KB;
-pub const BYTES_PER_SCRATCHPAD: usize = 64 * KB;
+pub const BYTES_PER_SCRATCHPAD: usize = 16 * KB;
 pub const BYTES_PER_LOAD: usize = 256 * KB;
 pub const BYTES_PER_PRICING: usize = 8 * GB;
 pub const BYTES_PER_MAX_MINING_RANGE: usize = 8 * TB;
