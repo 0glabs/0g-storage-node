@@ -28,6 +28,8 @@ lazy_static! {
         H256::from_str("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470").unwrap();
 }
 
+const PORA_VERSION: u64 = 1;
+
 pub struct MineContextWatcher {
     provider: Arc<Provider<RetryClient<Http>>>,
     flow_contract: ZgsFlow<Provider<RetryClient<Http>>>,
@@ -108,29 +110,7 @@ impl MineContextWatcher {
     }
 
     async fn query_recent_context(&mut self) -> Result<(), String> {
-        let miner_id = self.miner_id.0;
-        let WorkerContext {
-            context,
-            pora_target,
-            subtask_digest,
-            max_shards,
-        } = self
-            .mine_contract
-            .compute_worker_context(miner_id)
-            .call()
-            .await
-            .map_err(|e| format!("Failed to query mining context: {:?}", e))?;
-
-        let report = if pora_target > U256::zero() && context.digest != EMPTY_HASH.0 {
-            Some(PoraPuzzle::new(
-                context,
-                pora_target,
-                max_shards,
-                H256(subtask_digest),
-            ))
-        } else {
-            None
-        };
+        let report = self.fetch_pora_puzzle().await?;
 
         if report == self.last_report {
             return Ok(());
@@ -144,5 +124,42 @@ impl MineContextWatcher {
         self.last_report = report;
 
         Ok(())
+    }
+
+    async fn fetch_pora_puzzle(&self) -> Result<Option<PoraPuzzle>, String> {
+        let pora_version = self
+            .mine_contract
+            .pora_version()
+            .call()
+            .await
+            .map_err(|e| format!("Failed to query mining version: {:?}", e))?;
+
+        if pora_version != PORA_VERSION {
+            return Ok(None);
+        }
+
+        let miner_id = self.miner_id.0;
+        let WorkerContext {
+            context,
+            pora_target,
+            subtask_digest,
+            max_shards,
+        } = self
+            .mine_contract
+            .compute_worker_context(miner_id)
+            .call()
+            .await
+            .map_err(|e| format!("Failed to query mining context: {:?}", e))?;
+
+        if pora_target.is_zero() || context.digest == EMPTY_HASH.0 {
+            return Ok(None);
+        }
+
+        Ok(Some(PoraPuzzle::new(
+            context,
+            pora_target,
+            max_shards,
+            H256(subtask_digest),
+        )))
     }
 }

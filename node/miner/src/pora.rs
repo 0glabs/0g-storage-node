@@ -154,7 +154,7 @@ impl<'a> Miner<'a> {
             digest[..32].copy_from_slice(&output0);
             let output1 = keccak256(digest);
             digest[32..].copy_from_slice(&output1);
-            
+
             *scratch_pad_cell = digest;
         }
 
