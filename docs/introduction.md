@@ -5,7 +5,7 @@
 0G Storage is the storage layer for the ZeroGravity data availability (DA) system. The 0G Storage layer holds three important features:
 
 * Built-in - It is natively built into the ZeroGravity DA system for data storage and retrieval.
-* General purpose - It is designed to support atomic transactions, mutable kv stores as well as archive log systems to enable wide range of applications with various data types.
+* General purpose - It is designed to support atomic transactions, mutable kv stores as well as archive log systems to enable a wide range of applications with various data types.
 * Incentive - Instead of being just a decentralized database, 0G Storage introduces PoRA mining algorithm to incentivize storage network participants.
 
 ## Integration
