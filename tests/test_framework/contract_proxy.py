@@ -104,6 +104,9 @@ class MineContractProxy(ContractProxy):
 
     def can_submit(self, node_idx=0):
         return self._call("canSubmit", node_idx)
+    
+    def current_submissions(self, node_idx=0):
+        return self._call("currentSubmissions", node_idx)
 
     def set_quality(self, quality, node_idx=0):
         return self._send("setQuality", node_idx, _targetQuality=quality)
