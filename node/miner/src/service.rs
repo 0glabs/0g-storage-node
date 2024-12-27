@@ -46,6 +46,7 @@ impl MineService {
             msg_recv.resubscribe(),
             provider.clone(),
             &config,
+            miner_id,
         );
 
         let mine_answer_receiver = PoraService::spawn(

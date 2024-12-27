@@ -2,7 +2,7 @@ use super::metrics::*;
 use crate::recall_range::RecallRange;
 use crate::{MineRangeConfig, PoraLoader};
 use blake2::{Blake2b512, Digest};
-use contract_interface::zgs_flow::MineContext;
+use contract_interface::pora_mine::MineContext;
 use ethereum_types::{H256, U256};
 use ethers::utils::keccak256;
 use lighthouse_metrics::inc_counter;
@@ -25,7 +25,8 @@ pub(crate) struct Miner<'a> {
     pub range: RecallRange,
     pub miner_id: &'a H256,
     pub context: &'a MineContext,
-    pub target_quality: &'a U256,
+    pub subtask_digest: &'a H256,
+    pub pora_target: &'a U256,
     pub loader: &'a dyn PoraLoader,
     pub mine_range_config: &'a MineRangeConfig,
 }
@@ -107,11 +108,11 @@ impl<'a> Miner<'a> {
                 .range
                 .difficulty_scale_x64(self.context.flow_length.as_u64());
 
-            if quality <= (self.target_quality / difficulty_scale_x64) << 64 {
+            if quality <= (self.pora_target / difficulty_scale_x64) << 64 {
                 debug!(
-                    "Find a PoRA valid answer, quality: {}, target_quality {}, scale {:.3}",
+                    "Find a PoRA valid answer, quality: {}, pora_target {}, scale {:.3}",
                     U256::MAX / quality,
-                    U256::MAX / self.target_quality,
+                    U256::MAX / self.pora_target,
                     difficulty_scale_x64.as_u128() as f64 / u64::MAX as f64
                 );
                 inc_counter(&HIT_COUNT);
@@ -139,7 +140,7 @@ impl<'a> Miner<'a> {
             let mut hasher = Blake2b512::new();
             hasher.update(self.miner_id);
             hasher.update(nonce);
-            hasher.update(self.context.digest);
+            hasher.update(self.subtask_digest);
             hasher.update(self.range.digest());
             hasher.finalize().into()
         };
