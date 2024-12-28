@@ -75,7 +75,7 @@ class MineTest(TestFramework):
         wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 1 and not self.mine_contract.can_submit(), timeout=120)
 
         rewards = self.reward_contract.reward_distributes()
-        assert_equal(len(rewards), 2)
+        assert_equal(len(rewards), 4)
         firstReward = rewards[0].args.amount
         self.log.info("Received reward %d Gwei", firstReward / (10**9))
 
@@ -96,8 +96,8 @@ class MineTest(TestFramework):
         assert_equal(self.contract.epoch(), start_epoch + 2)
 
         rewards = self.reward_contract.reward_distributes()
-        assert_equal(len(rewards), 4)
-        secondReward = rewards[2].args.amount
+        assert_equal(len(rewards), 8)
+        secondReward = rewards[4].args.amount
         self.log.info("Received reward %d Gwei", secondReward / (10**9))
 
         assert_greater_than(secondReward, 100 * firstReward / (start_epoch + 1))

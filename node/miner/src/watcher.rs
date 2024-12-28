@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use contract_interface::{zgs_flow::MineContext, PoraMine, ZgsFlow};
+use contract_interface::{zgs_flow::MineContext, PoraMine, WorkerContext, ZgsFlow};
 use ethereum_types::{Address, H256, U256};
 use ethers::{
     contract::Contract,
@@ -28,6 +28,8 @@ lazy_static! {
         H256::from_str("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470").unwrap();
 }
 
+const PORA_VERSION: u64 = 1;
+
 pub struct MineContextWatcher {
     provider: Arc<Provider<RetryClient<Http>>>,
     flow_contract: ZgsFlow<Provider<RetryClient<Http>>>,
@@ -36,6 +38,7 @@ pub struct MineContextWatcher {
     mine_context_sender: broadcast::Sender<MineContextMessage>,
     last_report: MineContextMessage,
     query_interval: Duration,
+    miner_id: H256,
 
     msg_recv: broadcast::Receiver<MinerMessage>,
 }
@@ -46,6 +49,7 @@ impl MineContextWatcher {
         msg_recv: broadcast::Receiver<MinerMessage>,
         provider: Arc<Provider<RetryClient<Http>>>,
         config: &MinerConfig,
+        miner_id: H256,
     ) -> broadcast::Receiver<MineContextMessage> {
         let mine_contract = PoraMine::new(config.mine_address, provider.clone());
         let flow_contract = ZgsFlow::new(config.flow_address, provider.clone());
@@ -60,6 +64,7 @@ impl MineContextWatcher {
             msg_recv,
             last_report: None,
             query_interval: config.context_query_interval,
+            miner_id,
         };
         executor.spawn(
             async move { Box::pin(watcher.start()).await },
@@ -105,27 +110,13 @@ impl MineContextWatcher {
     }
 
     async fn query_recent_context(&mut self) -> Result<(), String> {
-        let context_call = self.flow_contract.make_context_with_result();
-        let valid_call = self.mine_contract.can_submit();
-        let quality_call = self.mine_contract.pora_target();
-        let shards_call = self.mine_contract.max_shards();
-
-        let (context, can_submit, quality, max_shards) = try_join!(
-            context_call.call(),
-            valid_call.call(),
-            quality_call.call(),
-            shards_call.call()
-        )
-        .map_err(|e| format!("Failed to query mining context: {:?}", e))?;
-        let report = if can_submit && context.digest != EMPTY_HASH.0 {
-            Some(PoraPuzzle::new(context, quality, max_shards))
-        } else {
-            None
-        };
+        let report = self.fetch_pora_puzzle().await?;
 
         if report == self.last_report {
             return Ok(());
         }
+
+        debug!("Update pora puzzle: {:?}", report);
 
         self.mine_context_sender
             .send(report.clone())
@@ -133,5 +124,42 @@ impl MineContextWatcher {
         self.last_report = report;
 
         Ok(())
+    }
+
+    async fn fetch_pora_puzzle(&self) -> Result<Option<PoraPuzzle>, String> {
+        let pora_version = self
+            .mine_contract
+            .pora_version()
+            .call()
+            .await
+            .map_err(|e| format!("Failed to query mining version: {:?}", e))?;
+
+        if pora_version != PORA_VERSION {
+            return Ok(None);
+        }
+
+        let miner_id = self.miner_id.0;
+        let WorkerContext {
+            context,
+            pora_target,
+            subtask_digest,
+            max_shards,
+        } = self
+            .mine_contract
+            .compute_worker_context(miner_id)
+            .call()
+            .await
+            .map_err(|e| format!("Failed to query mining context: {:?}", e))?;
+
+        if pora_target.is_zero() || context.digest == EMPTY_HASH.0 {
+            return Ok(None);
+        }
+
+        Ok(Some(PoraPuzzle::new(
+            context,
+            pora_target,
+            max_shards,
+            H256(subtask_digest),
+        )))
     }
 }

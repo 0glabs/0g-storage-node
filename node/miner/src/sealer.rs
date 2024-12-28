@@ -87,7 +87,7 @@ impl Sealer {
 
     async fn update_flow_length(&mut self) -> Result<()> {
         let recent_context = self.flow_contract.make_context_with_result().call().await?;
-        debug!(target: "seal", "Recent context is {:?}", recent_context);
+        debug!("Recent context is {:?}", recent_context);
 
         let recent_flow_length = recent_context.flow_length.as_u64();
         if self.last_context_flow_length < recent_flow_length {
