@@ -740,7 +740,7 @@ where
                             &error,
                             ConnectionDirection::Outgoing,
                         );
-                        // inform failures of requests comming outside the behaviour
+                        // inform failures of requests coming outside the behaviour
                         if let RequestId::Application(id) = id {
                             self.add_event(BehaviourEvent::RPCFailed { peer_id, id });
                         }
