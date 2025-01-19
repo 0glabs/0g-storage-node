@@ -54,7 +54,7 @@ impl Service {
 struct Ev(PeerManagerEvent);
 impl From<void::Void> for Ev {
     fn from(_: void::Void) -> Self {
-        unreachable!("No events are emmited")
+        unreachable!("No events are emitted")
     }
 }
 impl From<PeerManagerEvent> for Ev {
