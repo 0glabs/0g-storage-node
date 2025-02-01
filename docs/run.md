@@ -4,7 +4,7 @@
 
 ### Setup Environment
 
-Install dependencies Node.js, yarn, hardhat.
+Install dependencies: Node.js, yarn, hardhat.
 
 - Linux
 
@@ -56,7 +56,6 @@ networks: {
 ### Compile
 
 ```shell
-yarn
 yarn compile
 ```
 
