@@ -13,6 +13,7 @@ Install the dependencies Node.js, yarn, hardhat.
   ```shell
   # node >=12.18
   sudo apt install npm
+  sudo apt install nodejs
   sudo npm install --global yarn
   sudo npm install --global hardhat
   ```
