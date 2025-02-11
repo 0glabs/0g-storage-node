@@ -20,12 +20,12 @@ This is a rust implementation of the [Discovery v5](https://github.com/ethereum/
 peer discovery protocol.
 
 Discovery v5 is a protocol designed for encrypted peer discovery and topic advertisement. Each peer/node
-on the network is identified via it's `ENR` ([Ethereum Node
+on the network is identified via its `ENR` ([Ethereum Node
 Record](https://eips.ethereum.org/EIPS/eip-778)), which is essentially a signed key-value store
 containing the node's public key and optionally IP address and port.
 
 Discv5 employs a kademlia-like routing table to store and manage discovered peers and topics. The
-protocol allows for external IP discovery in NAT environments through regular PING/PONG's with
+protocol allows for external IP discovery in NAT environments through regular PING/PONGs with
 discovered nodes. Nodes return the external IP address that they have received and a simple
 majority is chosen as our external IP address. If an external IP address is updated, this is
 produced as an event to notify the swarm (if one is used for this behaviour).
