@@ -3,7 +3,7 @@ use contract_interface::{PoraMine, ZgsFlow};
 use ethereum_types::U256;
 use ethers::contract::ContractCall;
 use ethers::prelude::{Http, Provider, RetryClient};
-use ethers::providers::PendingTransaction;
+use ethers::providers::{Middleware, ProviderError};
 use hex::ToHex;
 use shared_types::FlowRangeProof;
 use std::sync::Arc;
@@ -28,6 +28,7 @@ pub struct Submitter {
     flow_contract: ZgsFlow<Provider<RetryClient<Http>>>,
     default_gas_limit: Option<U256>,
     store: Arc<Store>,
+    provider: Arc<Provider<RetryClient<Http>>>,
 }
 
 impl Submitter {
@@ -41,7 +42,7 @@ impl Submitter {
         config: &MinerConfig,
     ) {
         let mine_contract = PoraMine::new(config.mine_address, signing_provider);
-        let flow_contract = ZgsFlow::new(config.flow_address, provider);
+        let flow_contract = ZgsFlow::new(config.flow_address, provider.clone());
         let default_gas_limit = config.submission_gas;
 
         let submitter = Submitter {
@@ -51,6 +52,7 @@ impl Submitter {
             flow_contract,
             store,
             default_gas_limit,
+            provider,
         };
         executor.spawn(
             async move { Box::pin(submitter.start()).await },
@@ -153,29 +155,80 @@ impl Submitter {
             submission_call.estimate_gas().await
         );
 
-        let pending_transaction: PendingTransaction<'_, _> = submission_call
-            .send()
+        let mut current_gas = self
+            .provider
+            .get_gas_price()
             .await
-            .map_err(|e| format!("Fail to send PoRA submission transaction: {:?}", e))?;
+            .map_err(|e| format!("Failed to get current gas price {:?}", e))?;
 
-        debug!(
-            "Signed submission transaction hash: {:?}",
-            pending_transaction.tx_hash()
-        );
+        let mut n_retry = 0;
+        while n_retry < SUBMISSION_RETRIES {
+            n_retry += 1;
+            submission_call = submission_call.gas_price(current_gas);
+            let pending_transaction = match submission_call.send().await {
+                Ok(tx) => tx,
+                Err(e) => {
+                    if e.to_string().contains("insufficient funds")
+                        || e.to_string().contains("out of gas")
+                    {
+                        return Err(format!(
+                            "Fail to execute PoRA submission transaction: {:?}",
+                            e
+                        ));
+                    }
+                    // Log the error and increase gas.
+                    debug!("Error sending transaction: {:?}", e);
+                    current_gas = current_gas * U256::from(11) / U256::from(10); // increase gas by 10%
+                    continue; // retry sending
+                }
+            };
 
-        let receipt = pending_transaction
-            .retries(SUBMISSION_RETRIES)
-            .interval(Duration::from_secs(2))
-            .await
-            .map_err(|e| format!("Fail to execute PoRA submission transaction: {:?}", e))?
-            .ok_or(format!(
-                "PoRA submission transaction dropped after {} retries",
-                SUBMISSION_RETRIES
-            ))?;
+            debug!(
+                "Signed submission transaction hash: {:?}",
+                pending_transaction.tx_hash()
+            );
 
-        info!("Submit PoRA success, receipt: {:?}", receipt);
+            let receipt_result = pending_transaction
+                .retries(SUBMISSION_RETRIES)
+                .interval(Duration::from_secs(2))
+                .await;
 
-        Ok(())
+            match receipt_result {
+                Ok(Some(receipt)) => {
+                    // Successfully executed the transaction.
+                    info!("Submit PoRA success, receipt: {:?}", receipt);
+                    return Ok(());
+                }
+                Ok(None) => {
+                    // The transaction was dropped after retries.
+                    debug!(
+                        "Transaction dropped after {} retries; increasing gas and retrying",
+                        SUBMISSION_RETRIES
+                    );
+                    current_gas = current_gas * U256::from(11) / U256::from(10); // increase gas by 10%
+                    continue;
+                }
+                Err(e) => {
+                    match e {
+                        ProviderError::HTTPError(_) => {
+                            // For HTTP errors, increase gas and retry.
+                            debug!("HTTP error retrieving receipt: {:?}", e);
+                            current_gas = current_gas * U256::from(11) / U256::from(10); // increase gas by 10%
+                            continue;
+                        }
+                        _ => {
+                            // For all other errors, return immediately.
+                            return Err(format!(
+                                "Fail to execute PoRA submission transaction: {:?}",
+                                e
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        Err("Submission failed after retries".to_string())
     }
 }
 
