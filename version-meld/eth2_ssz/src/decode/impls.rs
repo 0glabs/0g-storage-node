@@ -406,7 +406,7 @@ impl_for_vec!(SmallVec<[T; 8]>, Some(8));
 
 /// Decodes `bytes` as if it were a list of variable-length items.
 ///
-/// The `ssz::SszDecoder` can also perform this functionality, however it it significantly faster
+/// The `ssz::SszDecoder` can also perform this functionality, however it is significantly faster
 /// as it is optimized to read same-typed items whilst `ssz::SszDecoder` supports reading items of
 /// differing types.
 pub fn decode_list_of_variable_length_items<T: Decode>(
