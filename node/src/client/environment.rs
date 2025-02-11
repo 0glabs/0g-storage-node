@@ -1,4 +1,4 @@
-//! This crate aims to provide a common set of tools that can be used to create a "environment" to
+//! This crate aims to provide a common set of tools that can be used to create an "environment" to
 //! run Zgs services. This allows for the unification of creating tokio runtimes, etc.
 //!
 //! The idea is that the main thread creates an `Environment`, which is then used to spawn a
