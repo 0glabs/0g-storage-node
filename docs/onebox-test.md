@@ -5,7 +5,7 @@
 ## Prerequisites
 
 - Requires python version: 3.8, 3.9 or 3.10, higher version is not guaranteed (e.g. failed to install `pysha3`).
-- Installs dependencies under root folder: `pip3 install -r requirements.txt`
+- Install dependencies under root folder: `pip3 install -r requirements.txt`
 
 ## Install Blockchain Nodes
 
