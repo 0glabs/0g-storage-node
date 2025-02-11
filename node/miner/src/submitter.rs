@@ -33,6 +33,12 @@ pub struct Submitter {
     provider: Arc<Provider<RetryClient<Http>>>,
 }
 
+enum SubmissionAction {
+    Retry,
+    Success,
+    Error(String),
+}
+
 impl Submitter {
     pub fn spawn(
         executor: TaskExecutor,
@@ -173,66 +179,80 @@ impl Submitter {
         while n_retry < ADJUST_GAS_RETRIES {
             n_retry += 1;
             submission_call = submission_call.gas_price(gas_price);
-            let pending_transaction = match submission_call.send().await {
-                Ok(tx) => tx,
-                Err(e) => {
-                    if e.to_string().contains("insufficient funds")
-                        || e.to_string().contains("out of gas")
-                    {
-                        return Err(format!(
-                            "Fail to execute PoRA submission transaction: {:?}",
-                            e
-                        ));
-                    }
-                    // Log the error and increase gas.
-                    debug!("Error sending transaction: {:?}", e);
+            match self.submit_once(submission_call.clone()).await {
+                SubmissionAction::Retry => {
                     gas_price = next_gas_price(gas_price);
-                    continue; // retry sending
                 }
-            };
-
-            debug!(
-                "Signed submission transaction hash: {:?}",
-                pending_transaction.tx_hash()
-            );
-
-            let receipt_result = pending_transaction
-                .retries(SUBMISSION_RETRIES)
-                .interval(Duration::from_secs(2))
-                .await;
-
-            match receipt_result {
-                Ok(Some(receipt)) => {
-                    // Successfully executed the transaction.
-                    info!("Submit PoRA success, receipt: {:?}", receipt);
+                SubmissionAction::Success => {
                     return Ok(());
                 }
-                Ok(None) => {
-                    // The transaction did not complete within the specified waiting time.
-                    debug!(
-                        "Transaction dropped after {} retries; increasing gas and retrying",
-                        SUBMISSION_RETRIES
-                    );
-                    gas_price = next_gas_price(gas_price);
-                    continue;
-                }
-                Err(ProviderError::HTTPError(e)) => {
-                    // For HTTP errors, increase gas and retry.
-                    debug!("HTTP error retrieving receipt: {:?}", e);
-                    gas_price = next_gas_price(gas_price);
-                    continue;
-                }
-                Err(e) => {
-                    // For all other errors, return immediately.
-                    return Err(format!(
-                        "Fail to execute PoRA submission transaction: {:?}",
-                        e
-                    ));
+                SubmissionAction::Error(e) => {
+                    return Err(e);
                 }
             }
         }
 
         Err("Submission failed after retries".to_string())
+    }
+
+    async fn submit_once<M: Middleware, T: Detokenize>(
+        &self,
+        submission_call: ContractCall<M, T>,
+    ) -> SubmissionAction {
+        let pending_transaction = match submission_call.send().await {
+            Ok(tx) => tx,
+            Err(e) => {
+                if e.to_string().contains("insufficient funds")
+                    || e.to_string().contains("out of gas")
+                {
+                    return SubmissionAction::Error(format!(
+                        "Fail to execute PoRA submission transaction: {:?}",
+                        e
+                    ));
+                }
+                // Log the error and increase gas.
+                debug!("Error sending transaction: {:?}", e);
+                return SubmissionAction::Retry;
+            }
+        };
+
+        debug!(
+            "Signed submission transaction hash: {:?}",
+            pending_transaction.tx_hash()
+        );
+
+        let receipt_result = pending_transaction
+            .retries(SUBMISSION_RETRIES)
+            .interval(Duration::from_secs(2))
+            .await;
+
+        match receipt_result {
+            Ok(Some(receipt)) => {
+                // Successfully executed the transaction.
+                info!("Submit PoRA success, receipt: {:?}", receipt);
+                SubmissionAction::Success
+            }
+            Ok(None) => {
+                // The transaction did not complete within the specified waiting time.
+                debug!(
+                    "Transaction dropped after {} retries; increasing gas and retrying",
+                    SUBMISSION_RETRIES
+                );
+                SubmissionAction::Retry
+            }
+            Err(ProviderError::HTTPError(e)) => {
+                // For HTTP errors, increase gas and retry.
+                debug!("HTTP error retrieving receipt: {:?}", e);
+                SubmissionAction::Retry
+            }
+            Err(e) => {
+                // For all other errors, return immediately.
+                SubmissionAction::Error(format!(
+                    "Fail to execute PoRA submission transaction: {:?}",
+                    e
+                ))
+            }
+        }
     }
 }
 
