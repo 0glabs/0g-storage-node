@@ -1,7 +1,8 @@
 use task_executor::TaskExecutor;
-use tracing::Level;
 use tracing_log::AsLog;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{EnvFilter, Layer};
 
 const LOG_RELOAD_PERIOD_SEC: u64 = 30;
 
@@ -15,19 +16,26 @@ pub fn configure(log_level_file: &str, log_directory: &str, executor: TaskExecut
         .unwrap_or_default()
         .trim_end()
         .to_string();
+    let filter = EnvFilter::try_new(config.clone()).expect("invalid log level");
+    let (filter, reload_handle) = tracing_subscriber::reload::Layer::new(filter);
 
-    let builder = tracing_subscriber::fmt()
-        .with_max_level(Level::TRACE)
-        .with_env_filter(EnvFilter::try_new(config.clone()).expect("invalid log level"))
+    let fmt_layer = tracing_subscriber::fmt::layer()
         .with_writer(non_blocking)
         .with_ansi(false)
-        // .with_file(true)
-        // .with_line_number(true)
-        // .with_thread_names(true)
-        .with_filter_reloading();
-
-    let handle = builder.reload_handle();
-    builder.init();
+        .compact()
+        .with_filter(filter);
+    // .with_file(true)
+    // .with_line_number(true)
+    // .with_thread_names(true)
+    let subscriber = tracing_subscriber::registry().with(fmt_layer);
+    #[cfg(feature = "tokio-console")]
+    {
+        subscriber.with(console_subscriber::spawn()).init();
+    }
+    #[cfg(not(feature = "tokio-console"))]
+    {
+        subscriber.init();
+    }
 
     // periodically check for config changes
     executor.spawn(
@@ -57,7 +65,7 @@ pub fn configure(log_level_file: &str, log_directory: &str, executor: TaskExecut
 
                 println!("Updating log config to {:?}", new_config);
 
-                match handle.reload(&new_config) {
+                match reload_handle.reload(&new_config) {
                     Ok(()) => {
                         rust_log::set_max_level(tracing_core::LevelFilter::current().as_log());
                         config = new_config
