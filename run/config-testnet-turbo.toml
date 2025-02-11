@@ -250,7 +250,7 @@ auto_sync_enabled = true
 # Enable to start a file sync via RPC (e.g. `admin_startSyncFile`).
 # sync_file_by_rpc_enabled = true
 
-# Maximum number of continous failures to terminate a file sync.
+# Maximum number of continuous failures to terminate a file sync.
 # max_request_failures = 3
 
 # Timeout to dial peers.
