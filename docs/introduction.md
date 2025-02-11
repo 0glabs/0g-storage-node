@@ -10,7 +10,7 @@
 
 ## Integration
 
-We provide a [SDK](https://github.com/0glabs/0g-js-storage-sdk) for users to easily integrate 0G Storage in their applications with the following features:
+We provide a [SDK](https://github.com/0glabs/0g-ts-sdk) for users to easily integrate 0G Storage in their applications with the following features:
 
 * File Merkle Tree Class
 * Flow Contract Types
