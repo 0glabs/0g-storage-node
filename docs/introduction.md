@@ -22,7 +22,7 @@ We provide a [SDK](https://github.com/0glabs/0g-js-storage-sdk) for users to eas
 
 ## Deployment
 
-Please refer to [Deployment](../0G%20Storage/doc/install.md) page for detailed steps to compile and start a 0G Storage node.
+Please refer to [Deployment](run.md) page for detailed steps to compile and start a 0G Storage node.
 
 ## Test
 
