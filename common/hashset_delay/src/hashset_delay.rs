@@ -61,7 +61,7 @@ where
         self.insert_at(key, self.default_entry_timeout);
     }
 
-    /// Inserts an entry that will expire at a given instant. If the entry already exists, the
+    /// Inserts an entry that will expire at a given duration. If the entry already exists, the
     /// timeout is updated.
     pub fn insert_at(&mut self, key: K, entry_duration: Duration) {
         if self.contains(&key) {
