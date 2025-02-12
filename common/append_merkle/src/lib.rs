@@ -34,7 +34,7 @@ pub struct AppendMerkleTree<E: HashElement, A: Algorithm<E>> {
     /// `revert_to` can reset the state correctly when needed.
     min_depth: Option<usize>,
     /// Used to compute the correct padding hash.
-    /// 0 for `pora_chunk_merkle` and 10 for not-first `last_chunk_merkle`.
+    /// 0 for `first_chunk_merkle` and 10 for not-first `last_chunk_merkle`.
     leaf_height: usize,
     _a: PhantomData<A>,
 }
