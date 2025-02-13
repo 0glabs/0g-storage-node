@@ -119,7 +119,7 @@ impl AnnouncementCache {
             return (None, collected);
         }
 
-        let choosed = self
+        let chosen = self
             .items
             .iter()
             .choose(&mut rand::thread_rng())
@@ -358,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn test_annoucement_cache_peek_priority() {
+    fn test_announcement_cache_peek_priority() {
         let mut cache = AnnouncementCache::new(100, 3600);
         let now = timestamp_now();
 
