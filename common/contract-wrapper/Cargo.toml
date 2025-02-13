@@ -1,0 +1,17 @@
+[package]
+name = "contract-wrapper"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.28", features = ["macros"] }
+ethers = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1.35"
+# or `tracing` if you prefer
+
+[features]
+dev = []

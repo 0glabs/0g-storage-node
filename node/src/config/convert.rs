@@ -180,6 +180,7 @@ impl ZgsConfig {
             None
         };
         let submission_gas = self.miner_submission_gas.map(U256::from);
+        let submission_gas_price = self.miner_submission_gas_price.map(U256::from);
         let cpu_percentage = self.miner_cpu_percentage;
         let iter_batch = self.mine_iter_batch_size;
         let context_query_seconds = self.mine_context_query_seconds;
@@ -200,6 +201,7 @@ impl ZgsConfig {
             self.rate_limit_retries,
             self.timeout_retries,
             self.initial_backoff,
+            submission_gas_price,
         ))
     }
 
