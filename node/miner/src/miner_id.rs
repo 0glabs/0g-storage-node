@@ -57,7 +57,7 @@ pub(crate) async fn check_and_request_miner_id(
         }
         (None, None) => {
             let beneficiary = provider.address();
-            let id = request_miner_id(&mine_contract, beneficiary).await?;
+            let id = request_miner_id(config, &mine_contract, beneficiary).await?;
             set_miner_id(store, &id)
                 .await
                 .map_err(|e| format!("set miner id on db corrupt: {:?}", e))?;
@@ -86,24 +86,30 @@ async fn check_miner_id(
 }
 
 async fn request_miner_id(
+    config: &MinerConfig,
     mine_contract: &PoraMine<MineServiceMiddleware>,
     beneficiary: Address,
 ) -> Result<H256, String> {
     debug!("Requesting miner id on chain...");
 
-    let submission_call: ContractCall<_, _> =
+    let mut submission_call: ContractCall<_, _> =
         mine_contract.request_miner_id(beneficiary, 0).legacy();
 
-    let pending_tx = submission_call
-        .send()
-        .await
-        .map_err(|e| format!("Fail to request miner id: {:?}", e))?;
+    if config.submission_gas.is_some() {
+        submission_call = submission_call.gas(config.submission_gas.unwrap());
+    }
 
-    let receipt = pending_tx
-        .retries(3)
-        .await
-        .map_err(|e| format!("Fail to execute mine answer transaction: {:?}", e))?
-        .ok_or("Request miner id transaction dropped after 3 retries")?;
+    let submission_config = contract_wrapper::SubmitConfig {
+        max_gas_price: config.max_gas_price,
+        ..Default::default()
+    };
+    let receipt = contract_wrapper::submit_with_retry(
+        submission_call,
+        &submission_config,
+        mine_contract.client().clone(),
+    )
+    .await
+    .map_err(|e| format!("Fail to submit miner id request: {:?}", e))?;
 
     let first_log = receipt
         .logs

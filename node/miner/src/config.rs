@@ -29,6 +29,7 @@ pub struct MinerConfig {
     pub(crate) rate_limit_retries: u32,
     pub(crate) timeout_retries: u32,
     pub(crate) initial_backoff: u64,
+    pub(crate) max_gas_price: Option<U256>,
 }
 
 pub type MineServiceMiddleware = SignerMiddleware<Arc<Provider<RetryClient<Http>>>, LocalWallet>;
@@ -49,6 +50,7 @@ impl MinerConfig {
         rate_limit_retries: u32,
         timeout_retries: u32,
         initial_backoff: u64,
+        max_gas_price: Option<U256>,
     ) -> Option<MinerConfig> {
         miner_key.map(|miner_key| MinerConfig {
             miner_id,
@@ -64,6 +66,7 @@ impl MinerConfig {
             rate_limit_retries,
             timeout_retries,
             initial_backoff,
+            max_gas_price,
         })
     }
 
