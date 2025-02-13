@@ -382,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn test_annoucement_cache_pop_len() {
+    fn test_announcement_cache_pop_len() {
         let mut cache = AnnouncementCache::new(100, 3600);
         let now = timestamp_now();
 
@@ -404,7 +404,7 @@ mod tests {
     }
 
     #[test]
-    fn test_annoucement_cache_garbage_collect() {
+    fn test_announcement_cache_garbage_collect() {
         let mut cache = AnnouncementCache::new(100, 3600);
         let now = timestamp_now();
 
@@ -422,7 +422,7 @@ mod tests {
     }
 
     #[test]
-    fn test_annoucement_cache_insert_gc() {
+    fn test_announcement_cache_insert_gc() {
         let mut cache = AnnouncementCache::new(100, 3600);
         let now = timestamp_now();
 
@@ -438,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn test_annoucement_cache_insert_ignore_older() {
+    fn test_announcement_cache_insert_ignore_older() {
         let mut cache = AnnouncementCache::new(100, 3600);
         let now = timestamp_now();
 
@@ -461,7 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn test_annoucement_cache_insert_overwrite() {
+    fn test_announcement_cache_insert_overwrite() {
         let mut cache = AnnouncementCache::new(100, 3600);
         let now = timestamp_now();
 
@@ -479,7 +479,7 @@ mod tests {
     }
 
     #[test]
-    fn test_annoucement_cache_insert_cap_exceeded() {
+    fn test_announcement_cache_insert_cap_exceeded() {
         let mut cache = AnnouncementCache::new(3, 3600);
         let now = timestamp_now();
 
@@ -499,7 +499,7 @@ mod tests {
     }
 
     #[test]
-    fn test_annoucement_cache_random() {
+    fn test_announcement_cache_random() {
         let mut cache = AnnouncementCache::new(100, 3600);
         let now = timestamp_now();
 
@@ -515,7 +515,7 @@ mod tests {
     }
 
     #[test]
-    fn test_annoucement_cache_all() {
+    fn test_announcement_cache_all() {
         let mut cache = AnnouncementCache::new(100, 3600);
         let now = timestamp_now();
 
