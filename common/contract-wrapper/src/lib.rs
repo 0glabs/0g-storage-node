@@ -4,6 +4,7 @@ use ethers::{
     providers::{Middleware, ProviderError},
     types::{TransactionReceipt, U256},
 };
+use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
 use tracing::{debug, info};
@@ -19,35 +20,38 @@ pub enum SubmissionAction {
 }
 
 /// Configuration for submission retries, gas price, etc.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize)]
 pub struct SubmitConfig {
     /// If `Some`, use this gas price for the first attempt.
     /// If `None`, fetch the current network gas price.
-    pub initial_gas_price: Option<U256>,
+    pub(crate) initial_gas_price: Option<U256>,
     /// If `Some`, clamp increased gas price to this limit.
     /// If `None`, do not bump gas for mempool/timeout errors.
-    pub max_gas_price: Option<U256>,
+    pub(crate) max_gas_price: Option<U256>,
+    /// Gas limit of the transaction
+    pub(crate) max_gas: Option<U256>,
     /// Factor by which to multiply the gas price on each mempool/timeout error.
     /// E.g. if factor=11 => a 10% bump  => newGas = (gas * factor) / 10
-    pub gas_increase_factor: Option<u64>,
+    pub(crate) gas_increase_factor: Option<u64>,
     /// The maximum number of gas bumps (for mempool/timeout). If `max_gas_price` is set,
     /// we typically rely on clamping. But you can still cap the number of bumps if you want.
-    pub max_retries: usize,
+    pub(crate) max_retries: Option<usize>,
     /// Seconds to wait between attempts.
-    pub interval_secs: u64,
-    /// A global timeout for the entire operation, in seconds. If 0, no global timeout.
-    pub total_timeout_secs: u64,
+    pub(crate) interval_secs: Option<u64>,
 }
+
+const DEFAULT_INTERVAL_SECS: u64 = 2;
+const DEFAULT_MAX_RETRIES: usize = 5;
 
 impl Default for SubmitConfig {
     fn default() -> Self {
         Self {
             initial_gas_price: None,
             max_gas_price: None,
+            max_gas: None,
             gas_increase_factor: Some(11), // implies 10% bump if we do (gas*11)/10
-            max_retries: 5,
-            interval_secs: 2,
-            total_timeout_secs: 0, // no global timeout by default
+            max_retries: Some(DEFAULT_MAX_RETRIES),
+            interval_secs: Some(DEFAULT_INTERVAL_SECS),
         }
     }
 }
@@ -121,6 +125,9 @@ where
     M: Middleware + 'static,
     T: Detokenize,
 {
+    if let Some(max_gas) = config.max_gas {
+        call = call.gas(max_gas);
+    }
     let mut gas_price = if let Some(gp) = config.initial_gas_price {
         gp
     } else {
@@ -136,6 +143,7 @@ where
 
     // Two counters: one for gas bumps, one for non-gas retries
     let mut non_gas_retries = 0;
+    let max_retries = config.max_retries.unwrap_or(DEFAULT_MAX_RETRIES);
 
     loop {
         // Set gas price on the call
@@ -173,8 +181,8 @@ where
                 } else {
                     // Non-gas error => increment nonGasRetries
                     non_gas_retries += 1;
-                    if non_gas_retries > config.max_retries {
-                        return Err(format!("Exceeded non-gas retries: {}", config.max_retries));
+                    if non_gas_retries > max_retries {
+                        return Err(format!("Exceeded non-gas retries: {}", max_retries));
                     }
                     debug!(
                         "Non-gas retry #{} (same gas price: {})",
@@ -188,6 +196,9 @@ where
         }
 
         // Sleep between attempts
-        sleep(Duration::from_secs(config.interval_secs)).await;
+        sleep(Duration::from_secs(
+            config.interval_secs.unwrap_or(DEFAULT_INTERVAL_SECS),
+        ))
+        .await;
     }
 }

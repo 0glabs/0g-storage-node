@@ -43,6 +43,7 @@ rust-log = { package = "log", version = "0.4.22" }
 tracing-core = "0.1.32"
 tracing-log = "0.2.0"
 console-subscriber = { version = "0.4.1", optional = true }
+contract-wrapper = { path = "../common/contract-wrapper" }
 
 [dependencies.libp2p]
 version = "0.45.1"

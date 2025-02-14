@@ -92,20 +92,12 @@ async fn request_miner_id(
 ) -> Result<H256, String> {
     debug!("Requesting miner id on chain...");
 
-    let mut submission_call: ContractCall<_, _> =
+    let submission_call: ContractCall<_, _> =
         mine_contract.request_miner_id(beneficiary, 0).legacy();
 
-    if config.submission_gas.is_some() {
-        submission_call = submission_call.gas(config.submission_gas.unwrap());
-    }
-
-    let submission_config = contract_wrapper::SubmitConfig {
-        max_gas_price: config.max_gas_price,
-        ..Default::default()
-    };
     let receipt = contract_wrapper::submit_with_retry(
         submission_call,
-        &submission_config,
+        &config.submission_config,
         mine_contract.client().clone(),
     )
     .await

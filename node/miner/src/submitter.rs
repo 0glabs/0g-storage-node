@@ -1,6 +1,6 @@
 use contract_interface::PoraAnswer;
 use contract_interface::{PoraMine, ZgsFlow};
-use ethereum_types::U256;
+use contract_wrapper::SubmitConfig;
 use ethers::contract::ContractCall;
 use ethers::prelude::{Http, Provider, RetryClient};
 use hex::ToHex;
@@ -22,9 +22,8 @@ pub struct Submitter {
     mine_context_receiver: broadcast::Receiver<MineContextMessage>,
     mine_contract: PoraMine<MineServiceMiddleware>,
     flow_contract: ZgsFlow<Provider<RetryClient<Http>>>,
-    default_gas_limit: Option<U256>,
-    default_gas_price: Option<U256>,
     store: Arc<Store>,
+    config: SubmitConfig,
 }
 
 impl Submitter {
@@ -39,8 +38,6 @@ impl Submitter {
     ) {
         let mine_contract = PoraMine::new(config.mine_address, signing_provider);
         let flow_contract = ZgsFlow::new(config.flow_address, provider.clone());
-        let default_gas_limit = config.submission_gas;
-        let default_gas_price = config.max_gas_price;
 
         let submitter = Submitter {
             mine_answer_receiver,
@@ -48,8 +45,7 @@ impl Submitter {
             mine_contract,
             flow_contract,
             store,
-            default_gas_limit,
-            default_gas_price,
+            config: config.submission_config,
         };
         executor.spawn(
             async move { Box::pin(submitter.start()).await },
@@ -133,11 +129,7 @@ impl Submitter {
         };
         trace!("submit_answer: answer={:?}", answer);
 
-        let mut submission_call: ContractCall<_, _> = self.mine_contract.submit(answer).legacy();
-
-        if let Some(gas_limit) = self.default_gas_limit {
-            submission_call = submission_call.gas(gas_limit);
-        }
+        let submission_call: ContractCall<_, _> = self.mine_contract.submit(answer).legacy();
 
         if let Some(calldata) = submission_call.calldata() {
             debug!(
@@ -152,13 +144,9 @@ impl Submitter {
             submission_call.estimate_gas().await
         );
 
-        let submission_config = contract_wrapper::SubmitConfig {
-            max_gas_price: self.default_gas_price,
-            ..Default::default()
-        };
         contract_wrapper::submit_with_retry(
             submission_call,
-            &submission_config,
+            &self.config,
             self.mine_contract.client().clone(),
         )
         .await
