@@ -20,7 +20,7 @@ pub struct LogSyncConfig {
     // blockchain provider retry params
     // the number of retries after a connection times out
     pub rate_limit_retries: u32,
-    // the nubmer of retries for rate limited responses
+    // the number of retries for rate limited responses
     pub timeout_retries: u32,
     // the duration to wait before retry, in ms
     pub initial_backoff: u64,
