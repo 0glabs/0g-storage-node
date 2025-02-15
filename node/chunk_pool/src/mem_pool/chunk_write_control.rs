@@ -13,7 +13,7 @@ enum SlotStatus {
 }
 
 /// Sliding window is used to control the concurrent uploading process of a file.
-/// Bounded window allows segments to be uploaded concurrenly, while having a capacity
+/// Bounded window allows segments to be uploaded concurrently, while having a capacity
 /// limit on writing threads per file. Meanwhile, the left_boundary field records
 /// how many segments have been uploaded.
 struct CtrlWindow {
@@ -165,7 +165,7 @@ impl ChunkPoolWriteCtrl {
 
         if file_ctrl.total_segments != total_segments {
             bail!(
-                "file size in segment doesn't match with file size declared in previous segment. Previous total segments:{}, current total segments:{}s",
+                "file size in segment doesn't match with file size declared in previous segment. Previous total segments:{}, current total segments:{}",
                 file_ctrl.total_segments,
                 total_segments
             );
