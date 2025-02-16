@@ -30,4 +30,4 @@ Precisely, the mining process has the following steps:
       6. For each piece $$\overrightarrow{v}$$, compute the Blake2b hash of the tuple ($$\mathsf{miner\_id}$$, $$\mathsf{nonce}$$, $$\mathsf{context\_digest}$$, $$\mathsf{start\_position}$$, $$\mathsf{mine\_length}$$, $$\overrightarrow{v}$$).
       7. If one of Blake2b hash output is smaller than a target value, the miner finds a legitimate PoRA solution.
 
-<figure><img src="../../../.gitbook/assets/zg-storage-algorithm.png" alt=""><figcaption><p>Figure 1. Recall Position and Scratchpad Computation</p></figcaption></figure>
+<figure><img src="../../.gitbook/assets/zg-storage-algorithm.png" alt=""><figcaption><p>Figure 1. Recall Position and Scratchpad Computation</p></figcaption></figure>
