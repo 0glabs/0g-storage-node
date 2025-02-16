@@ -1,8 +1,8 @@
-# 0G Storage
+# 0G Storage: Decentralized AI-Optimized Storage
 
-## Overview
+## **Overview**
 
-0G Storage is a decentralized data storage system designed to address the challenges of high-throughput and low-latency data storage and retrieval, particularly for areas such as AI. 
+0G Storage is a decentralized storage system designed for massive data workloads, particularly AI and Web3 applications. Unlike traditional centralized storage, 0G distributes data across a network, improving security, availability, and scalability. 
 
 ## System Architecture
 
@@ -11,10 +11,16 @@
 1. **Data Publishing Lane**: Ensures fast Merkle tree data root commitment and verification through 0G Chain.
 2. **Data Storage Lane**: Manages large data transfers and storage using an erasure-coding mechanism for redundancy and sharding for parallel processing.
 
-Across the two lanes, 0G Storage supports the following features:
+The system is powered by **Proof of Random Access (PoRA)**, a consensus mechanism that incentivizes miners to store and verify data efficiently.
 
-* **General Purpose Design**: Supports atomic transactions, mutable key-value stores, and archive log systems, enabling a wide range of applications with various data types.
-* **Validated Incentivization**: Utilizes the PoRA (Proof of Random Access) mining algorithm to mitigate the data outsourcing issue and to ensure rewards are distributed to nodes who contribute to the storage network.
+## **Key Features**  
+- **Layered Storage Architecture:**  
+  - **Log Layer:** Stores unstructured, append-only data for archival use.  
+  - **Key-Value Layer:** Enables fast, structured data retrieval for dynamic applications.  
+- **Decentralized Incentives:** Storage nodes earn rewards in 0G tokens by participating in the network.  
+- **Scalability:** Optimized for AI workloads, with seamless integration into decentralized AI ecosystems.
+
+![0G Storage Architecture](.gitbook/assets/zg-proof-of-random-access.png)  
 
 For in-depth technical details about 0G Storage, please read our [Intro to 0G Storage](https://docs.0g.ai/0g-storage).
 
@@ -30,3 +36,4 @@ We want to do everything we can to help you be successful while working on your 
 ### Communities
 - [0G Telegram](https://t.me/web3_0glabs)
 - [0G Discord](https://discord.com/invite/0glabs)
+- [OG X](https://x.com/0G_labs)
