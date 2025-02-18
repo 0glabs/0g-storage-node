@@ -42,9 +42,9 @@ pub trait EnrKey: Send + Sync + Unpin + 'static {
     /// Returns the public key associated with current key pair.
     fn public(&self) -> Self::PublicKey;
 
-    /// Provides a method to decode a raw public key from an ENR `BTreeMap` to a useable public key.
+    /// Provides a method to decode a raw public key from an ENR `BTreeMap` to a usable public key.
     ///
-    /// This method allows a key type to decode the raw bytes in an ENR to a useable
+    /// This method allows a key type to decode the raw bytes in an ENR to a usable
     /// `EnrPublicKey`. It takes the ENR's `BTreeMap` and returns a public key.
     ///
     /// Note: This specifies the supported key schemes for an ENR.
