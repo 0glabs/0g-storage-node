@@ -2,7 +2,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ethereum_types::{Address, H256, U256};
+use contract_wrapper::SubmitConfig;
+use ethereum_types::{Address, H256};
 use ethers::core::k256::SecretKey;
 use ethers::middleware::SignerMiddleware;
 use ethers::providers::Http;
@@ -21,7 +22,6 @@ pub struct MinerConfig {
     pub(crate) rpc_endpoint_url: String,
     pub(crate) mine_address: Address,
     pub(crate) flow_address: Address,
-    pub(crate) submission_gas: Option<U256>,
     pub(crate) cpu_percentage: u64,
     pub(crate) iter_batch: usize,
     pub(crate) shard_config: ShardConfig,
@@ -29,6 +29,7 @@ pub struct MinerConfig {
     pub(crate) rate_limit_retries: u32,
     pub(crate) timeout_retries: u32,
     pub(crate) initial_backoff: u64,
+    pub(crate) submission_config: SubmitConfig,
 }
 
 pub type MineServiceMiddleware = SignerMiddleware<Arc<Provider<RetryClient<Http>>>, LocalWallet>;
@@ -41,7 +42,6 @@ impl MinerConfig {
         rpc_endpoint_url: String,
         mine_address: Address,
         flow_address: Address,
-        submission_gas: Option<U256>,
         cpu_percentage: u64,
         iter_batch: usize,
         context_query_seconds: u64,
@@ -49,6 +49,7 @@ impl MinerConfig {
         rate_limit_retries: u32,
         timeout_retries: u32,
         initial_backoff: u64,
+        submission_config: SubmitConfig,
     ) -> Option<MinerConfig> {
         miner_key.map(|miner_key| MinerConfig {
             miner_id,
@@ -56,7 +57,6 @@ impl MinerConfig {
             rpc_endpoint_url,
             mine_address,
             flow_address,
-            submission_gas,
             cpu_percentage,
             iter_batch,
             shard_config,
@@ -64,6 +64,7 @@ impl MinerConfig {
             rate_limit_retries,
             timeout_retries,
             initial_backoff,
+            submission_config,
         })
     }
 

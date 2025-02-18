@@ -74,7 +74,6 @@ build_config! {
     (mine_contract_address, (String), "".to_string())
     (miner_id, (Option<String>), None)
     (miner_key, (Option<String>), None)
-    (miner_submission_gas, (Option<u64>), None)
     (miner_cpu_percentage, (u64), 100)
     (mine_iter_batch_size, (usize), 100)
     (reward_contract_address, (String), "".to_string())
@@ -105,6 +104,9 @@ pub struct ZgsConfig {
 
     // rpc config, configured by [rpc] section by `config` crate.
     pub rpc: rpc::RPCConfig,
+
+    // submission config, configured by [submission_config] section by `config` crate.
+    pub submission_config: contract_wrapper::SubmitConfig,
 
     // metrics config, configured by [metrics] section by `config` crate.
     pub metrics: metrics::MetricsConfiguration,

@@ -1,14 +1,11 @@
 use contract_interface::PoraAnswer;
 use contract_interface::{PoraMine, ZgsFlow};
-use ethereum_types::U256;
-use ethers::abi::Detokenize;
+use contract_wrapper::SubmitConfig;
 use ethers::contract::ContractCall;
 use ethers::prelude::{Http, Provider, RetryClient};
-use ethers::providers::{Middleware, ProviderError};
 use hex::ToHex;
 use shared_types::FlowRangeProof;
 use std::sync::Arc;
-use std::time::Duration;
 use storage::H256;
 use storage_async::Store;
 use task_executor::TaskExecutor;
@@ -20,23 +17,13 @@ use crate::watcher::MineContextMessage;
 
 use zgs_spec::{BYTES_PER_SEAL, SECTORS_PER_SEAL};
 
-const SUBMISSION_RETRIES: usize = 15;
-const ADJUST_GAS_RETRIES: usize = 20;
-
 pub struct Submitter {
     mine_answer_receiver: mpsc::UnboundedReceiver<AnswerWithoutProof>,
     mine_context_receiver: broadcast::Receiver<MineContextMessage>,
     mine_contract: PoraMine<MineServiceMiddleware>,
     flow_contract: ZgsFlow<Provider<RetryClient<Http>>>,
-    default_gas_limit: Option<U256>,
     store: Arc<Store>,
-    provider: Arc<Provider<RetryClient<Http>>>,
-}
-
-enum SubmissionAction {
-    Retry,
-    Success,
-    Error(String),
+    config: SubmitConfig,
 }
 
 impl Submitter {
@@ -51,7 +38,6 @@ impl Submitter {
     ) {
         let mine_contract = PoraMine::new(config.mine_address, signing_provider);
         let flow_contract = ZgsFlow::new(config.flow_address, provider.clone());
-        let default_gas_limit = config.submission_gas;
 
         let submitter = Submitter {
             mine_answer_receiver,
@@ -59,8 +45,7 @@ impl Submitter {
             mine_contract,
             flow_contract,
             store,
-            default_gas_limit,
-            provider,
+            config: config.submission_config,
         };
         executor.spawn(
             async move { Box::pin(submitter.start()).await },
@@ -144,11 +129,7 @@ impl Submitter {
         };
         trace!("submit_answer: answer={:?}", answer);
 
-        let mut submission_call: ContractCall<_, _> = self.mine_contract.submit(answer).legacy();
-
-        if let Some(gas_limit) = self.default_gas_limit {
-            submission_call = submission_call.gas(gas_limit);
-        }
+        let submission_call: ContractCall<_, _> = self.mine_contract.submit(answer).legacy();
 
         if let Some(calldata) = submission_call.calldata() {
             debug!(
@@ -163,96 +144,15 @@ impl Submitter {
             submission_call.estimate_gas().await
         );
 
-        self.submit_with_retry(submission_call).await
-    }
+        contract_wrapper::submit_with_retry(
+            submission_call,
+            &self.config,
+            self.mine_contract.client().clone(),
+        )
+        .await
+        .map_err(|e| format!("Failed to submit mine answer: {:?}", e))?;
 
-    async fn submit_with_retry<M: Middleware, T: Detokenize>(
-        &self,
-        mut submission_call: ContractCall<M, T>,
-    ) -> Result<(), String> {
-        let mut gas_price = self
-            .provider
-            .get_gas_price()
-            .await
-            .map_err(|e| format!("Failed to get current gas price {:?}", e))?;
-        let mut n_retry = 0;
-        while n_retry < ADJUST_GAS_RETRIES {
-            n_retry += 1;
-            submission_call = submission_call.gas_price(gas_price);
-            match self.submit_once(submission_call.clone()).await {
-                SubmissionAction::Retry => {
-                    gas_price = next_gas_price(gas_price);
-                }
-                SubmissionAction::Success => {
-                    return Ok(());
-                }
-                SubmissionAction::Error(e) => {
-                    return Err(e);
-                }
-            }
-        }
-
-        Err("Submission failed after retries".to_string())
-    }
-
-    async fn submit_once<M: Middleware, T: Detokenize>(
-        &self,
-        submission_call: ContractCall<M, T>,
-    ) -> SubmissionAction {
-        let pending_transaction = match submission_call.send().await {
-            Ok(tx) => tx,
-            Err(e) => {
-                if e.to_string().contains("insufficient funds")
-                    || e.to_string().contains("out of gas")
-                {
-                    return SubmissionAction::Error(format!(
-                        "Fail to execute PoRA submission transaction: {:?}",
-                        e
-                    ));
-                }
-                // Log the error and increase gas.
-                debug!("Error sending transaction: {:?}", e);
-                return SubmissionAction::Retry;
-            }
-        };
-
-        debug!(
-            "Signed submission transaction hash: {:?}",
-            pending_transaction.tx_hash()
-        );
-
-        let receipt_result = pending_transaction
-            .retries(SUBMISSION_RETRIES)
-            .interval(Duration::from_secs(2))
-            .await;
-
-        match receipt_result {
-            Ok(Some(receipt)) => {
-                // Successfully executed the transaction.
-                info!("Submit PoRA success, receipt: {:?}", receipt);
-                SubmissionAction::Success
-            }
-            Ok(None) => {
-                // The transaction did not complete within the specified waiting time.
-                debug!(
-                    "Transaction dropped after {} retries; increasing gas and retrying",
-                    SUBMISSION_RETRIES
-                );
-                SubmissionAction::Retry
-            }
-            Err(ProviderError::HTTPError(e)) => {
-                // For HTTP errors, increase gas and retry.
-                debug!("HTTP error retrieving receipt: {:?}", e);
-                SubmissionAction::Retry
-            }
-            Err(e) => {
-                // For all other errors, return immediately.
-                SubmissionAction::Error(format!(
-                    "Fail to execute PoRA submission transaction: {:?}",
-                    e
-                ))
-            }
-        }
+        Ok(())
     }
 }
 
@@ -262,8 +162,4 @@ fn flow_proof_to_pora_merkle_proof(flow_proof: FlowRangeProof) -> Vec<[u8; 32]> 
     let full_proof: Vec<[u8; 32]> = flow_proof.left_proof.lemma().iter().map(|h| h.0).collect();
     // Exclude `item`, the nodes in the sealed data subtree, and `root`.
     full_proof[depth_in_sealed_data + 1..full_proof.len() - 1].to_vec()
-}
-
-fn next_gas_price(current_gas_price: U256) -> U256 {
-    current_gas_price * U256::from(11) / U256::from(10)
 }

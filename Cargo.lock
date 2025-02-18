@@ -1272,6 +1272,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "contract-wrapper"
+version = "0.1.0"
+dependencies = [
+ "ethers",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "convert_case"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5017,6 +5028,7 @@ dependencies = [
  "async-trait",
  "blake2",
  "contract-interface",
+ "contract-wrapper",
  "ethereum-types 0.14.1",
  "ethers",
  "hex",
@@ -9257,6 +9269,7 @@ dependencies = [
  "clap",
  "config",
  "console-subscriber",
+ "contract-wrapper",
  "ctrlc",
  "duration-str",
  "error-chain",
