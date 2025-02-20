@@ -50,7 +50,7 @@ copy_file() {
 
 copy_abis() {
     for contract_name in "$@"; do
-        copy_file $(./scripts/search_abi.sh "$path/artifacts" "$contract_name.json") "storage-contracts-abis/$contract_name.json"
+        copy_file "$(./scripts/search_abi.sh "$path/artifacts" "$contract_name.json")" "storage-contracts-abis/$contract_name.json"
     done
 }
 
