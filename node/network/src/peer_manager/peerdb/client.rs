@@ -19,7 +19,7 @@ pub struct Client {
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, AsRefStr, IntoStaticStr, EnumIter)]
 pub enum ClientKind {
-    /// An Zgs node.
+    /// A Zgs node.
     Zgs,
     /// An unknown client.
     Unknown,
