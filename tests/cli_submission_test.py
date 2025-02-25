@@ -65,11 +65,11 @@ class CliSubmissionTest(TestFramework):
         wait_until(lambda: client.zgs_get_file_info(root) is not None)
         wait_until(lambda: client.zgs_get_file_info(root)["finalized"])
 
-        num_of_entris = bytes_to_entries(size)
-        if num_of_entris > 1:
-            start_idx = random.randint(0, num_of_entris - 2)
+        num_of_entries = bytes_to_entries(size)
+        if num_of_entries > 1:
+            start_idx = random.randint(0, num_of_entries - 2)
             end_idx = min(
-                random.randint(start_idx + 1, num_of_entris - 1), start_idx + ENTRY_SIZE
+                random.randint(start_idx + 1, num_of_entries - 1), start_idx + ENTRY_SIZE
             )
 
             assert_equal(
@@ -94,9 +94,9 @@ class CliSubmissionTest(TestFramework):
 
             wait_until(lambda: self.nodes[i].zgs_get_file_info(root)["finalized"])
 
-            # start_idx = random.randint(0, num_of_entris - 1)
+            # start_idx = random.randint(0, num_of_entries - 1)
             # end_idx = min(
-            #     random.randint(start_idx + 1, num_of_entris), start_idx + ENTRY_SIZE
+            #     random.randint(start_idx + 1, num_of_entries), start_idx + ENTRY_SIZE
             # )
 
             assert_equal(
