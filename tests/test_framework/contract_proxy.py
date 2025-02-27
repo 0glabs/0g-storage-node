@@ -1,4 +1,4 @@
-from gettext import npgettext
+from gettext import ngettext
 from config.node_config import TX_PARAMS
 from utility.utils import assert_equal
 from copy import copy
@@ -57,19 +57,19 @@ class ContractProxy:
 
 class FlowContractProxy(ContractProxy):
     def submit(
-        self, submission_nodes, node_idx=0, tx_prarams=None, parent_hash=None,
+        self, submission_nodes, node_idx=0, tx_params=None, parent_hash=None,
     ):
         assert node_idx < len(self.blockchain_nodes)
 
-        combined_tx_prarams = copy(TX_PARAMS)
+        combined_tx_params = copy(TX_PARAMS)
 
-        if tx_prarams is not None:
-            combined_tx_prarams.update(tx_prarams)
+        if tx_params is not None:
+            combined_tx_params.update(tx_params)
             
 
         contract = self._get_contract(node_idx)
-        # print(contract.functions.submit(submission_nodes).estimate_gas(combined_tx_prarams))
-        tx_hash = contract.functions.submit(submission_nodes).transact(combined_tx_prarams)
+        # print(contract.functions.submit(submission_nodes).estimate_gas(combined_tx_params))
+        tx_hash = contract.functions.submit(submission_nodes).transact(combined_tx_params)
         receipt = self.blockchain_nodes[node_idx].wait_for_transaction_receipt(
             contract.w3, tx_hash, parent_hash=parent_hash
         )
