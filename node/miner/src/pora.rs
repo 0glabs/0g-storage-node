@@ -95,7 +95,7 @@ impl<'a> Miner<'a> {
             .enumerate()
             .zip(scratch_pad.iter().cycle())
             .zip(availabilities.into_iter())
-            .filter_map(|(data, availiable)| availiable.then_some(data))
+            .filter_map(|(data, available)| available.then_some(data))
         {
             inc_counter(&PAD_MIX_COUNT);
             // Rust can optimize this loop well.
