@@ -50,7 +50,7 @@ impl DataCache {
 
     /// Remove timeout data entries according to TTL.
     pub fn garbage_collect(&mut self, latest_tx_seq: u64) {
-        // We won't keep too many data, so it's okay to just iterate here.
+        // We won't keep too much data, so it's okay to just iterate here.
         self.root_to_data.retain(|_, cached| {
             cached.last_seen_tx_seq + self.config.tx_seq_ttl as u64 >= latest_tx_seq
         })

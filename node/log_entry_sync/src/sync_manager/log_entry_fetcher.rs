@@ -673,7 +673,7 @@ async fn check_watch_process(
                 }
             } else {
                 warn!(
-                    "get block hash for block {} from RPC, assume there is no org",
+                    "get block hash for block {} from RPC, assume there is no reorg",
                     *progress - 1
                 );
                 let hash = loop {

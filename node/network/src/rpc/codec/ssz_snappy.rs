@@ -66,7 +66,7 @@ impl Encoder<RPCCodedResponse> for SSZSnappyInboundCodec {
         }
 
         // Inserts the length prefix of the uncompressed bytes into dst
-        // encoded as a unsigned varint
+        // encoded as an unsigned varint
         self.inner
             .encode(bytes.len(), dst)
             .map_err(RPCError::from)?;
