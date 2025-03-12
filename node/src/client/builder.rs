@@ -7,7 +7,7 @@ use network::{
     self, new_network_channel, Keypair, NetworkConfig, NetworkGlobals, NetworkReceiver,
     NetworkSender, RequestId, Service as LibP2PService,
 };
-use pruner::{Pruner, PrunerConfig, PrunerMessage};
+use pruner::{get_shard_config, Pruner, PrunerConfig, PrunerMessage};
 use router::RouterService;
 use rpc::RPCConfig;
 use std::sync::Arc;
@@ -203,7 +203,7 @@ impl ClientBuilder {
         if let Some(config) = config {
             let executor = require!("miner", self, runtime_context).clone().executor;
             let network_send = require!("miner", self, network).send.clone();
-            let store = self.async_store.as_ref().unwrap().clone();
+            let store = require!("miner", self, async_store).clone();
 
             let send = MineService::spawn(executor, network_send, config, store).await?;
             self.miner = Some(MinerComponents { send });
@@ -225,7 +225,11 @@ impl ClientBuilder {
         Ok(self)
     }
 
-    pub async fn with_shard(self, config: ShardConfig) -> Result<Self, String> {
+    pub async fn with_shard(self, mut config: ShardConfig) -> Result<Self, String> {
+        let store = require!("shard", self, async_store).clone();
+        if let Some(stored_config) = get_shard_config(store.as_ref()).await.unwrap_or(None) {
+            config = stored_config;
+        }
         self.async_store
             .as_ref()
             .unwrap()
