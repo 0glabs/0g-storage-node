@@ -182,7 +182,7 @@ impl PeerInfo {
 
     /// Checks if the peer is outbound-only
     pub fn is_outbound_only(&self) -> bool {
-        matches!(self.connection_status, Connected {n_in, n_out} if n_in == 0 && n_out > 0)
+        matches!(self.connection_status, Connected { n_in: 0, n_out: n @ 1.. })
     }
 
     /// Returns the number of connections with this peer.
