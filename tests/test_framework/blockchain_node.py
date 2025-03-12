@@ -164,8 +164,12 @@ class TestNode:
         # Check that stderr is as expected
         self.stderr.seek(0)
         stderr = self.stderr.read().decode("utf-8").strip()
-        # TODO: Check how to avoid `pthread lock: Invalid argument`.
-        if stderr != expected_stderr and stderr != "pthread lock: Invalid argument":
+        
+        # The 'pthread lock: Invalid argument' error is a known issue with some process terminations
+        # and can be safely ignored as it doesn't affect the test functionality.
+        if stderr == "pthread lock: Invalid argument":
+            self.log.warning("Ignoring known pthread lock error during process termination")
+        elif stderr != expected_stderr:
             # print process status for debug
             if self.return_code is None:
                 self.log.info("Process is still running")
