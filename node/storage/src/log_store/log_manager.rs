@@ -1157,6 +1157,7 @@ impl LogManager {
             .get_tx_by_seq_number(from_tx_seq)?
             .ok_or_else(|| anyhow!("from tx missing"))?;
         let mut to_tx_offset_list = Vec::with_capacity(to_tx_seq_list.len());
+
         for seq in to_tx_seq_list {
             // No need to copy data for completed tx.
             if self.check_tx_completed(seq)? {

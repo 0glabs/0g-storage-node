@@ -276,7 +276,7 @@ impl Pruner {
     }
 }
 
-async fn get_shard_config(store: &Store) -> Result<Option<ShardConfig>> {
+pub async fn get_shard_config(store: &Store) -> Result<Option<ShardConfig>> {
     store
         .get_config_decoded(&SHARD_CONFIG_KEY, DATA_DB_KEY)
         .await

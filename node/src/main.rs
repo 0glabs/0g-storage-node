@@ -23,6 +23,8 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
     ClientBuilder::default()
         .with_runtime_context(context)
         .with_rocksdb_store(&storage_config)?
+        .with_shard(shard_config)
+        .await?
         .with_log_sync(log_sync_config)
         .await?
         .with_file_location_cache(config.file_location_cache)
@@ -33,8 +35,6 @@ async fn start_node(context: RuntimeContext, config: ZgsConfig) -> Result<Client
         .with_sync(config.sync)
         .await?
         .with_miner(miner_config)
-        .await?
-        .with_shard(shard_config)
         .await?
         .with_pruner(pruner_config)
         .await?
