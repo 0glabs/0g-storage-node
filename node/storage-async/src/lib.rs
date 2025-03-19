@@ -67,8 +67,15 @@ impl Store {
 
     pub async fn get_tx_by_data_root(&self, data_root: &DataRoot) -> Result<Option<Transaction>> {
         let root = *data_root;
-        self.spawn(move |store| store.get_tx_by_data_root(&root))
-            .await
+        
+        let res = self.spawn(move |store| store.get_tx_by_data_root(&root))
+            .await?;
+        if let Some(tx) = res.clone() {
+            if self.store.check_tx_pruned(tx.seq)? {
+                return Ok(None);
+            }
+        }
+        Ok(res)
     }
 
     pub async fn get_config_decoded<K: AsRef<[u8]> + Send + Sync, T: Decode + Send + 'static>(
