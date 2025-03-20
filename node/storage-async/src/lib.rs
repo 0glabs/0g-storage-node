@@ -65,14 +65,16 @@ impl Store {
             .await
     }
 
-    pub async fn get_tx_by_data_root(&self, data_root: &DataRoot) -> Result<Option<Transaction>> {
+    pub async fn get_tx_by_data_root(&self, data_root: &DataRoot, skip_old: bool) -> Result<Option<Transaction>> {
         let root = *data_root;
         
         let res = self.spawn(move |store| store.get_tx_by_data_root(&root))
             .await?;
-        if let Some(tx) = res.clone() {
-            if self.store.check_tx_pruned(tx.seq)? {
-                return Ok(None);
+        if skip_old {
+            if let Some(tx) = res.clone() {
+                if self.store.check_tx_pruned(tx.seq)? {
+                    return Ok(None);
+                }
             }
         }
         Ok(res)
