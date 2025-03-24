@@ -71,6 +71,12 @@ impl Store {
             .await
     }
 
+    pub async fn get_first_available_tx_by_data_root(&self, data_root: &DataRoot) -> Result<Option<Transaction>> {
+        let root = *data_root;
+        self.spawn(move |store| store.get_first_available_tx_by_data_root(&root))
+            .await
+    }
+
     pub async fn get_config_decoded<K: AsRef<[u8]> + Send + Sync, T: Decode + Send + 'static>(
         &self,
         key: &K,
