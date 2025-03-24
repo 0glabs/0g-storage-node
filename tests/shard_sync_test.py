@@ -13,16 +13,16 @@ class PrunerTest(TestFramework):
         self.num_blockchain_nodes = 1
         self.num_nodes = 4
         self.zgs_node_configs[0] = {
-            "db_max_num_sectors": 2 ** 30,
-            "shard_position": "0/2"
+            "db_max_num_sectors": 2**30,
+            "shard_position": "0/2",
         }
         self.zgs_node_configs[1] = {
-            "db_max_num_sectors": 2 ** 30,
-            "shard_position": "1/2"
+            "db_max_num_sectors": 2**30,
+            "shard_position": "1/2",
         }
         self.zgs_node_configs[3] = {
-            "db_max_num_sectors": 2 ** 30,
-            "shard_position": "1/4"
+            "db_max_num_sectors": 2**30,
+            "shard_position": "1/4",
         }
         self.enable_market = True
 
@@ -31,7 +31,10 @@ class PrunerTest(TestFramework):
 
         chunk_data = b"\x02" * 8 * 256 * 1024
         submissions, data_root = create_submission(chunk_data)
-        self.contract.submit(submissions, tx_prarams = {"value": int(len(chunk_data) / 256 * PRICE_PER_SECTOR * 1.1)})
+        self.contract.submit(
+            submissions,
+            tx_prarams={"value": int(len(chunk_data) / 256 * PRICE_PER_SECTOR * 1.1)},
+        )
         wait_until(lambda: self.contract.num_submissions() == 1)
         wait_until(lambda: client.zgs_get_file_info(data_root) is not None)
 
@@ -57,10 +60,18 @@ class PrunerTest(TestFramework):
         for i in range(len(segments)):
             index_store = i % 2
             index_empty = 1 - i % 2
-            seg0 = self.nodes[index_store].zgs_download_segment(data_root, i * 1024, (i + 1) * 1024)
-            seg1 = self.nodes[index_empty].zgs_download_segment(data_root, i * 1024, (i + 1) * 1024)
-            seg2 = self.nodes[2].zgs_download_segment(data_root, i * 1024, (i + 1) * 1024)
-            seg3 = self.nodes[3].zgs_download_segment(data_root, i * 1024, (i + 1) * 1024)
+            seg0 = self.nodes[index_store].zgs_download_segment(
+                data_root, i * 1024, (i + 1) * 1024
+            )
+            seg1 = self.nodes[index_empty].zgs_download_segment(
+                data_root, i * 1024, (i + 1) * 1024
+            )
+            seg2 = self.nodes[2].zgs_download_segment(
+                data_root, i * 1024, (i + 1) * 1024
+            )
+            seg3 = self.nodes[3].zgs_download_segment(
+                data_root, i * 1024, (i + 1) * 1024
+            )
             # base64 encoding size
             assert_equal(len(seg0), 349528)
             assert_equal(seg1, None)

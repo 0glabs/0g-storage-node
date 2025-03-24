@@ -32,8 +32,6 @@ class RootConsistencyTest(TestFramework):
         assert_equal(contract_length, expected_length)
         assert_equal(contract_root, node_root[2:])
 
-
-
     def run_test(self):
         self.assert_flow_status(1)
 
@@ -48,7 +46,6 @@ class RootConsistencyTest(TestFramework):
 
         self.submit_data(b"\x13", 512 + 256)
         self.assert_flow_status(1024 + 512 + 256)
-        
 
 
 if __name__ == "__main__":

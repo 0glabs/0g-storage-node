@@ -5,6 +5,7 @@ from math import log2
 from utility.merkle_tree import add_0x_prefix, Leaf, MerkleTree
 from utility.spec import ENTRY_SIZE, PORA_CHUNK_SIZE
 
+
 def log2_pow2(n):
     return int(log2(((n ^ (n - 1)) >> 1) + 1))
 
@@ -106,29 +107,27 @@ def create_segment_node(data, offset, batch, size):
         else:
             tree.add_leaf(Leaf(segment_root(data[start:end])))
 
-
     return tree.get_root_hash()
-
 
 
 segment_root_cached_chunks = None
 segment_root_cached_output = None
+
+
 def segment_root(chunks):
     global segment_root_cached_chunks, segment_root_cached_output
 
     if segment_root_cached_chunks == chunks:
         return segment_root_cached_output
 
-
     data_len = len(chunks)
     if data_len == 0:
         return b"\x00" * 32
 
-
     tree = MerkleTree()
     for i in range(0, data_len, ENTRY_SIZE):
         tree.encrypt(chunks[i : i + ENTRY_SIZE])
-    
+
     digest = tree.get_root_hash()
 
     segment_root_cached_chunks = chunks

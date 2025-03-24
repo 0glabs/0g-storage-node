@@ -17,7 +17,10 @@ class ExampleTest(TestFramework):
         self.contract.submit(submissions)
         wait_until(lambda: self.contract.num_submissions() == 1)
         wait_until(lambda: client.zgs_get_file_info(data_root) is not None)
-        wait_until(lambda: not client.zgs_get_file_info(data_root)["isCached"] and client.zgs_get_file_info(data_root)["uploadedSegNum"] == 1)
+        wait_until(
+            lambda: not client.zgs_get_file_info(data_root)["isCached"]
+            and client.zgs_get_file_info(data_root)["uploadedSegNum"] == 1
+        )
         client.zgs_upload_segment(segments[1])
         wait_until(lambda: client.zgs_get_file_info(data_root)["finalized"])
 

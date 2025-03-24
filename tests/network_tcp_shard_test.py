@@ -7,6 +7,7 @@ from config.node_config import ZGS_KEY_FILE, ZGS_NODEID
 from test_framework.test_framework import TestFramework
 from utility.utils import p2p_port
 
+
 class NetworkTcpShardTest(TestFramework):
     """
     This is to test TCP connection for shard config mismatched peers of UDP discovery.
@@ -24,12 +25,10 @@ class NetworkTcpShardTest(TestFramework):
             "network_enr_address": "127.0.0.1",
             "network_enr_tcp_port": bootnode_port,
             "network_enr_udp_port": bootnode_port,
-
             # disable trusted nodes
             "network_libp2p_nodes": [],
-
             # custom shard config
-            "shard_position": "0/4"
+            "shard_position": "0/4",
         }
 
         # setup node 1 & 2 as community nodes
@@ -40,13 +39,11 @@ class NetworkTcpShardTest(TestFramework):
                 "network_enr_address": "127.0.0.1",
                 "network_enr_tcp_port": p2p_port(i),
                 "network_enr_udp_port": p2p_port(i),
-
                 # disable trusted nodes and enable bootnodes
                 "network_libp2p_nodes": [],
                 "network_boot_nodes": bootnodes,
-
                 # custom shard config
-                "shard_position": f"{i}/4"
+                "shard_position": f"{i}/4",
             }
 
     def run_test(self):
@@ -60,7 +57,13 @@ class NetworkTcpShardTest(TestFramework):
                 info = self.nodes[i].rpc.admin_getNetworkInfo()
                 self.log.info(
                     "Node[%s] peers: total = %s, banned = %s, disconnected = %s, connected = %s (in = %s, out = %s)",
-                    i, info["totalPeers"], info["bannedPeers"], info["disconnectedPeers"], info["connectedPeers"], info["connectedIncomingPeers"], info["connectedOutgoingPeers"],
+                    i,
+                    info["totalPeers"],
+                    info["bannedPeers"],
+                    info["disconnectedPeers"],
+                    info["connectedPeers"],
+                    info["connectedIncomingPeers"],
+                    info["connectedOutgoingPeers"],
                 )
 
                 if i == timeout_secs - 1:
@@ -71,6 +74,7 @@ class NetworkTcpShardTest(TestFramework):
 
         self.log.info("====================================")
         self.log.info("All nodes discovered but not connected for each other")
+
 
 if __name__ == "__main__":
     NetworkTcpShardTest().main()

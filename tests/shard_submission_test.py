@@ -18,30 +18,30 @@ class ShardSubmitTest(TestFramework):
         self.num_blockchain_nodes = 1
         self.num_nodes = 4
         self.zgs_node_configs[0] = {
-            "db_max_num_sectors": 2 ** 30,
-            "shard_position": "0/4"
+            "db_max_num_sectors": 2**30,
+            "shard_position": "0/4",
         }
         self.zgs_node_configs[1] = {
-            "db_max_num_sectors": 2 ** 30,
-            "shard_position": "1/4"
+            "db_max_num_sectors": 2**30,
+            "shard_position": "1/4",
         }
         self.zgs_node_configs[2] = {
-            "db_max_num_sectors": 2 ** 30,
-            "shard_position": "2/4"
+            "db_max_num_sectors": 2**30,
+            "shard_position": "2/4",
         }
         self.zgs_node_configs[3] = {
-            "db_max_num_sectors": 2 ** 30,
-            "shard_position": "3/4"
+            "db_max_num_sectors": 2**30,
+            "shard_position": "3/4",
         }
-    
+
     def run_test(self):
         data_size = [
-            256*960, 
-            256*1024,
+            256 * 960,
+            256 * 1024,
             2,
             255,
-            256*960,
-            256*120,
+            256 * 960,
+            256 * 120,
             256,
             257,
             1023,
@@ -76,6 +76,7 @@ class ShardSubmitTest(TestFramework):
             wait_until(lambda: client.zgs_get_file_info(data_root) is not None)
             submit_data(client, chunk_data)
             wait_until(lambda: client.zgs_get_file_info(data_root)["finalized"])
+
 
 if __name__ == "__main__":
     ShardSubmitTest().main()

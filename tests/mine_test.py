@@ -15,7 +15,11 @@ class MineTest(TestFramework):
         }
         self.mine_period = int(45 / self.block_time)
         self.launch_wait_seconds = 15
-        self.log.info("Contract Info: Est. block time %.2f, Mine period %d", self.block_time, self.mine_period)
+        self.log.info(
+            "Contract Info: Est. block time %.2f, Mine period %d",
+            self.block_time,
+            self.mine_period,
+        )
 
     def submit_data(self, item, size):
         submissions_before = self.contract.num_submissions()
@@ -37,7 +41,11 @@ class MineTest(TestFramework):
 
         first_block = self.contract.first_block()
         self.log.info("Current block number %d", int(blockchain.eth_blockNumber(), 16))
-        self.log.info("Flow deployment block number %d, epoch 1 start %d", first_block, first_block + self.mine_period)
+        self.log.info(
+            "Flow deployment block number %d, epoch 1 start %d",
+            first_block,
+            first_block + self.mine_period,
+        )
         wait_until(lambda: self.contract.epoch() >= 1, timeout=180)
 
         quality = int(2**256 / 100 / estimate_st_performance())
@@ -54,27 +62,39 @@ class MineTest(TestFramework):
         self.contract.update_context()
 
         self.log.info("Wait for the first mine answer")
-        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 1 and not self.mine_contract.can_submit(), timeout=180)
+        wait_until(
+            lambda: self.mine_contract.last_mined_epoch() == start_epoch + 1
+            and not self.mine_contract.can_submit(),
+            timeout=180,
+        )
 
         self.log.info("Wait for the second mine context release")
         wait_until(lambda: self.contract.epoch() >= start_epoch + 2, timeout=180)
         self.contract.update_context()
 
         self.log.info("Wait for the second mine answer")
-        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 2 and not self.mine_contract.can_submit(), timeout=180)
+        wait_until(
+            lambda: self.mine_contract.last_mined_epoch() == start_epoch + 2
+            and not self.mine_contract.can_submit(),
+            timeout=180,
+        )
 
         self.nodes[0].miner_stop()
         self.log.info("Wait for the third mine context release")
         wait_until(lambda: self.contract.epoch() >= start_epoch + 3, timeout=180)
         self.contract.update_context()
-        
+
         self.log.info("Submit the second data chunk")
         self.submit_data(b"\x22", 2000)
         # Now the storage node should have the latest flow, but the mining context is using an old one.
         self.nodes[0].miner_start()
 
         self.log.info("Wait for the third mine answer")
-        wait_until(lambda: self.mine_contract.last_mined_epoch() == start_epoch + 3 and not self.mine_contract.can_submit(), timeout=180)
+        wait_until(
+            lambda: self.mine_contract.last_mined_epoch() == start_epoch + 3
+            and not self.mine_contract.can_submit(),
+            timeout=180,
+        )
 
         self.log.info("Current block number %d", int(blockchain.eth_blockNumber(), 16))
 

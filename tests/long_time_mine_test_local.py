@@ -18,7 +18,6 @@ class LongTimeMineTest(TestFramework):
         self.mine_period = 15
         self.launch_wait_seconds = 15
 
-
     def submit_data(self, item, size):
         submissions_before = self.contract.num_submissions()
         client = self.nodes[0]
@@ -44,7 +43,10 @@ class LongTimeMineTest(TestFramework):
         self.submit_data(b"\x11", 2000)
 
         self.log.info("Start mine")
-        wait_until(lambda: int(blockchain.eth_blockNumber(), 16) > self.mine_period, timeout=180)
+        wait_until(
+            lambda: int(blockchain.eth_blockNumber(), 16) > self.mine_period,
+            timeout=180,
+        )
 
         self.log.info("Wait for the first mine answer")
         wait_until(lambda: self.mine_contract.last_mined_epoch() == 1)

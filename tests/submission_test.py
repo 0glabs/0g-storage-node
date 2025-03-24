@@ -77,9 +77,7 @@ class SubmissionTest(TestFramework):
                 continue
 
             # Wait for log entry before file sync, otherwise, admin_startSyncFile will be failed.
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root) is not None)
 
             self.nodes[i].admin_start_sync_file(submission_index - 1)
 
@@ -89,15 +87,11 @@ class SubmissionTest(TestFramework):
                 )
             )
 
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"]
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"])
 
             assert_equal(
                 base64.b64decode(
-                    self.nodes[i]
-                    .zgs_download_segment(data_root, 0, 1)
-                    .encode("utf-8")
+                    self.nodes[i].zgs_download_segment(data_root, 0, 1).encode("utf-8")
                 ),
                 first_entry,
             )

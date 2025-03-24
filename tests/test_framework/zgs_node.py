@@ -11,6 +11,7 @@ from utility.utils import (
     blockchain_rpc_port,
 )
 
+
 class ZgsNode(TestNode):
     def __init__(
         self,
@@ -98,17 +99,21 @@ class ZgsNode(TestNode):
 
     def zgs_download_segment(self, data_root, start_index, end_index):
         return self.rpc.zgs_downloadSegment([data_root, start_index, end_index])
-    
-    def zgs_download_segment_decoded(self, data_root: str, start_chunk_index: int, end_chunk_index: int) -> bytes:
-        encodedSegment = self.rpc.zgs_downloadSegment([data_root, start_chunk_index, end_chunk_index])
+
+    def zgs_download_segment_decoded(
+        self, data_root: str, start_chunk_index: int, end_chunk_index: int
+    ) -> bytes:
+        encodedSegment = self.rpc.zgs_downloadSegment(
+            [data_root, start_chunk_index, end_chunk_index]
+        )
         return None if encodedSegment is None else base64.b64decode(encodedSegment)
 
     def zgs_get_file_info(self, data_root):
-        return self.rpc.zgs_getFileInfo([data_root])
+        return self.rpc.zgs_getFileInfo([data_root, True])
 
     def zgs_get_file_info_by_tx_seq(self, tx_seq):
         return self.rpc.zgs_getFileInfoByTxSeq([tx_seq])
-    
+
     def zgs_get_flow_context(self, tx_seq):
         return self.rpc.zgs_getFlowContext([tx_seq])
 
@@ -118,9 +123,13 @@ class ZgsNode(TestNode):
 
     def admin_start_sync_file(self, tx_seq):
         return self.rpc.admin_startSyncFile([tx_seq])
-    
-    def admin_start_sync_chunks(self, tx_seq: int, start_chunk_index: int, end_chunk_index: int):
-        return self.rpc.admin_startSyncChunks([tx_seq, start_chunk_index, end_chunk_index])
+
+    def admin_start_sync_chunks(
+        self, tx_seq: int, start_chunk_index: int, end_chunk_index: int
+    ):
+        return self.rpc.admin_startSyncChunks(
+            [tx_seq, start_chunk_index, end_chunk_index]
+        )
 
     def admin_get_sync_status(self, tx_seq):
         return self.rpc.admin_getSyncStatus([tx_seq])
@@ -128,8 +137,8 @@ class ZgsNode(TestNode):
     def sync_status_is_completed_or_unknown(self, tx_seq):
         status = self.rpc.admin_getSyncStatus([tx_seq])
         return status == "Completed" or status == "unknown"
-    
-    def admin_get_file_location(self, tx_seq, all_shards = True):
+
+    def admin_get_file_location(self, tx_seq, all_shards=True):
         return self.rpc.admin_getFileLocation([tx_seq, all_shards])
 
     def clean_data(self):

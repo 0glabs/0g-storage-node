@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 
+
 def load_contract_metadata(path: str, name: str):
     path = Path(path)
     try:
@@ -8,4 +9,3 @@ def load_contract_metadata(path: str, name: str):
         return json.loads(open(found_file, "r").read())
     except StopIteration:
         raise Exception(f"Cannot found contract {name}'s metadata")
-
