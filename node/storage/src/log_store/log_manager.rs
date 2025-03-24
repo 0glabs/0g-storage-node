@@ -548,6 +548,18 @@ impl LogStoreRead for LogManager {
         Ok(seq_list.first().cloned())
     }
 
+    fn get_available_tx_seq_by_data_root(&self, data_root: &DataRoot) -> crate::error::Result<Option<u64>> {
+        let seq_list = self.tx_store.get_tx_seq_list_by_data_root(data_root)?;
+        for tx_seq in &seq_list {
+            if self.tx_store.check_tx_completed(*tx_seq)? && !self.tx_store.check_tx_pruned(*tx_seq)? {
+                // Return the first finalized and unpruned tx if possible. This means the tx data can be downloaded
+                return Ok(Some(*tx_seq));
+            }
+        }
+        // No tx is finalized and unpruned, return None
+        Ok(None)
+    }
+
     fn get_chunk_with_proof_by_tx_and_index(
         &self,
         tx_seq: u64,

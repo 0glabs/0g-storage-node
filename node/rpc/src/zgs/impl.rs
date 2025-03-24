@@ -171,6 +171,17 @@ impl RpcServer for RpcServerImpl {
         Ok(Some(self.get_file_info_by_tx(tx).await?))
     }
 
+    async fn get_first_available_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>> {
+        debug!(%data_root, "zgs_getFirstAvailableFileInfo");
+
+        let tx = match self.ctx.log_store.get_first_available_tx_by_data_root(&data_root).await? {
+            Some(tx) => tx,
+            None => return Ok(None),
+        };
+
+        Ok(Some(self.get_file_info_by_tx(tx).await?))
+    }
+
     async fn get_file_info_by_tx_seq(&self, tx_seq: u64) -> RpcResult<Option<FileInfo>> {
         debug!(%tx_seq, "zgs_getFileInfoByTxSeq");
 
