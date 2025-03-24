@@ -15,7 +15,11 @@ from pathlib import Path
 
 from eth_utils import encode_hex
 from test_framework.bsc_node import BSCNode
-from test_framework.contract_proxy import FlowContractProxy, MineContractProxy, RewardContractProxy
+from test_framework.contract_proxy import (
+    FlowContractProxy,
+    MineContractProxy,
+    RewardContractProxy,
+)
 from test_framework.zgs_node import ZgsNode
 from test_framework.blockchain_node import BlockChainNodeType
 from test_framework.conflux_node import ConfluxNode, connect_sample_nodes
@@ -74,13 +78,17 @@ class TestFramework:
             root_dir, "target", "release", "zgs_node" + binary_ext
         )
         self.__default_zgs_cli_binary__ = os.path.join(
-            tests_dir, "tmp", "0g-storage-client"  + binary_ext
+            tests_dir, "tmp", "0g-storage-client" + binary_ext
         )
 
     def __setup_blockchain_node(self):
         if self.blockchain_node_type == BlockChainNodeType.ZG:
-            zg_node_init_genesis(self.blockchain_binary, self.root_dir, self.num_blockchain_nodes)
-            self.log.info("0gchain genesis initialized for %s nodes" % self.num_blockchain_nodes)
+            zg_node_init_genesis(
+                self.blockchain_binary, self.root_dir, self.num_blockchain_nodes
+            )
+            self.log.info(
+                "0gchain genesis initialized for %s nodes" % self.num_blockchain_nodes
+            )
 
         for i in range(self.num_blockchain_nodes):
             if i in self.blockchain_node_configs:
@@ -171,15 +179,20 @@ class TestFramework:
             self.log.debug("Wait for 0gchain node to generate first block")
             time.sleep(0.5)
             for node in self.blockchain_nodes:
-                wait_until(lambda: node.net_peerCount() == self.num_blockchain_nodes - 1)
+                wait_until(
+                    lambda: node.net_peerCount() == self.num_blockchain_nodes - 1
+                )
                 wait_until(lambda: node.eth_blockNumber() is not None)
                 wait_until(lambda: int(node.eth_blockNumber(), 16) > 0)
 
-        contract, tx_hash, mine_contract, reward_contract = self.blockchain_nodes[0].setup_contract(self.enable_market, self.mine_period, self.lifetime_seconds)
+        contract, tx_hash, mine_contract, reward_contract = self.blockchain_nodes[
+            0
+        ].setup_contract(self.enable_market, self.mine_period, self.lifetime_seconds)
         self.contract = FlowContractProxy(contract, self.blockchain_nodes)
         self.mine_contract = MineContractProxy(mine_contract, self.blockchain_nodes)
-        self.reward_contract = RewardContractProxy(reward_contract, self.blockchain_nodes)
-
+        self.reward_contract = RewardContractProxy(
+            reward_contract, self.blockchain_nodes
+        )
 
         for node in self.blockchain_nodes[1:]:
             node.wait_for_transaction(tx_hash)
@@ -216,12 +229,14 @@ class TestFramework:
                 time.sleep(1)
             node.start()
 
-        self.log.info("Wait the zgs_node launch for %d seconds", self.launch_wait_seconds)
+        self.log.info(
+            "Wait the zgs_node launch for %d seconds", self.launch_wait_seconds
+        )
         time.sleep(self.launch_wait_seconds)
 
         for node in self.nodes:
             node.wait_for_rpc_connection()
-        
+
     def add_arguments(self, parser: argparse.ArgumentParser):
         parser.add_argument(
             "--conflux-binary",
@@ -336,10 +351,12 @@ class TestFramework:
         self.log.addHandler(ch)
 
     def _check_cli_binary(self):
-        if Path(self.cli_binary).absolute() == Path(self.__default_zgs_cli_binary__).absolute() and not os.path.exists(self.cli_binary):
+        if Path(self.cli_binary).absolute() == Path(
+            self.__default_zgs_cli_binary__
+        ).absolute() and not os.path.exists(self.cli_binary):
             dir = Path(self.cli_binary).parent.absolute()
             build_cli(dir)
-        
+
         assert os.path.exists(self.cli_binary), (
             "zgs CLI binary not found: %s" % self.cli_binary
         )
@@ -353,14 +370,12 @@ class TestFramework:
         file_to_upload,
     ):
         self._check_cli_binary()
-        
+
         upload_args = [
             self.cli_binary,
             "upload",
             "--url",
             blockchain_node_rpc_url,
-            "--contract",
-            contract_address,
             "--key",
             encode_hex(key),
             "--node",
@@ -372,7 +387,9 @@ class TestFramework:
             "--file",
         ]
 
-        output = tempfile.NamedTemporaryFile(dir=self.root_dir, delete=False, prefix="zgs_client_output_")
+        output = tempfile.NamedTemporaryFile(
+            dir=self.root_dir, delete=False, prefix="zgs_client_output_"
+        )
         output_name = output.name
         output_fileno = output.fileno()
 
@@ -383,7 +400,7 @@ class TestFramework:
                 stdout=output_fileno,
                 stderr=output_fileno,
             )
-            
+
             return_code = proc.wait(timeout=60)
 
             output.seek(0)
@@ -392,17 +409,27 @@ class TestFramework:
                 line = line.decode("utf-8")
                 self.log.debug("line: %s", line)
                 if "root" in line:
-                    filtered_line = re.sub(r'\x1b\[([0-9,A-Z]{1,2}(;[0-9]{1,2})?(;[0-9]{3})?)?[m|K]?', '', line)
+                    filtered_line = re.sub(
+                        r"\x1b\[([0-9,A-Z]{1,2}(;[0-9]{1,2})?(;[0-9]{3})?)?[m|K]?",
+                        "",
+                        line,
+                    )
                     index = filtered_line.find("root=")
                     if index > 0:
                         root = filtered_line[index + 5 : index + 5 + 66]
         except Exception as ex:
-            self.log.error("Failed to upload file via CLI tool, output: %s", output_name)
+            self.log.error(
+                "Failed to upload file via CLI tool, output: %s", output_name
+            )
             raise ex
         finally:
             output.close()
 
-        assert return_code == 0, "%s upload file failed, output: %s, log: %s" % (self.cli_binary, output_name, lines)
+        assert return_code == 0, "%s upload file failed, output: %s, log: %s" % (
+            self.cli_binary,
+            output_name,
+            lines,
+        )
 
         return root
 
@@ -410,8 +437,15 @@ class TestFramework:
         submissions, data_root = create_submission(chunk_data)
         self.contract.submit(submissions)
         self.num_deployed_contracts += 1
-        wait_until(lambda: self.contract.num_submissions() == self.num_deployed_contracts)
-        self.log.info("Submission completed, data root: %s, submissions(%s) = %s", data_root, len(submissions), submissions)
+        wait_until(
+            lambda: self.contract.num_submissions() == self.num_deployed_contracts
+        )
+        self.log.info(
+            "Submission completed, data root: %s, submissions(%s) = %s",
+            data_root,
+            len(submissions),
+            submissions,
+        )
         return data_root
 
     def __upload_file__(self, node_index: int, random_data_size: int) -> str:
@@ -426,7 +460,9 @@ class TestFramework:
 
         # Upload file to storage node
         segments = submit_data(client, chunk_data)
-        self.log.info("segments: %s", [(s["root"], s["index"], s["proof"]) for s in segments])
+        self.log.info(
+            "segments: %s", [(s["root"], s["index"], s["proof"]) for s in segments]
+        )
         wait_until(lambda: client.zgs_get_file_info(data_root)["finalized"])
 
         return data_root
@@ -451,7 +487,6 @@ class TestFramework:
         self.nodes[index].stop()
         if clean:
             self.nodes[index].clean_data()
-
 
     def start_storage_node(self, index):
         self.nodes[index].start()
@@ -484,7 +519,7 @@ class TestFramework:
 
             if os.path.islink(dst):
                 os.remove(dst)
-            elif os.path.isdir(dst): 
+            elif os.path.isdir(dst):
                 shutil.rmtree(dst)
             elif os.path.exists(dst):
                 os.remove(dst)

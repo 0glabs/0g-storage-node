@@ -7,9 +7,7 @@ ZGS_CONFIG = {
     "log_config_file": "log_config",
     "confirmation_block_count": 1,
     "discv5_disable_ip_limit": True,
-    "network_peer_manager": {
-        "heartbeat_interval": "1s"
-    },
+    "network_peer_manager": {"heartbeat_interval": "1s"},
     "router": {
         "private_ip_enabled": True,
     },
@@ -22,7 +20,7 @@ ZGS_CONFIG = {
         "auto_sync_idle_interval": "1s",
         "sequential_find_peer_timeout": "10s",
         "random_find_peer_timeout": "10s",
-    }
+    },
 }
 
 CONFIG_DIR = os.path.dirname(__file__)
@@ -75,11 +73,12 @@ TX_PARAMS1 = {
 NO_SEAL_FLAG = 0x1
 NO_MERKLE_PROOF_FLAG = 0x2
 
+
 def update_config(default: dict, custom: dict):
     """
     Supports to update configurations with dict value.
     """
-    for (key, value) in custom.items():
+    for key, value in custom.items():
         if default.get(key) is None or type(value) != dict:
             default[key] = value
         else:

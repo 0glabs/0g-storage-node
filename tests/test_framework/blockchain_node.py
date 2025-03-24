@@ -12,11 +12,7 @@ from config.node_config import (
     TX_PARAMS,
 )
 from utility.simple_rpc_proxy import SimpleRpcProxy
-from utility.utils import (
-    initialize_config,
-    wait_until,
-    estimate_st_performance
-)
+from utility.utils import initialize_config, wait_until, estimate_st_performance
 from test_framework.contracts import load_contract_metadata
 
 
@@ -36,6 +32,7 @@ class BlockChainNodeType(Enum):
         else:
             raise AssertionError("Unsupported blockchain type")
 
+
 @unique
 class NodeType(Enum):
     BlockChain = 0
@@ -50,7 +47,7 @@ class TestNode:
     def __init__(
         self, node_type, index, data_dir, rpc_url, binary, config, log, rpc_timeout=10
     ):
-        assert os.path.exists(binary), ("Binary not found: %s" % binary)
+        assert os.path.exists(binary), "Binary not found: %s" % binary
         self.node_type = node_type
         self.index = index
         self.data_dir = data_dir
@@ -270,12 +267,14 @@ class BlockchainNode(TestNode):
         def deploy_contract(name, args=None):
             if args is None:
                 args = []
-            contract_interface = load_contract_metadata(path=self.contract_path, name=name)
+            contract_interface = load_contract_metadata(
+                path=self.contract_path, name=name
+            )
             contract = w3.eth.contract(
                 abi=contract_interface["abi"],
                 bytecode=contract_interface["bytecode"],
             )
-            
+
             tx_params = TX_PARAMS.copy()
             del tx_params["gas"]
             tx_hash = contract.constructor(*args).transact(tx_params)
@@ -285,7 +284,7 @@ class BlockchainNode(TestNode):
                 abi=contract_interface["abi"],
             )
             return contract, tx_hash
-        
+
         def deploy_no_market():
             self.log.debug("Start deploy contracts")
 
@@ -301,12 +300,16 @@ class BlockchainNode(TestNode):
             mine_contract, _ = deploy_contract("PoraMineTest", [0])
             self.log.debug("Mine deployed")
 
-            mine_contract.functions.initialize(1, flow_contract.address, dummy_reward_contract.address).transact(TX_PARAMS)
+            mine_contract.functions.initialize(
+                1, flow_contract.address, dummy_reward_contract.address
+            ).transact(TX_PARAMS)
             mine_contract.functions.setDifficultyAdjustRatio(1).transact(TX_PARAMS)
             mine_contract.functions.setTargetSubmissions(2).transact(TX_PARAMS)
             self.log.debug("Mine Initialized")
 
-            flow_initialize_hash = flow_contract.functions.initialize(dummy_market_contract.address, mine_period).transact(TX_PARAMS)
+            flow_initialize_hash = flow_contract.functions.initialize(
+                dummy_market_contract.address, mine_period
+            ).transact(TX_PARAMS)
             self.log.debug("Flow Initialized")
 
             self.wait_for_transaction_receipt(w3, flow_initialize_hash)
@@ -315,45 +318,60 @@ class BlockchainNode(TestNode):
             # tx_hash = mine_contract.functions.setMiner(decode_hex(MINER_ID)).transact(TX_PARAMS)
             # self.wait_for_transaction_receipt(w3, tx_hash)
 
-            return flow_contract, flow_initialize_hash, mine_contract, dummy_reward_contract
-        
+            return (
+                flow_contract,
+                flow_initialize_hash,
+                mine_contract,
+                dummy_reward_contract,
+            )
+
         def deploy_with_market(lifetime_seconds):
             self.log.debug("Start deploy contracts")
-            
+
             mine_contract, _ = deploy_contract("PoraMineTest", [0])
             self.log.debug("Mine deployed")
-            
+
             market_contract, _ = deploy_contract("FixedPrice", [])
             self.log.debug("Market deployed")
-            
-            reward_contract, _ = deploy_contract("ChunkLinearReward", [lifetime_seconds])
+
+            reward_contract, _ = deploy_contract(
+                "ChunkLinearReward", [lifetime_seconds]
+            )
             self.log.debug("Reward deployed")
-            
+
             flow_contract, _ = deploy_contract("FixedPriceFlow", [0])
             self.log.debug("Flow deployed")
-            
-            mine_contract.functions.initialize(1, flow_contract.address, reward_contract.address).transact(TX_PARAMS)
+
+            mine_contract.functions.initialize(
+                1, flow_contract.address, reward_contract.address
+            ).transact(TX_PARAMS)
             mine_contract.functions.setDifficultyAdjustRatio(1).transact(TX_PARAMS)
             mine_contract.functions.setTargetSubmissions(2).transact(TX_PARAMS)
             self.log.debug("Mine Initialized")
-            
-            market_contract.functions.initialize(int(lifetime_seconds * 256 * 10 * 10 ** 18 /
-                                                     2 ** 30 / 12 / 31 / 86400),
-                                                 flow_contract.address, reward_contract.address).transact(TX_PARAMS)
+
+            market_contract.functions.initialize(
+                int(lifetime_seconds * 256 * 10 * 10**18 / 2**30 / 12 / 31 / 86400),
+                flow_contract.address,
+                reward_contract.address,
+            ).transact(TX_PARAMS)
             self.log.debug("Market Initialized")
-            
-            reward_contract.functions.initialize(market_contract.address, mine_contract.address).transact(TX_PARAMS)
-            reward_contract.functions.setBaseReward(10 ** 18).transact(TX_PARAMS)
+
+            reward_contract.functions.initialize(
+                market_contract.address, mine_contract.address
+            ).transact(TX_PARAMS)
+            reward_contract.functions.setBaseReward(10**18).transact(TX_PARAMS)
             self.log.debug("Reward Initialized")
-            
-            flow_initialize_hash = flow_contract.functions.initialize(market_contract.address, mine_period).transact(TX_PARAMS)
+
+            flow_initialize_hash = flow_contract.functions.initialize(
+                market_contract.address, mine_period
+            ).transact(TX_PARAMS)
             self.log.debug("Flow Initialized")
-            
+
             self.wait_for_transaction_receipt(w3, flow_initialize_hash)
             self.log.info("All contracts deployed")
 
             return flow_contract, flow_initialize_hash, mine_contract, reward_contract
-        
+
         if enable_market:
             return deploy_with_market(lifetime_seconds)
         else:
@@ -376,4 +394,7 @@ class BlockchainNode(TestNode):
         w3.eth.wait_for_transaction_receipt(tx_hash)
 
     def start(self):
-        super().start(self.blockchain_node_type == BlockChainNodeType.BSC or self.blockchain_node_type == BlockChainNodeType.ZG)
+        super().start(
+            self.blockchain_node_type == BlockChainNodeType.BSC
+            or self.blockchain_node_type == BlockChainNodeType.ZG
+        )

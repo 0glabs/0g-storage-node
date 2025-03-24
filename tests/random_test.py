@@ -7,6 +7,7 @@ from utility.submission import create_submission
 from utility.submission import submit_data
 from utility.utils import wait_until
 
+
 class RandomTest(TestFramework):
     def setup_params(self):
         self.num_blockchain_nodes = 1
@@ -32,14 +33,18 @@ class RandomTest(TestFramework):
             else:
                 size = random.randint(0, max_size)
             no_data = random.random() <= no_data_ratio
-            self.log.info(f"choose {chosen_node}, seq={i}, size={size}, no_data={no_data}")
+            self.log.info(
+                f"choose {chosen_node}, seq={i}, size={size}, no_data={no_data}"
+            )
 
             client = self.nodes[chosen_node]
             chunk_data = random.randbytes(size)
             submissions, data_root = create_submission(chunk_data)
             self.contract.submit(submissions)
             wait_until(lambda: self.contract.num_submissions() == i + 1)
-            wait_until(lambda: client.zgs_get_file_info(data_root) is not None, timeout=120)
+            wait_until(
+                lambda: client.zgs_get_file_info(data_root) is not None, timeout=120
+            )
             if not no_data:
                 submit_data(client, chunk_data)
                 wait_until(lambda: client.zgs_get_file_info(data_root)["finalized"])
@@ -47,8 +52,17 @@ class RandomTest(TestFramework):
                 for node_index in range(len(self.nodes)):
                     if node_index != chosen_node:
                         self.log.debug(f"check {node_index}")
-                        wait_until(lambda: self.nodes[node_index].zgs_get_file_info(data_root) is not None, timeout=300)
-                        wait_until(lambda: self.nodes[node_index].zgs_get_file_info(data_root)["finalized"], timeout=300)
+                        wait_until(
+                            lambda: self.nodes[node_index].zgs_get_file_info(data_root)
+                            is not None,
+                            timeout=300,
+                        )
+                        wait_until(
+                            lambda: self.nodes[node_index].zgs_get_file_info(data_root)[
+                                "finalized"
+                            ],
+                            timeout=300,
+                        )
             # TODO(zz): This is a temp solution to trigger auto sync after all nodes started.
             if i >= tx_count - 2:
                 continue
@@ -72,7 +86,10 @@ class RandomTest(TestFramework):
             if not no_data:
                 for node in self.nodes:
                     self.log.debug(f"check {data_root}, {node.index}")
-                    wait_until(lambda: node.zgs_get_file_info(data_root)["finalized"], timeout=300)
+                    wait_until(
+                        lambda: node.zgs_get_file_info(data_root)["finalized"],
+                        timeout=300,
+                    )
 
 
 if __name__ == "__main__":

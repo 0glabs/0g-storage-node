@@ -23,7 +23,11 @@ class PrunerTest(TestFramework):
         self.mine_period = int(45 / self.block_time)
         self.lifetime_seconds = 240
         self.launch_wait_seconds = 15
-        self.log.info("Contract Info: Est. block time %.2f, Mine period %d", self.block_time, self.mine_period)
+        self.log.info(
+            "Contract Info: Est. block time %.2f, Mine period %d",
+            self.block_time,
+            self.mine_period,
+        )
 
     def run_test(self):
         client = self.nodes[0]
@@ -31,7 +35,10 @@ class PrunerTest(TestFramework):
         chunk_data = b"\x02" * 16 * 256 * 1024
         # chunk_data = b"\x02" * 5 * 1024 * 1024 * 1024
         submissions, data_root = create_submission(chunk_data)
-        self.contract.submit(submissions, tx_prarams = {"value": int(len(chunk_data) / 256 * PRICE_PER_SECTOR * 1.1)})
+        self.contract.submit(
+            submissions,
+            tx_prarams={"value": int(len(chunk_data) / 256 * PRICE_PER_SECTOR * 1.1)},
+        )
         wait_until(lambda: self.contract.num_submissions() == 1)
         wait_until(lambda: client.zgs_get_file_info(data_root) is not None)
 

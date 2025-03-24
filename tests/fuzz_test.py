@@ -45,13 +45,9 @@ class FuzzTest(TestFramework):
                 lock.release()
 
                 log.info("submit data via client %s", idx)
-                wait_until(
-                    lambda: nodes[idx].zgs_get_file_info(data_root) is not None
-                )
+                wait_until(lambda: nodes[idx].zgs_get_file_info(data_root) is not None)
                 segment = submit_data(nodes[idx], chunk_data)
-                wait_until(
-                    lambda: nodes[idx].zgs_get_file_info(data_root)["finalized"]
-                )
+                wait_until(lambda: nodes[idx].zgs_get_file_info(data_root)["finalized"])
 
                 lock.acquire()
                 nodes_index.append(idx)
@@ -65,17 +61,15 @@ class FuzzTest(TestFramework):
                         lambda: nodes[idx].zgs_get_file_info(data_root) is not None
                     )
 
-                    def wait_finalized():    
+                    def wait_finalized():
                         ret = nodes[idx].zgs_get_file_info(data_root)
                         if ret["finalized"]:
                             return True
                         else:
-                            nodes[idx].admin_start_sync_file(ret['tx']['seq'])
+                            nodes[idx].admin_start_sync_file(ret["tx"]["seq"])
                             return False
 
-                    wait_until(
-                        lambda: wait_finalized(), timeout = 180
-                    )
+                    wait_until(lambda: wait_finalized(), timeout=180)
 
         def run_small_chunk_size(nodes, contract, log):
             sizes = [i for i in range(1, SAMLL_SIZE + 1)]
@@ -84,7 +78,7 @@ class FuzzTest(TestFramework):
             run_chunk_size(sizes, nodes, contract, log)
 
         def run_large_chunk_size(nodes, contract, log):
-            sizes = [i for i in range(256 * 1024 * 256 - LARGE_SIZE, 256 * 1024 * 256 )]
+            sizes = [i for i in range(256 * 1024 * 256 - LARGE_SIZE, 256 * 1024 * 256)]
             random.shuffle(sizes)
 
             run_chunk_size(sizes, nodes, contract, log)

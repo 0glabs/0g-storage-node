@@ -7,6 +7,7 @@ from config.node_config import ZGS_KEY_FILE, ZGS_NODEID
 from test_framework.test_framework import TestFramework
 from utility.utils import p2p_port
 
+
 class NetworkDiscoveryUpgradeTest(TestFramework):
     """
     This is to test that low version community nodes could not connect to bootnodes.
@@ -24,7 +25,6 @@ class NetworkDiscoveryUpgradeTest(TestFramework):
             "network_enr_address": "127.0.0.1",
             "network_enr_tcp_port": bootnode_port,
             "network_enr_udp_port": bootnode_port,
-
             # disable trusted nodes
             "network_libp2p_nodes": [],
         }
@@ -37,11 +37,9 @@ class NetworkDiscoveryUpgradeTest(TestFramework):
                 "network_enr_address": "127.0.0.1",
                 "network_enr_tcp_port": p2p_port(i),
                 "network_enr_udp_port": p2p_port(i),
-
                 # disable trusted nodes and enable bootnodes
                 "network_libp2p_nodes": [],
                 "network_boot_nodes": bootnodes,
-
                 # disable network identity in ENR
                 "discv5_disable_enr_network_id": True,
             }
@@ -57,7 +55,13 @@ class NetworkDiscoveryUpgradeTest(TestFramework):
                 total_connected += info["connectedPeers"]
                 self.log.info(
                     "Node[%s] peers: total = %s, banned = %s, disconnected = %s, connected = %s (in = %s, out = %s)",
-                    i, info["totalPeers"], info["bannedPeers"], info["disconnectedPeers"], info["connectedPeers"], info["connectedIncomingPeers"], info["connectedOutgoingPeers"],
+                    i,
+                    info["totalPeers"],
+                    info["bannedPeers"],
+                    info["disconnectedPeers"],
+                    info["connectedPeers"],
+                    info["connectedIncomingPeers"],
+                    info["connectedOutgoingPeers"],
                 )
 
             # ENR incompatible and should not discover each other for TCP connection
@@ -65,6 +69,7 @@ class NetworkDiscoveryUpgradeTest(TestFramework):
 
         self.log.info("====================================")
         self.log.info("ENR incompatible nodes do not connect to each other")
+
 
 if __name__ == "__main__":
     NetworkDiscoveryUpgradeTest().main()

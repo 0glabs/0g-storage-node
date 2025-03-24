@@ -5,6 +5,7 @@ import time
 from test_framework.test_framework import TestFramework
 from utility.utils import assert_equal, wait_until
 
+
 class SyncFileTest(TestFramework):
     """
     By default, auto_sync_enabled and sync_file_on_announcement_enabled are both false,
@@ -26,7 +27,7 @@ class SyncFileTest(TestFramework):
         # restart client2
         client2.start()
         client2.wait_for_rpc_connection()
-        
+
         # File should not be auto sync on node 2 and there is no cached file locations
         wait_until(lambda: client2.zgs_get_file_info(data_root) is not None)
         time.sleep(3)
@@ -35,7 +36,7 @@ class SyncFileTest(TestFramework):
         # assert(client2.admin_get_file_location(0) is None)
 
         # Trigger file sync by rpc
-        assert(client2.admin_start_sync_file(0) is None)
+        assert client2.admin_start_sync_file(0) is None
         wait_until(lambda: client2.sync_status_is_completed_or_unknown(0))
         wait_until(lambda: client2.zgs_get_file_info(data_root)["finalized"])
         # file sync use ASK_FILE & ANSWER FILE protocol, and do not cache file announcement anymore.
@@ -46,6 +47,7 @@ class SyncFileTest(TestFramework):
             client2.zgs_download_segment(data_root, 0, 1024),
             client1.zgs_download_segment(data_root, 0, 1024),
         )
+
 
 if __name__ == "__main__":
     SyncFileTest().main()

@@ -5,6 +5,7 @@ import rtoml
 import time
 import sha3
 
+
 class PortMin:
     # Must be initialized with a unique integer for each process
     n = 11000
@@ -35,14 +36,18 @@ def blockchain_rpc_port(n):
 def blockchain_rpc_port_core(n):
     return PortMin.n + MAX_NODES + 3 * MAX_BLOCKCHAIN_NODES + n
 
+
 def blockchain_ws_port(n):
     return PortMin.n + MAX_NODES + 4 * MAX_BLOCKCHAIN_NODES + n
+
 
 def blockchain_rpc_port_tendermint(n):
     return PortMin.n + MAX_NODES + 5 * MAX_BLOCKCHAIN_NODES + n
 
+
 def pprof_port(n):
     return PortMin.n + MAX_NODES + 6 * MAX_BLOCKCHAIN_NODES + n
+
 
 def wait_until(predicate, *, attempts=float("inf"), timeout=float("inf"), lock=None):
     if attempts == float("inf") and timeout == float("inf"):
@@ -135,10 +140,11 @@ def assert_greater_than_or_equal(thing1, thing2):
     if thing1 < thing2:
         raise AssertionError("%s < %s" % (str(thing1), str(thing2)))
 
-# 14900K has the performance point 100 
+
+# 14900K has the performance point 100
 def estimate_st_performance():
     hasher = sha3.keccak_256()
-    input =  b"\xcc" * (1<<26)
+    input = b"\xcc" * (1 << 26)
     start_time = time.perf_counter()
     hasher.update(input)
     digest = hasher.hexdigest()

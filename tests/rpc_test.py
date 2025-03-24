@@ -29,6 +29,7 @@ class RpcTest(TestFramework):
 
         wait_until(lambda: client1.zgs_get_file_info(data_root) is not None)
         assert_equal(client1.zgs_get_file_info(data_root)["finalized"], False)
+        assert_equal(client1.zgs_get_file_info(data_root)["pruned"], False)
 
         wait_until(lambda: client2.zgs_get_file_info(data_root) is not None)
         assert_equal(client2.zgs_get_file_info(data_root)["finalized"], False)
@@ -37,17 +38,13 @@ class RpcTest(TestFramework):
         self.log.info("segment: %s", segment)
 
         wait_until(lambda: client1.zgs_get_file_info(data_root)["finalized"])
-        assert_equal(
-            client1.zgs_download_segment(data_root, 0, 1), segment[0]["data"]
-        )
+        assert_equal(client1.zgs_download_segment(data_root, 0, 1), segment[0]["data"])
 
         client2.admin_start_sync_file(0)
         wait_until(lambda: client2.sync_status_is_completed_or_unknown(0))
 
         wait_until(lambda: client2.zgs_get_file_info(data_root)["finalized"])
-        assert_equal(
-            client2.zgs_download_segment(data_root, 0, 1), segment[0]["data"]
-        )
+        assert_equal(client2.zgs_download_segment(data_root, 0, 1), segment[0]["data"])
 
         self.__test_upload_file_with_cli(client1)
 
@@ -89,9 +86,7 @@ class RpcTest(TestFramework):
                     )
                 )
 
-                wait_until(
-                    lambda: self.nodes[i].zgs_get_file_info(root)["finalized"]
-                )
+                wait_until(lambda: self.nodes[i].zgs_get_file_info(root)["finalized"])
 
                 assert_equal(
                     client1.zgs_download_segment(root, 0, 2),

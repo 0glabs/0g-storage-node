@@ -162,15 +162,20 @@ class MerkleTree:
         n = len(data)
         if n < ENTRY_SIZE or (n & (n - 1)) != 0:
             raise Exception("Input length is not power of 2")
-        
-        leaves = [Leaf.from_data(data[i:i + ENTRY_SIZE], tree.hasher) for i in range(0, n, ENTRY_SIZE)]
+
+        leaves = [
+            Leaf.from_data(data[i : i + ENTRY_SIZE], tree.hasher)
+            for i in range(0, n, ENTRY_SIZE)
+        ]
         tree.__leaves = leaves
 
         nodes = leaves
         while len(nodes) > 1:
             next_nodes = []
             for i in range(0, len(nodes), 2):
-                next_nodes.append(Node.from_children(nodes[i], nodes[i+1], tree.hasher))
+                next_nodes.append(
+                    Node.from_children(nodes[i], nodes[i + 1], tree.hasher)
+                )
 
             nodes = next_nodes
 

@@ -5,6 +5,7 @@ import shutil
 from test_framework.test_framework import TestFramework
 from utility.utils import wait_until
 
+
 class SnapshotTask(TestFramework):
     def setup_params(self):
         self.num_nodes = 2
@@ -28,11 +29,11 @@ class SnapshotTask(TestFramework):
 
         # Start the last node to verify historical file sync
         self.nodes[1].shutdown()
-        shutil.rmtree(os.path.join(self.nodes[1].data_dir, 'db/data_db'))
-        
+        shutil.rmtree(os.path.join(self.nodes[1].data_dir, "db/data_db"))
+
         self.start_storage_node(1)
         self.nodes[1].wait_for_rpc_connection()
-        
+
         wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_1) is not None)
         wait_until(lambda: self.nodes[1].zgs_get_file_info(data_root_1)["finalized"])
 

@@ -20,17 +20,15 @@ class CrashTest(TestFramework):
 
         segment = submit_data(self.nodes[0], chunk_data)
         self.log.info("segment: %s", segment)
-        wait_until(lambda: self.nodes[0].zgs_get_file_info(data_root)["finalized"] is True)
+        wait_until(
+            lambda: self.nodes[0].zgs_get_file_info(data_root)["finalized"] is True
+        )
 
         for i in range(1, self.num_nodes):
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root) is not None)
             self.nodes[i].admin_start_sync_file(0)
             self.log.info("wait for node: %s", i)
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"]
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"])
 
         # 2: first node runnging, other nodes killed
         self.log.info("kill node")
@@ -56,22 +54,16 @@ class CrashTest(TestFramework):
         for i in range(2, self.num_nodes):
             self.start_storage_node(i)
             self.nodes[i].wait_for_rpc_connection()
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root) is not None)
             self.nodes[i].admin_start_sync_file(1)
 
             self.nodes[i].stop(kill=True)
             self.start_storage_node(i)
             self.nodes[i].wait_for_rpc_connection()
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root) is not None)
             self.nodes[i].admin_start_sync_file(1)
-            
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"]
-            )
+
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"])
 
         # 4: node[1..] synced contract entries and killed
         self.log.info("kill node 0")
@@ -96,13 +88,9 @@ class CrashTest(TestFramework):
             self.log.info("wait for node: %s", i)
             self.start_storage_node(i)
             self.nodes[i].wait_for_rpc_connection()
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root) is not None)
             self.nodes[i].admin_start_sync_file(2)
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"]
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"])
 
         # 5: node[1..] synced contract entries and killed, sync disorder
         self.nodes[0].stop(kill=True)
@@ -137,21 +125,13 @@ class CrashTest(TestFramework):
             self.log.info("wait for node: %s", i)
             self.start_storage_node(i)
             self.nodes[i].wait_for_rpc_connection()
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root1) is not None
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root1) is not None)
             self.nodes[i].admin_start_sync_file(4)
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root1)["finalized"]
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root1)["finalized"])
 
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root) is not None
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root) is not None)
             self.nodes[i].admin_start_sync_file(3)
-            wait_until(
-                lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"]
-            )
+            wait_until(lambda: self.nodes[i].zgs_get_file_info(data_root)["finalized"])
 
 
 if __name__ == "__main__":

@@ -36,28 +36,36 @@ class ContractProxy:
         tx_params = copy(TX_PARAMS)
         tx_params["value"] = value
         return getattr(contract.functions, fn_name)(**args).transact(tx_params)
-    
+
     def _logs(self, event_name, node_idx, **args):
         assert node_idx < len(self.blockchain_nodes)
 
         contract = self._get_contract(node_idx)
-    
-        return getattr(contract.events, event_name).create_filter(from_block=0, to_block="latest").get_all_entries()
 
-    def transfer(self, value, node_idx = 0):
+        return (
+            getattr(contract.events, event_name)
+            .create_filter(from_block=0, to_block="latest")
+            .get_all_entries()
+        )
+
+    def transfer(self, value, node_idx=0):
         tx_params = copy(TX_PARAMS)
         tx_params["value"] = value
 
         contract = self._get_contract(node_idx)
         contract.receive.transact(tx_params)
-    
+
     def address(self):
         return self.contract_address
 
 
 class FlowContractProxy(ContractProxy):
     def submit(
-        self, submission_nodes, node_idx=0, tx_prarams=None, parent_hash=None,
+        self,
+        submission_nodes,
+        node_idx=0,
+        tx_prarams=None,
+        parent_hash=None,
     ):
         assert node_idx < len(self.blockchain_nodes)
 
@@ -65,11 +73,12 @@ class FlowContractProxy(ContractProxy):
 
         if tx_prarams is not None:
             combined_tx_prarams.update(tx_prarams)
-            
 
         contract = self._get_contract(node_idx)
         # print(contract.functions.submit(submission_nodes).estimate_gas(combined_tx_prarams))
-        tx_hash = contract.functions.submit(submission_nodes).transact(combined_tx_prarams)
+        tx_hash = contract.functions.submit(submission_nodes).transact(
+            combined_tx_prarams
+        )
         receipt = self.blockchain_nodes[node_idx].wait_for_transaction_receipt(
             contract.w3, tx_hash, parent_hash=parent_hash
         )
@@ -85,18 +94,19 @@ class FlowContractProxy(ContractProxy):
 
     def epoch(self, node_idx=0):
         return self.get_mine_context(node_idx)[0]
-    
+
     def update_context(self, node_idx=0):
         return self._send("makeContext", node_idx)
 
     def get_mine_context(self, node_idx=0):
         return self._call("makeContextWithResult", node_idx)
-    
+
     def get_flow_root(self, node_idx=0):
         return self._call("computeFlowRoot", node_idx)
 
     def get_flow_length(self, node_idx=0):
         return self._call("tree", node_idx)[0]
+
 
 class MineContractProxy(ContractProxy):
     def last_mined_epoch(self, node_idx=0):
@@ -104,27 +114,26 @@ class MineContractProxy(ContractProxy):
 
     def can_submit(self, node_idx=0):
         return self._call("canSubmit", node_idx)
-    
+
     def current_submissions(self, node_idx=0):
         return self._call("currentSubmissions", node_idx)
 
     def set_quality(self, quality, node_idx=0):
         return self._send("setQuality", node_idx, _targetQuality=quality)
-    
 
 
 class RewardContractProxy(ContractProxy):
     def reward_distributes(self, node_idx=0):
         return self._logs("DistributeReward", node_idx)
 
-    def donate(self, value, node_idx = 0):
+    def donate(self, value, node_idx=0):
         return self._send_payable("donate", node_idx, value)
-    
-    def base_reward(self, node_idx = 0):
+
+    def base_reward(self, node_idx=0):
         return self._call("baseReward", node_idx)
 
-    def first_rewardable_chunk(self, node_idx = 0):
+    def first_rewardable_chunk(self, node_idx=0):
         return self._call("firstRewardableChunk", node_idx)
 
-    def reward_deadline(self, node_idx = 0):
+    def reward_deadline(self, node_idx=0):
         return self._call("rewardDeadline", node_idx, 0)
