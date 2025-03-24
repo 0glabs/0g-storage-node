@@ -95,7 +95,7 @@ impl RpcServer for RpcServerImpl {
         let tx_seq = try_option!(
             self.ctx
                 .log_store
-                .get_tx_seq_by_data_root(&data_root)
+                .get_tx_seq_by_data_root(&data_root, true)
                 .await?
         );
 
@@ -121,7 +121,12 @@ impl RpcServer for RpcServerImpl {
     ) -> RpcResult<Option<SegmentWithProof>> {
         info!(%data_root, %index, "zgs_downloadSegmentWithProof");
 
-        let tx = try_option!(self.ctx.log_store.get_tx_by_data_root(&data_root).await?);
+        let tx = try_option!(
+            self.ctx
+                .log_store
+                .get_tx_by_data_root(&data_root, true)
+                .await?
+        );
 
         self.get_segment_with_proof_by_tx(tx, index).await
     }
@@ -144,7 +149,12 @@ impl RpcServer for RpcServerImpl {
         let seq = match tx_seq_or_root {
             TxSeqOrRoot::TxSeq(v) => v,
             TxSeqOrRoot::Root(v) => {
-                try_option!(self.ctx.log_store.get_tx_seq_by_data_root(&v).await?)
+                try_option!(
+                    self.ctx
+                        .log_store
+                        .get_tx_seq_by_data_root(&v, false)
+                        .await?
+                )
             }
         };
 
@@ -163,10 +173,19 @@ impl RpcServer for RpcServerImpl {
         }
     }
 
-    async fn get_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>> {
+    async fn get_file_info(
+        &self,
+        data_root: DataRoot,
+        need_available: bool,
+    ) -> RpcResult<Option<FileInfo>> {
         debug!(%data_root, "zgs_getFileInfo");
 
-        let tx = try_option!(self.ctx.log_store.get_tx_by_data_root(&data_root).await?);
+        let tx = try_option!(
+            self.ctx
+                .log_store
+                .get_tx_by_data_root(&data_root, need_available)
+                .await?
+        );
 
         Ok(Some(self.get_file_info_by_tx(tx).await?))
     }
@@ -288,7 +307,7 @@ impl RpcServerImpl {
         let maybe_tx = self
             .ctx
             .log_store
-            .get_tx_by_data_root(&segment.root)
+            .get_tx_by_data_root(&segment.root, false)
             .await?;
 
         self.put_segment_with_maybe_tx(segment, maybe_tx).await

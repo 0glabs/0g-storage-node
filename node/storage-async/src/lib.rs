@@ -59,15 +59,23 @@ impl Store {
     delegate!(fn get_proof_at_root(root: Option<DataRoot>, index: u64, length: u64) -> Result<FlowRangeProof>);
     delegate!(fn get_context() -> Result<(DataRoot, u64)>);
 
-    pub async fn get_tx_seq_by_data_root(&self, data_root: &DataRoot) -> Result<Option<u64>> {
+    pub async fn get_tx_seq_by_data_root(
+        &self,
+        data_root: &DataRoot,
+        need_available: bool,
+    ) -> Result<Option<u64>> {
         let root = *data_root;
-        self.spawn(move |store| store.get_tx_seq_by_data_root(&root))
+        self.spawn(move |store| store.get_tx_seq_by_data_root(&root, need_available))
             .await
     }
 
-    pub async fn get_tx_by_data_root(&self, data_root: &DataRoot) -> Result<Option<Transaction>> {
+    pub async fn get_tx_by_data_root(
+        &self,
+        data_root: &DataRoot,
+        need_available: bool,
+    ) -> Result<Option<Transaction>> {
         let root = *data_root;
-        self.spawn(move |store| store.get_tx_by_data_root(&root))
+        self.spawn(move |store| store.get_tx_by_data_root(&root, need_available))
             .await
     }
 
