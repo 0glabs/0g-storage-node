@@ -20,7 +20,7 @@ pub fn init_once() {
         extern "C" {
             fn GFp_cpuid_setup();
         }
-        static INIT: std::sync::Once = std::sync::ONCE_INIT;
+        static INIT: std::sync::Once = std::sync::Once::new();
         INIT.call_once(|| unsafe { GFp_cpuid_setup() });
     }
 }
