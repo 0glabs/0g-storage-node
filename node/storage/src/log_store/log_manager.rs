@@ -511,7 +511,7 @@ impl LogStoreChunkRead for LogManager {
         index_start: usize,
         index_end: usize,
     ) -> crate::error::Result<Option<ChunkArray>> {
-        let tx_seq = try_option!(self.get_tx_seq_by_data_root(data_root)?);
+        let tx_seq = try_option!(self.get_tx_seq_by_data_root(data_root, false)?);
         self.get_chunks_by_tx_and_index_range(tx_seq, index_start, index_end)
     }
 
@@ -536,13 +536,16 @@ impl LogStoreRead for LogManager {
         self.tx_store.get_tx_by_seq_number(seq)
     }
 
-    fn get_tx_seq_by_data_root(&self, data_root: &DataRoot) -> crate::error::Result<Option<u64>> {
+    fn get_tx_seq_by_data_root(&self, data_root: &DataRoot, need_available: bool) -> crate::error::Result<Option<u64>> {
         let seq_list = self.tx_store.get_tx_seq_list_by_data_root(data_root)?;
         for tx_seq in &seq_list {
             if self.tx_store.check_tx_completed(*tx_seq)? {
                 // Return the first finalized tx if possible.
                 return Ok(Some(*tx_seq));
             }
+        }
+        if need_available {
+            return Ok(None);
         }
         // No tx is finalized, return the first one.
         Ok(seq_list.first().cloned())

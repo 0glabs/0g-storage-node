@@ -63,7 +63,7 @@ pub trait Rpc {
     async fn check_file_finalized(&self, tx_seq_or_root: TxSeqOrRoot) -> RpcResult<Option<bool>>;
 
     #[method(name = "getFileInfo")]
-    async fn get_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>>;
+    async fn get_file_info(&self, data_root: DataRoot, need_available: bool) -> RpcResult<Option<FileInfo>>;
 
     #[method(name = "getFileInfoByTxSeq")]
     async fn get_file_info_by_tx_seq(&self, tx_seq: u64) -> RpcResult<Option<FileInfo>>;
