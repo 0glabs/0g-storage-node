@@ -30,3 +30,4 @@ We want to do everything we can to help you be successful while working on your 
 ### Communities
 - [0G Telegram](https://t.me/web3_0glabs)
 - [0G Discord](https://discord.com/invite/0glabs)
+- [OG X](https://x.com/0G_labs)
