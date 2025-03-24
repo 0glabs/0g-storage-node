@@ -141,7 +141,7 @@ impl RPCRateLimiterBuilder {
         self.set_quota(protocol, Quota::one_every(time_period))
     }
 
-    /// Allow `n` tokens to be use used every `time_period` for this `protocol`.
+    /// Allow `n` tokens to be used every `time_period` for this `protocol`.
     pub fn n_every(self, protocol: Protocol, n: u64, time_period: Duration) -> Self {
         self.set_quota(protocol, Quota::n_every(n, time_period))
     }

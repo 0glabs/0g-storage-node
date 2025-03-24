@@ -512,7 +512,7 @@ impl Libp2pEventHandler {
 
         info!(
             ?addr,
-            "Create public ip address to broadcase file announcement"
+            "Create public ip address to broadcast file announcement"
         );
 
         Some(addr)
