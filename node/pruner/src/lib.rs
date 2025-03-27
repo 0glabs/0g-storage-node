@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use chrono::Utc;
 use contract_interface::ChunkLinearReward;
 use ethereum_types::Address;
 use ethers::prelude::{Http, Provider};
@@ -117,7 +118,15 @@ impl Pruner {
 
             // Check no reward chunks and prune.
             match self.reward_contract.first_rewardable_chunk().call().await {
-                Ok(new_first_rewardable) => {
+                Ok((new_first_rewardable, chain_timestamp)) => {
+                    if (Utc::now().timestamp() - (chain_timestamp.as_u64() as i64)).abs() > 60 * 60
+                    {
+                        debug!(
+                            chain_timestamp = chain_timestamp.as_u64(),
+                            "chain timestamp is weird, skip pruning"
+                        );
+                        continue;
+                    }
                     if let Some(no_reward_list) = self
                         .maybe_forward_first_rewardable(new_first_rewardable)
                         .await?
