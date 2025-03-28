@@ -6425,6 +6425,7 @@ dependencies = [
  "contract-interface",
  "ethereum-types 0.14.1",
  "ethers",
+ "ethers-core",
  "miner",
  "rand 0.8.5",
  "storage",
