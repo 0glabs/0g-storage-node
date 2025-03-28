@@ -977,6 +977,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-targets 0.52.6",
 ]
@@ -6420,9 +6421,11 @@ name = "pruner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "contract-interface",
  "ethereum-types 0.14.1",
  "ethers",
+ "ethers-core",
  "miner",
  "rand 0.8.5",
  "storage",

@@ -1,8 +1,10 @@
 use anyhow::{bail, Result};
+use chrono::Utc;
 use contract_interface::ChunkLinearReward;
 use ethereum_types::Address;
 use ethers::prelude::{Http, Provider};
 use ethers::providers::{HttpRateLimitRetryPolicy, RetryClient, RetryClientBuilder};
+use ethers_core::types::U256;
 use miner::MinerMessage;
 use rand::Rng;
 use std::cmp::Ordering;
@@ -117,7 +119,22 @@ impl Pruner {
 
             // Check no reward chunks and prune.
             match self.reward_contract.first_rewardable_chunk().call().await {
-                Ok(new_first_rewardable) => {
+                Ok((new_first_rewardable, chain_timestamp)) => {
+                    if chain_timestamp > U256::from(i64::MAX as u64) {
+                        error!(
+                            chain_timestamp = chain_timestamp.to_string(),
+                            "chain timestamp is too large, skip pruning"
+                        );
+                        continue;
+                    }
+                    let chain_ts = chain_timestamp.as_u64() as i64;
+                    if (Utc::now().timestamp() - chain_ts).abs() > 60 * 60 {
+                        debug!(
+                            chain_timestamp = chain_ts,
+                            "chain timestamp is weird, skip pruning"
+                        );
+                        continue;
+                    }
                     if let Some(no_reward_list) = self
                         .maybe_forward_first_rewardable(new_first_rewardable)
                         .await?
