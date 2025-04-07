@@ -41,25 +41,23 @@ pub struct SubmitConfig {
 }
 
 const DEFAULT_INTERVAL_SECS: u64 = 2;
-const DEFAULT_MAX_RETRIES: usize = 5;
 
 impl Default for SubmitConfig {
     fn default() -> Self {
         Self {
             initial_gas_price: None,
-            max_gas_price: None,
-            max_gas: None,
-            gas_increase_factor: Some(11), // implies 10% bump if we do (gas*11)/10
-            max_retries: Some(DEFAULT_MAX_RETRIES),
-            interval_secs: Some(DEFAULT_INTERVAL_SECS),
+            max_gas_price: Some(U256::from(1_000_000_000_000u64)), // 1000 Gneuron max
+            max_gas: Some(U256::from(600_000)), // Based on successful tx
+            gas_increase_factor: Some(12),
+            max_retries: Some(100),
+            interval_secs: Some(2),
         }
     }
 }
 
 /// A simple function to detect if the retry is from a mempool or timeout error.
 /// Right now, we rely on `submit_once` returning `SubmissionAction::Retry` for ANY error
-/// that is "retryable," so we must parse the error string from `submit_once`, or
-/// store that string. Another approach is to return an enum with a reason from `submit_once`.
+/// that is "retryable," so we must parse the error string or have a separate reason in a real app.
 fn is_mempool_or_timeout_error(error_str: String) -> bool {
     let lower = error_str.to_lowercase();
     lower.contains("mempool") || lower.contains("timeout")
@@ -78,7 +76,15 @@ where
         Ok(tx) => tx,
         Err(e) => {
             let msg = e.to_string();
-            if is_mempool_or_timeout_error(msg.clone()) {
+            if msg.contains("invalid nonce") || msg.contains("invalid sequence") {
+                // Nonce error should be retried
+                info!("Nonce error detected: {:?}", msg);
+                return SubmissionAction::Retry(format!("nonce: {}", msg));
+            } else if msg.contains("reverted") {
+                // Contract reverted - this is a permanent error
+                info!("Contract call reverted: {:?}", msg);
+                return SubmissionAction::Error(format!("Contract reverted: {}", msg));
+            } else if is_mempool_or_timeout_error(msg.clone()) {
                 return SubmissionAction::Retry(format!("mempool/timeout: {:?}", e));
             }
 
@@ -92,7 +98,12 @@ where
     let receipt_result = pending_tx.await;
     match receipt_result {
         Ok(Some(receipt)) => {
-            info!("Transaction mined, receipt: {:?}", receipt);
+            if receipt.status.unwrap_or_default().is_zero() {
+                // Transaction was mined but failed
+                info!("Transaction reverted on-chain. Receipt: {:?}", receipt);
+                return SubmissionAction::Error("Transaction reverted on-chain".to_string());
+            }
+            info!("Transaction mined successfully, receipt: {:?}", receipt);
             SubmissionAction::Success(receipt)
         }
         Ok(None) => {
@@ -103,7 +114,14 @@ where
             debug!("HTTP error retrieving receipt: {:?}", e);
             SubmissionAction::Retry(format!("http error: {:?}", e))
         }
-        Err(e) => SubmissionAction::Error(format!("Transaction unrecoverable: {:?}", e)),
+        Err(e) => {
+            if e.to_string().contains("reverted") {
+                info!("Transaction reverted with error: {:?}", e);
+                SubmissionAction::Error(format!("Contract reverted: {:?}", e))
+            } else {
+                SubmissionAction::Error(format!("Transaction unrecoverable: {:?}", e))
+            }
+        }
     }
 }
 
@@ -128,74 +146,172 @@ where
     if let Some(max_gas) = config.max_gas {
         call = call.gas(max_gas);
     }
+    
+    // Set minimum gas price to 265 Gneuron based on successful transaction
+    let min_gas_price = U256::from(265_000_000_000u64); // 265 Gneuron
     let mut gas_price = if let Some(gp) = config.initial_gas_price {
-        gp
+        std::cmp::max(gp, min_gas_price)
     } else {
-        middleware
+        let current_gas = middleware
             .get_gas_price()
             .await
-            .map_err(|e| format!("Failed to fetch gas price: {:?}", e))?
+            .map_err(|e| format!("Failed to fetch gas price: {:?}", e))?;
+        std::cmp::max(current_gas, min_gas_price)
     };
 
-    // If no factor is set, default to 11 => 10% bump
-    let factor_num = config.gas_increase_factor.unwrap_or(11);
+    // If no factor is set, default to 12 => 20% bump
+    let factor_num = config.gas_increase_factor.unwrap_or(12);
     let factor_den = 10u64;
 
-    // Two counters: one for gas bumps, one for non-gas retries
+    // Counter for non-gas retries
     let mut non_gas_retries = 0;
-    let max_retries = config.max_retries.unwrap_or(DEFAULT_MAX_RETRIES);
+    let max_retries = config.max_retries.unwrap_or(100);
+
+    // Get the initial nonce
+    let sender = middleware.default_sender()
+        .ok_or_else(|| "No default sender configured".to_string())?;
+    
+    let mut current_nonce = middleware
+        .get_transaction_count(sender, None)
+        .await
+        .map_err(|e| format!("Failed to get initial nonce: {:?}", e))?;
+
+    info!("Starting transaction submission with nonce: {} and gas price: {} Gneuron", 
+        current_nonce, gas_price / U256::from(1_000_000_000u64));
 
     loop {
-        // Set gas price on the call
-        call = call.gas_price(gas_price);
+        // Set gas price and nonce on the call
+        call = call.gas_price(gas_price).nonce(current_nonce);
+
+        info!("Attempting transaction with nonce: {}, gas price: {} Gneuron", 
+            current_nonce, gas_price / U256::from(1_000_000_000u64));
+
+        // Try to estimate gas to catch reverts before sending
+        match call.estimate_gas().await {
+            Ok(estimate) => {
+                info!("Gas estimate for transaction: {} units (nonce: {}, gas price: {} Gneuron)", 
+                    estimate, current_nonce, gas_price / U256::from(1_000_000_000u64));
+                
+                // Set gas limit to estimate + 10% buffer if no max_gas specified
+                if config.max_gas.is_none() {
+                    let gas_limit = estimate + (estimate / 10);
+                    call = call.gas(gas_limit);
+                    debug!("Setting gas limit to estimate + 10%: {}", gas_limit);
+                }
+            }
+            Err(e) => {
+                let err_msg = e.to_string();
+                if err_msg.contains("reverted") {
+                    // Try to get more details about the revert
+                    info!("Pre-flight check failed - Contract would revert:");
+                    info!("  Nonce: {}", current_nonce);
+                    info!("  Gas price: {} Gneuron", gas_price / U256::from(1_000_000_000u64));
+                    info!("  Error: {:?}", err_msg);
+                    
+                    // Try to decode revert reason if available
+                    if let Some(data) = err_msg.find("0x") {
+                        let hex_data = &err_msg[data..];
+                        info!("  Revert data: {}", hex_data);
+                    }
+                    
+                    return Err(format!("Transaction would revert: {}", err_msg));
+                }
+                // If it's not a revert, continue with submission
+                debug!("Gas estimation failed (continuing anyway): {:?}", e);
+            }
+        }
 
         match submit_once(call.clone()).await {
             SubmissionAction::Success(receipt) => {
+                info!("Transaction successful with nonce: {}, gas price: {} Gneuron", 
+                    current_nonce, gas_price / U256::from(1_000_000_000u64));
                 return Ok(receipt);
             }
             SubmissionAction::Retry(error_str) => {
-                // We need to figure out if it's "mempool/timeout" or some other reason.
-                // Right now, we don't have the error string from `submit_once` easily,
-                // so let's assume we store it or we do a separate function that returns it.
-                // For simplicity, let's do a hack: let's define a placeholder "error_str" and parse it.
-                // In reality, you'd likely return `SubmissionAction::Retry(reason_str)` from `submit_once`.
-                if is_mempool_or_timeout_error(error_str.clone()) {
-                    // Mempool/timeout error
-                    if let Some(max_gp) = config.max_gas_price {
-                        if gas_price >= max_gp {
-                            return Err(format!(
-                                "Exceeded max gas price: {}, with error msg: {}",
-                                max_gp, error_str
-                            ));
+                if error_str.starts_with("nonce:") {
+                    // For nonce errors, get fresh nonce and wait
+                    info!("Nonce mismatch detected, fetching new nonce...");
+                    match middleware.get_transaction_count(sender, None).await {
+                        Ok(new_nonce) => {
+                            if new_nonce > current_nonce {
+                                info!("Updating nonce: {} -> {}", current_nonce, new_nonce);
+                                current_nonce = new_nonce;
+                            }
                         }
-                        // Bump the gas
-                        let new_price = increase_gas_price_u256(gas_price, factor_num, factor_den);
-                        gas_price = std::cmp::min(new_price, max_gp);
-                        debug!("Bumping gas price to {}", gas_price);
-                    } else {
-                        // No maxGasPrice => we do NOT bump => fail
-                        return Err(
-                            "Mempool/timeout error, no maxGasPrice set => aborting".to_string()
-                        );
+                        Err(e) => debug!("Failed to fetch new nonce: {:?}", e),
                     }
+                    sleep(Duration::from_secs(10)).await;
+                    continue;
+                } else if is_mempool_or_timeout_error(error_str.clone()) {
+                    // Keep same nonce but bump gas price for mempool/timeout errors
+                    let new_price = increase_gas_price_u256(gas_price, factor_num, factor_den);
+                    
+                    // Ensure new price is at least 10% higher
+                    let min_increase = gas_price + (gas_price / 10);
+                    gas_price = std::cmp::max(new_price, min_increase);
+                    
+                    // Check if gas price exceeds max_gas_price
+                    if let Some(max_price) = config.max_gas_price {
+                        if gas_price > max_price {
+                            return Err(format!("Gas price {} Gneuron exceeds maximum allowed {} Gneuron", 
+                                gas_price / U256::from(1_000_000_000u64),
+                                max_price / U256::from(1_000_000_000u64)));
+                        }
+                    }
+                    
+                    info!("Keeping nonce {}, increased gas price to {} Gneuron for next attempt", 
+                        current_nonce, gas_price / U256::from(1_000_000_000u64));
+                    
+                    sleep(Duration::from_secs(3)).await;
                 } else {
-                    // Non-gas error => increment nonGasRetries
+                    // For other retryable errors, increment retry counter and get fresh nonce
                     non_gas_retries += 1;
                     if non_gas_retries > max_retries {
                         return Err(format!("Exceeded non-gas retries: {}", max_retries));
                     }
-                    debug!(
-                        "Non-gas retry #{} (same gas price: {})",
-                        non_gas_retries, gas_price
+                    
+                    // Get fresh nonce for next attempt
+                    match middleware.get_transaction_count(sender, None).await {
+                        Ok(new_nonce) => {
+                            if new_nonce > current_nonce {
+                                info!("Updating nonce for retry #{}: {} -> {}", 
+                                    non_gas_retries, current_nonce, new_nonce);
+                                current_nonce = new_nonce;
+                            }
+                        }
+                        Err(e) => debug!("Failed to fetch new nonce: {:?}", e),
+                    }
+                    
+                    info!(
+                        "Non-gas retry #{} (nonce: {}, gas price: {} Gneuron): {}",
+                        non_gas_retries,
+                        current_nonce,
+                        gas_price / U256::from(1_000_000_000u64),
+                        error_str
                     );
+                    sleep(Duration::from_secs(5)).await;
                 }
             }
             SubmissionAction::Error(e) => {
+                if e.contains("Contract reverted") {
+                    // Add more context to revert errors
+                    info!("Contract revert details:");
+                    info!("  Nonce: {}", current_nonce);
+                    info!("  Gas price: {} Gneuron", gas_price / U256::from(1_000_000_000u64));
+                    info!("  Error: {}", e);
+                    
+                    // Try to decode revert reason if available
+                    if let Some(data) = e.find("0x") {
+                        let hex_data = &e[data..];
+                        info!("  Revert data: {}", hex_data);
+                    }
+                    
+                    return Err(format!("Smart contract rejected the transaction: {}", e));
+                }
                 return Err(e);
             }
         }
 
-        // Sleep between attempts
         sleep(Duration::from_secs(
             config.interval_secs.unwrap_or(DEFAULT_INTERVAL_SECS),
         ))
