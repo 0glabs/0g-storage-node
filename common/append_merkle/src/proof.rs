@@ -13,7 +13,7 @@ impl<T: HashElement> Proof<T> {
     /// Creates new MT inclusion proof
     pub fn new(hash: Vec<T>, path: Vec<bool>) -> Result<Proof<T>> {
         if hash.len() != path.len() + 2 {
-            bail!("hash and path length mismatch");
+            bail!("Proof::new: expected hash length = path.len() + 2, but got {} and {}", hash.len(), path.len());
         }
         Ok(Proof { lemma: hash, path })
     }
