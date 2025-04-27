@@ -25,5 +25,5 @@ CMD zgs_node \
     --log-config-file run/log_config \
     --miner-key "${STORAGE_MINER_PRIVATE_KEY:?missing STORAGE_MINER_PRIVATE_KEY}" \
     --blockchain-rpc-endpoint "${STORAGE_BLOCKCHAIN_RPC_ENDPOINT:?missing STORAGE_BLOCKCHAIN_RPC_ENDPOINT}" \
-    --network-enr-address "${STORAGE_ENR_ADDRESS:?missing STORAGE_ENR_ADDRESS}"
+    --network-enr-address "${STORAGE_ENR_ADDRESS:?missing STORAGE_ENR_ADDRESS}" \
     --db-max-num-sectors "${STORAGE_DB_MAX_NUM_SECTORS:-8000000000}" \
