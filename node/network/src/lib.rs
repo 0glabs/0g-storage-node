@@ -94,7 +94,7 @@ pub use peer_manager::{
 pub use service::{load_private_key, Context, Libp2pEvent, Service, NETWORK_KEY_FILENAME};
 
 /// Defines the current P2P protocol version.
-/// - v1: Broadcast FindFile & AnnounceFile messages in the whole network, which caused network too heavey.
+/// - v1: Broadcast FindFile & AnnounceFile messages in the whole network, which caused network too heavy.
 /// - v2: Publish NewFile to neighbors only and announce file via RPC message.
 /// - v3: Add shard config in Status message.
 /// - v4: Refactor pubsub messages.
