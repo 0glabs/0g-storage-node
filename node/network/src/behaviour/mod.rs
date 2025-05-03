@@ -468,7 +468,7 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
     }
 
     /// Inform the peer that their request produced an error.
-    pub fn send_error_reponse(
+    pub fn send_error_response(
         &mut self,
         peer_id: PeerId,
         id: PeerRequestId,
@@ -1018,7 +1018,7 @@ impl std::convert::From<Request> for OutboundRequest {
 ///
 // NOTE: This is an application-level wrapper over the lower network level responses that can be
 //       sent. The main difference is the absense of Pong and Metadata, which don't leave the
-//       Behaviour. For all protocol reponses managed by RPC see `RPCResponse` and
+//       Behaviour. For all protocol responses managed by RPC see `RPCResponse` and
 //       `RPCCodedResponse`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Response {
