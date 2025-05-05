@@ -5,7 +5,7 @@
 //!
 //! - `Histogram`: used with `start_timer(..)` and `stop_timer(..)` to record durations (e.g.,
 //! block processing time).
-//! - `IntCounter`: used to represent an ideally ever-growing, never-shrinking integer (e.g.,
+//! - `IncCounter`: used to represent an ideally ever-growing, never-shrinking integer (e.g.,
 //! number of block processing requests).
 //! - `IntGauge`: used to represent an varying integer (e.g., number of attestations per block).
 //!
