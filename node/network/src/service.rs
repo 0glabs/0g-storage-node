@@ -407,11 +407,6 @@ fn build_transport(
 ) -> std::io::Result<(BoxedTransport, Arc<BandwidthSinks>)> {
     let tcp = libp2p::tcp::TokioTcpConfig::new().nodelay(true);
     let transport = libp2p::dns::TokioDnsConfig::system(tcp)?;
-    #[cfg(feature = "libp2p-websocket")]
-    let transport = {
-        let trans_clone = transport.clone();
-        transport.or_transport(libp2p::websocket::WsConfig::new(trans_clone))
-    };
 
     let (transport, bandwidth) = BandwidthLogging::new(transport);
 
