@@ -202,20 +202,22 @@ impl<E: HashElement> RangeProof<E> {
         ensure_eq!(self.left_proof.position(), start_position);
         ensure_eq!(self.right_proof.position(), end_position);
         let tree_depth = self.left_proof.path().len() + 1;
-        // TODO: We can avoid copying the first layer.
-        let mut children_layer = range_leaves.to_vec();
+        // Avoid copying the first layer by working directly with the slice
+        let mut children_layer = Vec::new();
+        let mut current_layer = range_leaves;
+        
         for height in 0..(tree_depth - 1) {
             let mut parent_layer = Vec::new();
             let start_index = if !self.left_proof.path()[height] {
                 // If the left-most node is the right child, its sibling is not within the data range and should be retrieved from the proof.
-                let parent = A::parent(&self.left_proof.lemma()[height + 1], &children_layer[0]);
+                let parent = A::parent(&self.left_proof.lemma()[height + 1], &current_layer[0]);
                 parent_layer.push(parent);
                 1
             } else {
                 // The left-most node is the left child, its sibling is just the next child.
                 0
             };
-            let mut iter = children_layer[start_index..].chunks_exact(2);
+            let mut iter = current_layer[start_index..].chunks_exact(2);
             while let Some([left, right]) = iter.next() {
                 parent_layer.push(A::parent(left, right))
             }
@@ -227,10 +229,19 @@ impl<E: HashElement> RangeProof<E> {
                 }
             }
             children_layer = parent_layer;
+            current_layer = &children_layer;
         }
-        ensure_eq!(children_layer.len(), 1);
-        let computed_root = children_layer.pop().unwrap();
-        ensure_eq!(computed_root, self.root());
+        
+        // If no iterations occurred, the root should be computed from the original range_leaves
+        if children_layer.is_empty() {
+            ensure_eq!(range_leaves.len(), 1);
+            let computed_root = range_leaves[0].clone();
+            ensure_eq!(computed_root, self.root());
+        } else {
+            ensure_eq!(children_layer.len(), 1);
+            let computed_root = children_layer.pop().unwrap();
+            ensure_eq!(computed_root, self.root());
+        }
 
         Ok(())
     }
