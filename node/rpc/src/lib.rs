@@ -10,8 +10,11 @@ mod middleware;
 mod miner;
 pub mod types;
 mod zgs;
+mod zgs_grpc;
+mod rpc_helper;
 
 use crate::miner::RpcServer as MinerRpcServer;
+use crate::types::SegmentWithProof;
 use crate::zgs_grpc::zgs_grpc::ZgsGrpcServiceImpl;
 use crate::zgs_grpc_proto::zgs_grpc_service_server::ZgsGrpcServiceServer;
 use admin::RpcServer as AdminRpcServer;
@@ -22,6 +25,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
 use network::{NetworkGlobals, NetworkMessage, NetworkSender};
 use std::error::Error;
+use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::sync::Arc;
 use storage_async::Store;
 use sync::{SyncRequest, SyncResponse, SyncSender};
@@ -29,22 +33,17 @@ use task_executor::ShutdownReason;
 use tokio::sync::broadcast;
 use zgs::RpcServer as ZgsRpcServer;
 use zgs_miner::MinerMessage;
+use tonic_reflection::server::Builder as ReflectionBuilder;
+use tonic::transport::Server;
 
 pub use admin::RpcClient as ZgsAdminRpcClient;
 pub use config::Config as RPCConfig;
 pub use miner::RpcClient as ZgsMinerRpcClient;
 pub use zgs::RpcClient as ZgsRPCClient;
-// bring in the reflection-builder
-use tonic_reflection::server::Builder as ReflectionBuilder;
-
 
 pub mod zgs_grpc_proto {
     tonic::include_proto!("zgs_grpc");
 }
-
-mod zgs_grpc;
-
-use tonic::transport::Server;
 
 const DESCRIPTOR_SET: &[u8] = include_bytes!("../proto/zgs_grpc_descriptor.bin");
 
@@ -164,3 +163,60 @@ pub async fn run_grpc_server(ctx: Context) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+enum SegmentIndex {
+    Single(usize),
+    Range(usize, usize), // [start, end]
+}
+
+impl Debug for SegmentIndex {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::Single(val) => write!(f, "{}", val),
+            Self::Range(start, end) => write!(f, "[{},{}]", start, end),
+        }
+    }
+}
+
+struct SegmentIndexArray {
+    items: Vec<SegmentIndex>,
+}
+
+impl Debug for SegmentIndexArray {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self.items.first() {
+            None => write!(f, "NULL"),
+            Some(first) if self.items.len() == 1 => write!(f, "{:?}", first),
+            _ => write!(f, "{:?}", self.items),
+        }
+    }
+}
+
+impl SegmentIndexArray {
+    fn new(segments: &[SegmentWithProof]) -> Self {
+        let mut items = Vec::new();
+
+        let mut current = match segments.first() {
+            None => return SegmentIndexArray { items },
+            Some(seg) => SegmentIndex::Single(seg.index),
+        };
+
+        for index in segments.iter().skip(1).map(|seg| seg.index) {
+            match current {
+                SegmentIndex::Single(val) if val + 1 == index => {
+                    current = SegmentIndex::Range(val, index)
+                }
+                SegmentIndex::Range(start, end) if end + 1 == index => {
+                    current = SegmentIndex::Range(start, index)
+                }
+                _ => {
+                    items.push(current);
+                    current = SegmentIndex::Single(index);
+                }
+            }
+        }
+
+        items.push(current);
+
+        SegmentIndexArray { items }
+    }
+}

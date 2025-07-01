@@ -6992,6 +6992,7 @@ dependencies = [
  "append_merkle",
  "base64 0.13.1",
  "chunk_pool",
+ "ethereum-types 0.14.1",
  "file_location_cache",
  "futures",
  "futures-channel",
