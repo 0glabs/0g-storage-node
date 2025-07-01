@@ -8,10 +8,10 @@ mod config;
 mod error;
 mod middleware;
 mod miner;
+mod rpc_helper;
 pub mod types;
 mod zgs;
 mod zgs_grpc;
-mod rpc_helper;
 
 use crate::miner::RpcServer as MinerRpcServer;
 use crate::types::SegmentWithProof;
@@ -31,10 +31,10 @@ use storage_async::Store;
 use sync::{SyncRequest, SyncResponse, SyncSender};
 use task_executor::ShutdownReason;
 use tokio::sync::broadcast;
+use tonic::transport::Server;
+use tonic_reflection::server::Builder as ReflectionBuilder;
 use zgs::RpcServer as ZgsRpcServer;
 use zgs_miner::MinerMessage;
-use tonic_reflection::server::Builder as ReflectionBuilder;
-use tonic::transport::Server;
 
 pub use admin::RpcClient as ZgsAdminRpcClient;
 pub use config::Config as RPCConfig;

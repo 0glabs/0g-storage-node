@@ -309,7 +309,9 @@ impl ClientBuilder {
 
         executor.spawn(
             async move {
-                rpc::run_grpc_server(ctx.clone()).await.expect("Failed to start gRPC server");
+                rpc::run_grpc_server(ctx.clone())
+                    .await
+                    .expect("Failed to start gRPC server");
             },
             "grpc",
         );

@@ -1,7 +1,7 @@
 use super::api::RpcServer;
-use crate::{error, rpc_helper, SegmentIndexArray};
 use crate::types::{FileInfo, Segment, SegmentWithProof, Status};
 use crate::Context;
+use crate::{error, rpc_helper, SegmentIndexArray};
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
 use shared_types::{DataRoot, FlowProof, Transaction, TxSeqOrRoot, CHUNK_SIZE};

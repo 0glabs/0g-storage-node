@@ -1,15 +1,12 @@
-use crate::Context;
-use crate::types::SegmentWithProof;
 use crate::error;
+use crate::types::SegmentWithProof;
+use crate::Context;
 use chunk_pool::SegmentInfo;
 use jsonrpsee::core::RpcResult;
 use shared_types::Transaction;
 
 /// Put a single segment (mirrors your old `put_segment`)
-pub async fn put_segment(
-    ctx: &Context,
-    segment: SegmentWithProof,
-) -> RpcResult<()> {
+pub async fn put_segment(ctx: &Context, segment: SegmentWithProof) -> RpcResult<()> {
     debug!(root = %segment.root, index = %segment.index, "putSegment");
 
     // fetch optional tx
