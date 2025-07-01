@@ -34,6 +34,9 @@ pub use admin::RpcClient as ZgsAdminRpcClient;
 pub use config::Config as RPCConfig;
 pub use miner::RpcClient as ZgsMinerRpcClient;
 pub use zgs::RpcClient as ZgsRPCClient;
+// bring in the reflection-builder
+use tonic_reflection::server::Builder as ReflectionBuilder;
+
 
 pub mod zgs_grpc_proto {
     tonic::include_proto!("zgs_grpc");
@@ -42,6 +45,8 @@ pub mod zgs_grpc_proto {
 mod zgs_grpc;
 
 use tonic::transport::Server;
+
+const DESCRIPTOR_SET: &[u8] = include_bytes!("../proto/zgs_grpc_descriptor.bin");
 
 /// A wrapper around all the items required to spawn the HTTP server.
 ///
@@ -146,9 +151,14 @@ async fn run_server_public_private(
 
 pub async fn run_grpc_server(ctx: Context) -> Result<(), Box<dyn Error>> {
     let grpc_addr = ctx.config.listen_address_grpc;
+    let reflection = ReflectionBuilder::configure()
+        .register_encoded_file_descriptor_set(DESCRIPTOR_SET)
+        .build()?;
+
     let server = ZgsGrpcServiceServer::new(ZgsGrpcServiceImpl { ctx });
     Server::builder()
         .add_service(server)
+        .add_service(reflection)
         .serve(grpc_addr)
         .await?;
     Ok(())
