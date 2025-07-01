@@ -129,13 +129,13 @@ impl TryFrom<zgs_grpc_proto::SegmentWithProof> for SegmentWithProof {
     type Error = GrpcStatus;
 
     fn try_from(grpc_segment: zgs_grpc_proto::SegmentWithProof) -> Result<Self, GrpcStatus> {
-        let root = grpc_segment.root.unwrap().try_into().map_err(|e| e)?;
+        let root = grpc_segment.root.unwrap().try_into()?;
         let data = grpc_segment.data;
         // index is u64 in proto, usize in app
         let index = grpc_segment.index.try_into().map_err(|_| {
             GrpcStatus::invalid_argument(format!("Invalid segment index: {}", grpc_segment.index))
         })?;
-        let proof = grpc_segment.proof.unwrap().try_into().map_err(|e| e)?;
+        let proof = grpc_segment.proof.unwrap().try_into()?;
         let file_size = grpc_segment.file_size.try_into().map_err(|_| {
             GrpcStatus::invalid_argument(format!("Invalid file size: {}", grpc_segment.file_size))
         })?;

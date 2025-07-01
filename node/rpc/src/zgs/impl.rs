@@ -75,8 +75,7 @@ impl RpcServer for RpcServerImpl {
 
         let maybe_tx = self.ctx.log_store.get_tx_by_seq_number(tx_seq).await?;
         for segment in segments.into_iter() {
-            match rpc_helper::put_segment_with_maybe_tx(&self.ctx, segment, maybe_tx.clone())
-                .await
+            match rpc_helper::put_segment_with_maybe_tx(&self.ctx, segment, maybe_tx.clone()).await
             {
                 Ok(()) => {} // success
                 Err(e)

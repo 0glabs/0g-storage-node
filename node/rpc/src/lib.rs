@@ -15,7 +15,7 @@ mod zgs_grpc;
 
 use crate::miner::RpcServer as MinerRpcServer;
 use crate::types::SegmentWithProof;
-use crate::zgs_grpc::zgs_grpc::ZgsGrpcServiceImpl;
+use crate::zgs_grpc::r#impl::ZgsGrpcServiceImpl;
 use crate::zgs_grpc_proto::zgs_grpc_service_server::ZgsGrpcServiceServer;
 use admin::RpcServer as AdminRpcServer;
 use chunk_pool::MemoryChunkPool;
