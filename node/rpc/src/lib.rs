@@ -12,6 +12,8 @@ pub mod types;
 mod zgs;
 
 use crate::miner::RpcServer as MinerRpcServer;
+use crate::zgs_grpc::zgs_grpc::ZgsGrpcServiceImpl;
+use crate::zgs_grpc_proto::zgs_grpc_service_server::ZgsGrpcServiceServer;
 use admin::RpcServer as AdminRpcServer;
 use chunk_pool::MemoryChunkPool;
 use file_location_cache::FileLocationCache;
@@ -32,6 +34,14 @@ pub use admin::RpcClient as ZgsAdminRpcClient;
 pub use config::Config as RPCConfig;
 pub use miner::RpcClient as ZgsMinerRpcClient;
 pub use zgs::RpcClient as ZgsRPCClient;
+
+pub mod zgs_grpc_proto {
+    tonic::include_proto!("zgs_grpc");
+}
+
+mod zgs_grpc;
+
+use tonic::transport::Server;
 
 /// A wrapper around all the items required to spawn the HTTP server.
 ///
@@ -73,7 +83,7 @@ pub async fn run_server(
         (run_server_all(ctx).await?, None)
     };
 
-    info!("Server started");
+    info!("Rpc Server started");
 
     Ok(handles)
 }
@@ -133,3 +143,14 @@ async fn run_server_public_private(
 
     Ok((handle_public, Some(handle_private)))
 }
+
+pub async fn run_grpc_server(ctx: Context) -> Result<(), Box<dyn Error>> {
+    let grpc_addr = ctx.config.listen_address_grpc;
+    let server = ZgsGrpcServiceServer::new(ZgsGrpcServiceImpl { ctx });
+    Server::builder()
+        .add_service(server)
+        .serve(grpc_addr)
+        .await?;
+    Ok(())
+}
+

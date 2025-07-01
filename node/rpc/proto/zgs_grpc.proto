@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package zgs_grpc;
+
+// A trivial ping service
+service ZgsGrpcService {
+  rpc Ping (PingRequest) returns (PingReply);
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingReply {
+  string message = 1;
+}

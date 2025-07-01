@@ -317,6 +317,9 @@ auto_sync_enabled = true
 # HTTP server address to bind for admin and debug RPC.
 # listen_address_admin = "127.0.0.1:5679"
 
+## Grpc server address to bind
+# listen_address_grpc = "0.0.0.0:50051"
+
 # Number of chunks for a single segment.
 # chunks_per_segment = 1024
 
