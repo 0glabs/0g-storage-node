@@ -77,8 +77,19 @@ impl RpcServer for RpcServerImpl {
 
         let maybe_tx = self.ctx.log_store.get_tx_by_seq_number(tx_seq).await?;
         for segment in segments.into_iter() {
-            self.put_segment_with_maybe_tx(segment, maybe_tx.clone())
-                .await?;
+            match self
+                .put_segment_with_maybe_tx(segment, maybe_tx.clone())
+                .await
+            {
+                Ok(()) => {} // success
+                Err(e)
+                    if e.to_string()
+                        .contains("segment has already been uploaded or is being uploaded") =>
+                {
+                    debug!(?e, "duplicate segment - skipping");
+                }
+                Err(e) => return Err(e),
+            }
         }
 
         Ok(())
