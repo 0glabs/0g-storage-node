@@ -78,10 +78,10 @@ pub async fn run_server(
     Ok(handles)
 }
 
-fn server_builder(ctx: Context) -> HttpServerBuilder<()> {
+fn server_builder(ctx: Context) -> HttpServerBuilder<middleware::Metrics> {
     HttpServerBuilder::default()
         .max_request_body_size(ctx.config.max_request_body_size)
-        // .set_middleware(middleware::Metrics::default())
+        .set_middleware(middleware::Metrics::default())
 }
 
 /// Run a single RPC server for all namespace RPCs.
