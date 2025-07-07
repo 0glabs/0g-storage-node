@@ -7,3 +7,5 @@ tests/tmp/**
 .vscode/*.json
 /0g-storage-contracts-dev
 /run/.env
+
+**.bin

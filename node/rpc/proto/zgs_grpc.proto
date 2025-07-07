@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package zgs_grpc;
+
+option go_package = "github.com/0glabs/0g-storage-client/node/proto;zgs_grpc";
+
+message Empty {}
+
+/// 32-byte hash root
+message DataRoot {
+  bytes value = 1;
+}
+
+/// A proof over a file-segment Merkle tree
+message FileProof {
+  /// sequence of 32-byte hashes
+  repeated bytes lemma = 1;
+  /// bit-paths (left=false, right=true) alongside the lemmas
+  repeated bool path = 2;
+}
+
+/// A file segment plus its Merkle proof
+message SegmentWithProof {
+  DataRoot root       = 1; // file Merkle root
+  bytes data          = 2; // raw segment bytes
+  uint64 index        = 3; // segment index
+  FileProof proof     = 4; // Merkle proof of this leaf
+  uint64 file_size    = 5; // total file length
+}
+
+message UploadSegmentsByTxSeqRequest {
+  repeated SegmentWithProof segments = 1;
+  uint64 tx_seq                      = 2;
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingReply {
+  string message = 1;
+}
+
+// A trivial ping service
+service ZgsGrpcService {
+  rpc Ping (PingRequest) returns (PingReply);
+  rpc UploadSegmentsByTxSeq(UploadSegmentsByTxSeqRequest) returns (Empty);
+}

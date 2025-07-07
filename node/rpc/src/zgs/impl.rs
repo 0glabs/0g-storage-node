@@ -1,12 +1,10 @@
 use super::api::RpcServer;
-use crate::error;
 use crate::types::{FileInfo, Segment, SegmentWithProof, Status};
 use crate::Context;
-use chunk_pool::{FileID, SegmentInfo};
+use crate::{error, rpc_helper, SegmentIndexArray};
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::RpcResult;
 use shared_types::{DataRoot, FlowProof, Transaction, TxSeqOrRoot, CHUNK_SIZE};
-use std::fmt::{Debug, Formatter, Result};
 use storage::config::ShardConfig;
 use storage::log_store::tx_store::TxStatus;
 use storage::{try_option, H256};
@@ -39,7 +37,7 @@ impl RpcServer for RpcServerImpl {
 
     async fn upload_segment(&self, segment: SegmentWithProof) -> RpcResult<()> {
         info!(root = %segment.root, index = %segment.index, "zgs_uploadSegment");
-        self.put_segment(segment).await
+        rpc_helper::put_segment(&self.ctx, segment).await
     }
 
     async fn upload_segment_by_tx_seq(
@@ -49,7 +47,7 @@ impl RpcServer for RpcServerImpl {
     ) -> RpcResult<()> {
         info!(tx_seq = %tx_seq, index = %segment.index, "zgs_uploadSegmentByTxSeq");
         let maybe_tx = self.ctx.log_store.get_tx_by_seq_number(tx_seq).await?;
-        self.put_segment_with_maybe_tx(segment, maybe_tx).await
+        rpc_helper::put_segment_with_maybe_tx(&self.ctx, segment, maybe_tx).await
     }
 
     async fn upload_segments(&self, segments: Vec<SegmentWithProof>) -> RpcResult<()> {
@@ -61,7 +59,7 @@ impl RpcServer for RpcServerImpl {
         info!(%root, ?indices, "zgs_uploadSegments");
 
         for segment in segments.into_iter() {
-            self.put_segment(segment).await?;
+            rpc_helper::put_segment(&self.ctx, segment).await?;
         }
 
         Ok(())
@@ -77,9 +75,7 @@ impl RpcServer for RpcServerImpl {
 
         let maybe_tx = self.ctx.log_store.get_tx_by_seq_number(tx_seq).await?;
         for segment in segments.into_iter() {
-            match self
-                .put_segment_with_maybe_tx(segment, maybe_tx.clone())
-                .await
+            match rpc_helper::put_segment_with_maybe_tx(&self.ctx, segment, maybe_tx.clone()).await
             {
                 Ok(()) => {} // success
                 Err(e)
@@ -235,44 +231,44 @@ impl RpcServer for RpcServerImpl {
 }
 
 impl RpcServerImpl {
-    async fn check_need_cache(
-        &self,
-        maybe_tx: &Option<Transaction>,
-        file_size: usize,
-    ) -> RpcResult<bool> {
-        if let Some(tx) = maybe_tx {
-            if tx.size != file_size as u64 {
-                return Err(error::invalid_params(
-                    "file_size",
-                    "segment file size not matched with tx file size",
-                ));
-            }
+    // async fn check_need_cache(
+    //     &self,
+    //     maybe_tx: &Option<Transaction>,
+    //     file_size: usize,
+    // ) -> RpcResult<bool> {
+    //     if let Some(tx) = maybe_tx {
+    //         if tx.size != file_size as u64 {
+    //             return Err(error::invalid_params(
+    //                 "file_size",
+    //                 "segment file size not matched with tx file size",
+    //             ));
+    //         }
 
-            // Transaction already finalized for the specified file data root.
-            if self.ctx.log_store.check_tx_completed(tx.seq).await? {
-                return Err(error::invalid_params(
-                    "root",
-                    "already uploaded and finalized",
-                ));
-            }
+    //         // Transaction already finalized for the specified file data root.
+    //         if self.ctx.log_store.check_tx_completed(tx.seq).await? {
+    //             return Err(error::invalid_params(
+    //                 "root",
+    //                 "already uploaded and finalized",
+    //             ));
+    //         }
 
-            if self.ctx.log_store.check_tx_pruned(tx.seq).await? {
-                return Err(error::invalid_params("root", "already pruned"));
-            }
+    //         if self.ctx.log_store.check_tx_pruned(tx.seq).await? {
+    //             return Err(error::invalid_params("root", "already pruned"));
+    //         }
 
-            Ok(false)
-        } else {
-            //Check whether file is small enough to cache in the system
-            if file_size > self.ctx.config.max_cache_file_size {
-                return Err(error::invalid_params(
-                    "file_size",
-                    "caching of large file when tx is unavailable is not supported",
-                ));
-            }
+    //         Ok(false)
+    //     } else {
+    //         //Check whether file is small enough to cache in the system
+    //         if file_size > self.ctx.config.max_cache_file_size {
+    //             return Err(error::invalid_params(
+    //                 "file_size",
+    //                 "caching of large file when tx is unavailable is not supported",
+    //             ));
+    //         }
 
-            Ok(true)
-        }
-    }
+    //         Ok(true)
+    //     }
+    // }
 
     async fn get_file_info_by_tx(&self, tx: Transaction) -> RpcResult<FileInfo> {
         let (finalized, pruned) = match self.ctx.log_store.get_store().get_tx_status(tx.seq)? {
@@ -312,69 +308,69 @@ impl RpcServerImpl {
         })
     }
 
-    async fn put_segment(&self, segment: SegmentWithProof) -> RpcResult<()> {
-        debug!(root = %segment.root, index = %segment.index, "putSegment");
+    // async fn put_segment(&self, segment: SegmentWithProof) -> RpcResult<()> {
+    //     debug!(root = %segment.root, index = %segment.index, "putSegment");
 
-        let maybe_tx = self
-            .ctx
-            .log_store
-            .get_tx_by_data_root(&segment.root, false)
-            .await?;
+    //     let maybe_tx = self
+    //         .ctx
+    //         .log_store
+    //         .get_tx_by_data_root(&segment.root, false)
+    //         .await?;
 
-        self.put_segment_with_maybe_tx(segment, maybe_tx).await
-    }
+    //     self.put_segment_with_maybe_tx(segment, maybe_tx).await
+    // }
 
-    async fn put_segment_with_maybe_tx(
-        &self,
-        segment: SegmentWithProof,
-        maybe_tx: Option<Transaction>,
-    ) -> RpcResult<()> {
-        self.ctx.chunk_pool.validate_segment_size(&segment.data)?;
+    // async fn put_segment_with_maybe_tx(
+    //     &self,
+    //     segment: SegmentWithProof,
+    //     maybe_tx: Option<Transaction>,
+    // ) -> RpcResult<()> {
+    //     self.ctx.chunk_pool.validate_segment_size(&segment.data)?;
 
-        if let Some(tx) = &maybe_tx {
-            if tx.data_merkle_root != segment.root {
-                return Err(error::internal_error("data root and tx seq not match"));
-            }
-        }
+    //     if let Some(tx) = &maybe_tx {
+    //         if tx.data_merkle_root != segment.root {
+    //             return Err(error::internal_error("data root and tx seq not match"));
+    //         }
+    //     }
 
-        let mut need_cache = false;
-        if self
-            .ctx
-            .chunk_pool
-            .check_already_has_cache(&segment.root)
-            .await
-        {
-            need_cache = true;
-        }
+    //     let mut need_cache = false;
+    //     if self
+    //         .ctx
+    //         .chunk_pool
+    //         .check_already_has_cache(&segment.root)
+    //         .await
+    //     {
+    //         need_cache = true;
+    //     }
 
-        if !need_cache {
-            need_cache = self.check_need_cache(&maybe_tx, segment.file_size).await?;
-        }
+    //     if !need_cache {
+    //         need_cache = self.check_need_cache(&maybe_tx, segment.file_size).await?;
+    //     }
 
-        segment.validate(self.ctx.config.chunks_per_segment)?;
+    //     segment.validate(self.ctx.config.chunks_per_segment)?;
 
-        let seg_info = SegmentInfo {
-            root: segment.root,
-            seg_data: segment.data,
-            seg_proof: segment.proof,
-            seg_index: segment.index,
-            chunks_per_segment: self.ctx.config.chunks_per_segment,
-        };
+    //     let seg_info = SegmentInfo {
+    //         root: segment.root,
+    //         seg_data: segment.data,
+    //         seg_proof: segment.proof,
+    //         seg_index: segment.index,
+    //         chunks_per_segment: self.ctx.config.chunks_per_segment,
+    //     };
 
-        if need_cache {
-            self.ctx.chunk_pool.cache_chunks(seg_info).await?;
-        } else {
-            let file_id = FileID {
-                root: seg_info.root,
-                tx_id: maybe_tx.unwrap().id(),
-            };
-            self.ctx
-                .chunk_pool
-                .write_chunks(seg_info, file_id, segment.file_size)
-                .await?;
-        }
-        Ok(())
-    }
+    //     if need_cache {
+    //         self.ctx.chunk_pool.cache_chunks(seg_info).await?;
+    //     } else {
+    //         let file_id = FileID {
+    //             root: seg_info.root,
+    //             tx_id: maybe_tx.unwrap().id(),
+    //         };
+    //         self.ctx
+    //             .chunk_pool
+    //             .write_chunks(seg_info, file_id, segment.file_size)
+    //             .await?;
+    //     }
+    //     Ok(())
+    // }
 
     async fn get_segment_by_tx_seq(
         &self,
@@ -445,63 +441,5 @@ impl RpcServerImpl {
             proof,
             file_size: tx.size as usize,
         }))
-    }
-}
-
-enum SegmentIndex {
-    Single(usize),
-    Range(usize, usize), // [start, end]
-}
-
-impl Debug for SegmentIndex {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        match self {
-            Self::Single(val) => write!(f, "{}", val),
-            Self::Range(start, end) => write!(f, "[{},{}]", start, end),
-        }
-    }
-}
-
-struct SegmentIndexArray {
-    items: Vec<SegmentIndex>,
-}
-
-impl Debug for SegmentIndexArray {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        match self.items.first() {
-            None => write!(f, "NULL"),
-            Some(first) if self.items.len() == 1 => write!(f, "{:?}", first),
-            _ => write!(f, "{:?}", self.items),
-        }
-    }
-}
-
-impl SegmentIndexArray {
-    fn new(segments: &[SegmentWithProof]) -> Self {
-        let mut items = Vec::new();
-
-        let mut current = match segments.first() {
-            None => return SegmentIndexArray { items },
-            Some(seg) => SegmentIndex::Single(seg.index),
-        };
-
-        for index in segments.iter().skip(1).map(|seg| seg.index) {
-            match current {
-                SegmentIndex::Single(val) if val + 1 == index => {
-                    current = SegmentIndex::Range(val, index)
-                }
-                SegmentIndex::Range(start, end) if end + 1 == index => {
-                    current = SegmentIndex::Range(start, index)
-                }
-                _ => {
-                    items.push(current);
-                    current = SegmentIndex::Single(index);
-                }
-            }
-        }
-
-        items.push(current);
-
-        SegmentIndexArray { items }
     }
 }

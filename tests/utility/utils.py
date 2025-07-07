@@ -23,30 +23,33 @@ def p2p_port(n):
 def rpc_port(n):
     return PortMin.n + MAX_NODES + n
 
+def grpc_port(n):
+    return PortMin.n + 2 * MAX_NODES + n
+
 
 def blockchain_p2p_port(n):
     assert n <= MAX_BLOCKCHAIN_NODES
-    return PortMin.n + MAX_NODES + MAX_BLOCKCHAIN_NODES + n
+    return PortMin.n + 3 * MAX_NODES + n
 
 
 def blockchain_rpc_port(n):
-    return PortMin.n + MAX_NODES + 2 * MAX_BLOCKCHAIN_NODES + n
+    return PortMin.n + 3 * MAX_NODES + MAX_BLOCKCHAIN_NODES + n
 
 
 def blockchain_rpc_port_core(n):
-    return PortMin.n + MAX_NODES + 3 * MAX_BLOCKCHAIN_NODES + n
+    return PortMin.n + 3 * MAX_NODES + 2 * MAX_BLOCKCHAIN_NODES + n
 
 
 def blockchain_ws_port(n):
-    return PortMin.n + MAX_NODES + 4 * MAX_BLOCKCHAIN_NODES + n
+    return PortMin.n + 3 * MAX_NODES + 3 * MAX_BLOCKCHAIN_NODES + n
 
 
 def blockchain_rpc_port_tendermint(n):
-    return PortMin.n + MAX_NODES + 5 * MAX_BLOCKCHAIN_NODES + n
+    return PortMin.n + 3 * MAX_NODES + 4 * MAX_BLOCKCHAIN_NODES + n
 
 
 def pprof_port(n):
-    return PortMin.n + MAX_NODES + 6 * MAX_BLOCKCHAIN_NODES + n
+    return PortMin.n + 3 * MAX_NODES + 5 * MAX_BLOCKCHAIN_NODES + n
 
 
 def wait_until(predicate, *, attempts=float("inf"), timeout=float("inf"), lock=None):

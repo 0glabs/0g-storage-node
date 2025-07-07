@@ -8,10 +8,15 @@ mod config;
 mod error;
 mod middleware;
 mod miner;
+mod rpc_helper;
 pub mod types;
 mod zgs;
+mod zgs_grpc;
 
 use crate::miner::RpcServer as MinerRpcServer;
+use crate::types::SegmentWithProof;
+use crate::zgs_grpc::r#impl::ZgsGrpcServiceImpl;
+use crate::zgs_grpc_proto::zgs_grpc_service_server::ZgsGrpcServiceServer;
 use admin::RpcServer as AdminRpcServer;
 use chunk_pool::MemoryChunkPool;
 use file_location_cache::FileLocationCache;
@@ -20,11 +25,14 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
 use network::{NetworkGlobals, NetworkMessage, NetworkSender};
 use std::error::Error;
+use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::sync::Arc;
 use storage_async::Store;
 use sync::{SyncRequest, SyncResponse, SyncSender};
 use task_executor::ShutdownReason;
 use tokio::sync::broadcast;
+use tonic::transport::Server;
+use tonic_reflection::server::Builder as ReflectionBuilder;
 use zgs::RpcServer as ZgsRpcServer;
 use zgs_miner::MinerMessage;
 
@@ -32,6 +40,12 @@ pub use admin::RpcClient as ZgsAdminRpcClient;
 pub use config::Config as RPCConfig;
 pub use miner::RpcClient as ZgsMinerRpcClient;
 pub use zgs::RpcClient as ZgsRPCClient;
+
+pub mod zgs_grpc_proto {
+    tonic::include_proto!("zgs_grpc");
+}
+
+const DESCRIPTOR_SET: &[u8] = include_bytes!("../proto/zgs_grpc_descriptor.bin");
 
 /// A wrapper around all the items required to spawn the HTTP server.
 ///
@@ -73,7 +87,7 @@ pub async fn run_server(
         (run_server_all(ctx).await?, None)
     };
 
-    info!("Server started");
+    info!("Rpc Server started");
 
     Ok(handles)
 }
@@ -132,4 +146,77 @@ async fn run_server_public_private(
         .start(admin)?;
 
     Ok((handle_public, Some(handle_private)))
+}
+
+pub async fn run_grpc_server(ctx: Context) -> Result<(), Box<dyn Error>> {
+    let grpc_addr = ctx.config.listen_address_grpc;
+    let reflection = ReflectionBuilder::configure()
+        .register_encoded_file_descriptor_set(DESCRIPTOR_SET)
+        .build()?;
+
+    let server = ZgsGrpcServiceServer::new(ZgsGrpcServiceImpl { ctx });
+    Server::builder()
+        .add_service(server)
+        .add_service(reflection)
+        .serve(grpc_addr)
+        .await?;
+    Ok(())
+}
+
+enum SegmentIndex {
+    Single(usize),
+    Range(usize, usize), // [start, end]
+}
+
+impl Debug for SegmentIndex {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::Single(val) => write!(f, "{}", val),
+            Self::Range(start, end) => write!(f, "[{},{}]", start, end),
+        }
+    }
+}
+
+struct SegmentIndexArray {
+    items: Vec<SegmentIndex>,
+}
+
+impl Debug for SegmentIndexArray {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self.items.first() {
+            None => write!(f, "NULL"),
+            Some(first) if self.items.len() == 1 => write!(f, "{:?}", first),
+            _ => write!(f, "{:?}", self.items),
+        }
+    }
+}
+
+impl SegmentIndexArray {
+    fn new(segments: &[SegmentWithProof]) -> Self {
+        let mut items = Vec::new();
+
+        let mut current = match segments.first() {
+            None => return SegmentIndexArray { items },
+            Some(seg) => SegmentIndex::Single(seg.index),
+        };
+
+        for index in segments.iter().skip(1).map(|seg| seg.index) {
+            match current {
+                SegmentIndex::Single(val) if val + 1 == index => {
+                    current = SegmentIndex::Range(val, index)
+                }
+                SegmentIndex::Range(start, end) if end + 1 == index => {
+                    current = SegmentIndex::Range(start, index)
+                }
+                _ => {
+                    items.push(current);
+                    current = SegmentIndex::Single(index);
+                }
+            }
+        }
+
+        items.push(current);
+
+        SegmentIndexArray { items }
+    }
 }

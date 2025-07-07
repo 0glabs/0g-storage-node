@@ -298,7 +298,7 @@ impl ClientBuilder {
             mine_service_sender: mine_send,
         };
 
-        let (rpc_handle, maybe_admin_rpc_handle) = rpc::run_server(ctx)
+        let (rpc_handle, maybe_admin_rpc_handle) = rpc::run_server(ctx.clone())
             .await
             .map_err(|e| format!("Unable to start HTTP RPC server: {:?}", e))?;
 
@@ -306,6 +306,15 @@ impl ClientBuilder {
         if let Some(admin_rpc_handle) = maybe_admin_rpc_handle {
             executor.spawn(admin_rpc_handle, "rpc_admin");
         }
+
+        executor.spawn(
+            async move {
+                rpc::run_grpc_server(ctx.clone())
+                    .await
+                    .expect("Failed to start gRPC server");
+            },
+            "grpc",
+        );
 
         Ok(self)
     }

@@ -1,5 +1,6 @@
-use crate::error;
+use crate::{error, zgs_grpc_proto};
 use append_merkle::ZERO_HASHES;
+use ethereum_types::H256 as EthH256;
 use jsonrpsee::core::RpcResult;
 use merkle_light::hash::Algorithm;
 use merkle_light::merkle::{log2_pow2, next_pow2, MerkleTree};
@@ -11,12 +12,14 @@ use shared_types::{
     Transaction, CHUNK_SIZE,
 };
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::hash::Hasher;
 use std::net::IpAddr;
 use std::time::Instant;
 use storage::config::ShardConfig;
 use storage::log_store::log_manager::bytes_to_entries;
 use storage::H256;
+use tonic::Status as GrpcStatus;
 
 const ZERO_HASH: [u8; 32] = [
     0xd3, 0x97, 0xb3, 0xb0, 0x43, 0xd8, 0x7f, 0xcd, 0x6f, 0xad, 0x12, 0x91, 0xff, 0xb, 0xfd, 0x16,
@@ -74,6 +77,77 @@ pub struct SegmentWithProof {
     pub proof: FileProof,
     /// File size
     pub file_size: usize,
+}
+
+/// Convert the proto DataRoot → your app’s DataRoot
+impl TryFrom<zgs_grpc_proto::DataRoot> for DataRoot {
+    type Error = GrpcStatus;
+
+    fn try_from(value: zgs_grpc_proto::DataRoot) -> Result<Self, GrpcStatus> {
+        let bytes = value.value;
+        if bytes.len() != 32 {
+            return Err(GrpcStatus::invalid_argument(format!(
+                "Invalid hash length: got {}, want 32",
+                bytes.len()
+            )));
+        }
+        // assume AppDataRoot is a newtype around H256:
+        let mut arr = [0u8; 32];
+        arr.copy_from_slice(&bytes);
+        Ok(EthH256(arr))
+    }
+}
+
+/// Convert proto FileProof → your app’s FileProof
+impl TryFrom<zgs_grpc_proto::FileProof> for FileProof {
+    type Error = GrpcStatus;
+
+    fn try_from(value: zgs_grpc_proto::FileProof) -> Result<Self, GrpcStatus> {
+        // turn each `bytes` into an H256
+        let mut lemma = Vec::with_capacity(value.lemma.len());
+        for bin in value.lemma {
+            if bin.len() != 32 {
+                return Err(GrpcStatus::invalid_argument(format!(
+                    "Invalid hash length: got {}, want 32",
+                    bin.len()
+                )));
+            }
+            let mut arr = [0u8; 32];
+            arr.copy_from_slice(&bin);
+            lemma.push(H256(arr));
+        }
+
+        Ok(FileProof {
+            lemma,
+            path: value.path,
+        })
+    }
+}
+
+/// Convert the full SegmentWithProof
+impl TryFrom<zgs_grpc_proto::SegmentWithProof> for SegmentWithProof {
+    type Error = GrpcStatus;
+
+    fn try_from(grpc_segment: zgs_grpc_proto::SegmentWithProof) -> Result<Self, GrpcStatus> {
+        let root = grpc_segment.root.unwrap().try_into()?;
+        let data = grpc_segment.data;
+        // index is u64 in proto, usize in app
+        let index = grpc_segment.index.try_into().map_err(|_| {
+            GrpcStatus::invalid_argument(format!("Invalid segment index: {}", grpc_segment.index))
+        })?;
+        let proof = grpc_segment.proof.unwrap().try_into()?;
+        let file_size = grpc_segment.file_size.try_into().map_err(|_| {
+            GrpcStatus::invalid_argument(format!("Invalid file size: {}", grpc_segment.file_size))
+        })?;
+
+        Ok(SegmentWithProof {
+            root,
+            data,
+            index,
+            proof,
+            file_size,
+        })
+    }
 }
 
 impl SegmentWithProof {
