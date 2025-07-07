@@ -316,9 +316,8 @@ impl LogStoreWrite for LogManager {
                 .tx_store
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
             // Check if there are other same-root transaction not finalized.
-            if same_root_seq_list.first() == Some(&tx_seq) {
-                self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
-            }
+            self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
+            
             self.tx_store.finalize_tx(tx_seq)?;
             Ok(())
         } else {
@@ -353,9 +352,8 @@ impl LogStoreWrite for LogManager {
                 .tx_store
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
             // Check if there are other same-root transaction not finalized.
-            if same_root_seq_list.first() == Some(&tx_seq) {
-                self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
-            }
+            self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
+            
             metrics::FINALIZE_TX_WITH_HASH.update_since(start_time);
             Ok(true)
         } else {
