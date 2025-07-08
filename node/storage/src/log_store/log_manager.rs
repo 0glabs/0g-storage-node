@@ -315,7 +315,18 @@ impl LogStoreWrite for LogManager {
                 .tx_store
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
             // Check if there are other same-root transaction not finalized.
-            self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
+            if same_root_seq_list.first() == Some(&tx_seq) {
+                // If this is the first tx with this data root, copy and finalize all same-root txs.
+                self.copy_tx_and_finalize(tx_seq, same_root_seq_list[1..].to_vec())?;
+            } else {
+                // If this is not the first tx with this data root, copy and finalize the first one.
+                let maybe_first_seq = same_root_seq_list.first().cloned();
+                if let Some(first_seq) = maybe_first_seq {
+                    if !self.check_tx_completed(first_seq)? {
+                        self.copy_tx_and_finalize(tx_seq, vec![first_seq])?;
+                    }
+                }
+            }
 
             self.tx_store.finalize_tx(tx_seq)?;
             Ok(())
@@ -351,11 +362,18 @@ impl LogStoreWrite for LogManager {
                 .tx_store
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
             // Check if there are other same-root transaction not finalized.
-            // TODO: it will increase read load, so we can only copy in two situations
-            // 1. if the tx is the first tx with this data root, copy to other tx_seqs
-            // 2. if it's in the middle of a tx sequence, copy only to the first tx_seq
-            // although, some tx_seqs may not be finalized, it won't affect the data integrity.
-            self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
+
+            if same_root_seq_list.first() == Some(&tx_seq) {
+                self.copy_tx_and_finalize(tx_seq, same_root_seq_list[1..].to_vec())?;
+            } else {
+                // If this is not the first tx with this data root, copy and finalize the first one.
+                let maybe_first_seq = same_root_seq_list.first().cloned();
+                if let Some(first_seq) = maybe_first_seq {
+                    if !self.check_tx_completed(first_seq)? {
+                        self.copy_tx_and_finalize(tx_seq, vec![first_seq])?;
+                    }
+                }
+            }
 
             metrics::FINALIZE_TX_WITH_HASH.update_since(start_time);
             Ok(true)
