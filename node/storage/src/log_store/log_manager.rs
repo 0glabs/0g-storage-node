@@ -319,11 +319,11 @@ impl LogStoreWrite for LogManager {
                 // If this is the first tx with this data root, copy and finalize all same-root txs.
                 self.copy_tx_and_finalize(tx_seq, same_root_seq_list[1..].to_vec())?;
             } else {
-                // If this is not the first tx with this data root, copy and finalize the first one.
+                // If this is not the first tx with this data root, and the first one is not finalized.
                 let maybe_first_seq = same_root_seq_list.first().cloned();
                 if let Some(first_seq) = maybe_first_seq {
                     if !self.check_tx_completed(first_seq)? {
-                        self.copy_tx_and_finalize(tx_seq, vec![first_seq])?;
+                        self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
                     }
                 }
             }
@@ -370,7 +370,7 @@ impl LogStoreWrite for LogManager {
                 let maybe_first_seq = same_root_seq_list.first().cloned();
                 if let Some(first_seq) = maybe_first_seq {
                     if !self.check_tx_completed(first_seq)? {
-                        self.copy_tx_and_finalize(tx_seq, vec![first_seq])?;
+                        self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
                     }
                 }
             }
