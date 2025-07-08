@@ -351,6 +351,10 @@ impl LogStoreWrite for LogManager {
                 .tx_store
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
             // Check if there are other same-root transaction not finalized.
+            // TODO: it will increase read load, so we can only copy in two situations
+            // 1. if the tx is the first tx with this data root, copy to other tx_seqs
+            // 2. if it's in the middle of a tx sequence, copy only to the first tx_seq
+            // although, some tx_seqs may not be finalized, it won't affect the data integrity.
             self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
 
             metrics::FINALIZE_TX_WITH_HASH.update_since(start_time);
