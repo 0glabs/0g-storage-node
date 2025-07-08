@@ -11,7 +11,7 @@ class PortMin:
     n = 11000
 
 
-MAX_NODES = 100
+MAX_NODES = 50
 MAX_BLOCKCHAIN_NODES = 50
 
 

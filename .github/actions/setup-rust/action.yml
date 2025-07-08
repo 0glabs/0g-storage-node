@@ -8,11 +8,11 @@ runs:
         sudo apt-get update
         sudo apt-get install -y protobuf-compiler
 
-    - name: Install toolchain 1.80.0
+    - name: Install toolchain 1.78.0
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: 1.80.0
+        toolchain: 1.78.0
         components: rustfmt, clippy
 
     - uses: Swatinem/rust-cache@v2
