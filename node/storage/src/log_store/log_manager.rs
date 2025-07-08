@@ -273,7 +273,7 @@ impl LogStoreWrite for LogManager {
                 bail!("unexpected tx!");
             }
         }
-        let same_data_tx_seqs = self.tx_store.put_tx(tx.clone())?;
+        let maybe_same_data_tx_seq = self.tx_store.put_tx(tx.clone())?.first().cloned();
         // TODO(zz): Should we validate received tx?
         self.append_subtree_list(
             tx.seq,
@@ -289,11 +289,10 @@ impl LogStoreWrite for LogManager {
         // Drop the lock because `copy_tx_data` will lock again.
         drop(merkle);
 
-        for old_tx_seq in same_data_tx_seqs {
+        if let Some(old_tx_seq) = maybe_same_data_tx_seq {
             if self.check_tx_completed(old_tx_seq)? {
                 // copy and finalize once, then stop
                 self.copy_tx_and_finalize(old_tx_seq, vec![tx.seq])?;
-                break;
             }
         }
         metrics::PUT_TX.update_since(start_time);
@@ -317,7 +316,7 @@ impl LogStoreWrite for LogManager {
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
             // Check if there are other same-root transaction not finalized.
             self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
-            
+
             self.tx_store.finalize_tx(tx_seq)?;
             Ok(())
         } else {
@@ -353,7 +352,7 @@ impl LogStoreWrite for LogManager {
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
             // Check if there are other same-root transaction not finalized.
             self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
-            
+
             metrics::FINALIZE_TX_WITH_HASH.update_since(start_time);
             Ok(true)
         } else {
