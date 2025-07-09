@@ -31,7 +31,7 @@ jobs:
         git checkout ${{ steps.get-rev.outputs.rev }}
 
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '18.17'
         cache: 'yarn'
