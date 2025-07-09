@@ -291,6 +291,7 @@ impl LogStoreWrite for LogManager {
 
         if let Some(old_tx_seq) = maybe_same_data_tx_seq {
             if self.check_tx_completed(old_tx_seq)? {
+                // copy and finalize once, then stop
                 self.copy_tx_and_finalize(old_tx_seq, vec![tx.seq])?;
             }
         }
@@ -315,8 +316,18 @@ impl LogStoreWrite for LogManager {
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
             // Check if there are other same-root transaction not finalized.
             if same_root_seq_list.first() == Some(&tx_seq) {
+                // If this is the first tx with this data root, copy and finalize all same-root txs.
                 self.copy_tx_and_finalize(tx_seq, same_root_seq_list[1..].to_vec())?;
+            } else {
+                // If this is not the first tx with this data root, and the first one is not finalized.
+                let maybe_first_seq = same_root_seq_list.first().cloned();
+                if let Some(first_seq) = maybe_first_seq {
+                    if !self.check_tx_completed(first_seq)? {
+                        self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
+                    }
+                }
             }
+
             self.tx_store.finalize_tx(tx_seq)?;
             Ok(())
         } else {
@@ -346,14 +357,25 @@ impl LogStoreWrite for LogManager {
         // TODO: Should we double check the tx merkle root?
         let tx_end_index = tx.start_entry_index + bytes_to_entries(tx.size);
         if self.check_data_completed(tx.start_entry_index, tx_end_index)? {
-            self.tx_store.finalize_tx(tx_seq)?;
             let same_root_seq_list = self
                 .tx_store
                 .get_tx_seq_list_by_data_root(&tx.data_merkle_root)?;
             // Check if there are other same-root transaction not finalized.
+
             if same_root_seq_list.first() == Some(&tx_seq) {
                 self.copy_tx_and_finalize(tx_seq, same_root_seq_list[1..].to_vec())?;
+            } else {
+                // If this is not the first tx with this data root, copy and finalize the first one.
+                let maybe_first_seq = same_root_seq_list.first().cloned();
+                if let Some(first_seq) = maybe_first_seq {
+                    if !self.check_tx_completed(first_seq)? {
+                        self.copy_tx_and_finalize(tx_seq, same_root_seq_list)?;
+                    }
+                }
             }
+
+            self.tx_store.finalize_tx(tx_seq)?;
+
             metrics::FINALIZE_TX_WITH_HASH.update_since(start_time);
             Ok(true)
         } else {
@@ -1173,8 +1195,8 @@ impl LogManager {
         let mut to_tx_offset_list = Vec::with_capacity(to_tx_seq_list.len());
 
         for seq in to_tx_seq_list {
-            // No need to copy data for completed tx.
-            if self.check_tx_completed(seq)? {
+            // No need to copy data for completed tx and itself
+            if self.check_tx_completed(seq)? || from_tx_seq == seq {
                 continue;
             }
             let tx = self
