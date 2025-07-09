@@ -16,7 +16,7 @@ Across the two lanes, 0G Storage supports the following features:
 * **General Purpose Design**: Supports atomic transactions, mutable key-value stores, and archive log systems, enabling a wide range of applications with various data types.
 * **Validated Incentivization**: Utilizes the PoRA (Proof of Random Access) mining algorithm to mitigate the data outsourcing issue and to ensure rewards are distributed to nodes who contribute to the storage network.
 
-For in-depth technical details about 0G Storage, please read our [Intro to 0G Storage](https://docs.0g.ai/0g-storage).
+For in-depth technical details about 0G Storage, please read our [Intro to 0G Storage](https://0g.ai/blog/0g-storage).
 
 ## Documentation
 
