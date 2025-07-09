@@ -45,10 +45,13 @@ jobs:
         RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Copt-level=0 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests'
 
     - id: coverage
-      uses: actions-rs/grcov@v0.1
+      uses: SierraSoftworks/setup-grcov@v1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        version: 0.9.1
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ${{ steps.coverage.outputs.report }}
         # Disable to avoid CI failure as following:
