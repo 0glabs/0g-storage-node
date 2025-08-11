@@ -205,7 +205,7 @@ impl<E: HashElement> RangeProof<E> {
         // Avoid copying the first layer by working directly with the slice
         let mut children_layer = Vec::new();
         let mut current_layer = range_leaves;
-        
+
         for height in 0..(tree_depth - 1) {
             let mut parent_layer = Vec::new();
             let start_index = if !self.left_proof.path()[height] {
@@ -231,7 +231,7 @@ impl<E: HashElement> RangeProof<E> {
             children_layer = parent_layer;
             current_layer = &children_layer;
         }
-        
+
         // If no iterations occurred, the root should be computed from the original range_leaves
         if children_layer.is_empty() {
             ensure_eq!(range_leaves.len(), 1);
