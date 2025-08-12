@@ -12,14 +12,14 @@ jobs:
 
     steps:
     - name: Clone current repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Get the Git revision from the current repository
       id: get-rev
       run: echo "rev=$(cat ./storage-contracts-abis/0g-storage-contracts-rev)" >> $GITHUB_OUTPUT
 
     - name: Clone another repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: '0glabs/0g-storage-contracts'
         path: '0g-storage-contracts'
