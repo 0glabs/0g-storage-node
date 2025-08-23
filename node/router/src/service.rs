@@ -299,7 +299,7 @@ impl RouterService {
             }
             NetworkMessage::Publish { messages } => {
                 if self.libp2p.swarm.connected_peers().next().is_none() {
-                    // this is a boardcast message, when current node doesn't have any peers connected, try to connect any peer in config
+                    // this is a broadcast message, when current node doesn't have any peers connected, try to connect any peer in config
                     for multiaddr in &self.config.libp2p_nodes {
                         match Swarm::dial(&mut self.libp2p.swarm, multiaddr.clone()) {
                             Ok(()) => {

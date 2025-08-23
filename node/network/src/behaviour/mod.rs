@@ -1017,8 +1017,8 @@ impl std::convert::From<Request> for OutboundRequest {
 /// The type of RPC responses the Behaviour informs it has received, and allows for sending.
 ///
 // NOTE: This is an application-level wrapper over the lower network level responses that can be
-//       sent. The main difference is the absense of Pong and Metadata, which don't leave the
-//       Behaviour. For all protocol reponses managed by RPC see `RPCResponse` and
+//       sent. The main difference is the absence of Pong and Metadata, which don't leave the
+//       Behaviour. For all protocol responses managed by RPC see `RPCResponse` and
 //       `RPCCodedResponse`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Response {
