@@ -16,7 +16,7 @@ The [0G Storage repo](https://github.com/0glabs/0g-storage-node) is organized wi
 |   ├── : task_executor
 |   ├── : zgs_version
 |   ├── : append_merkle
-|   └── : unused port
+|   └── : unused_port
 ┌── : node
 |   ├── : chunk_pool
 |   ├── : file_location_cache
@@ -27,7 +27,7 @@ The [0G Storage repo](https://github.com/0glabs/0g-storage-node) is organized wi
 |   ├── : rpc
 |   ├── : shared_types
 |   ├── : storage
-|   ├── : storage async
+|   ├── : storage-async
 |   └── : sync
 ├── : tests
 ```
